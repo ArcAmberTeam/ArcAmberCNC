@@ -1,0 +1,383 @@
+# vim: sw=2
+
+name: Full compatibility CI
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read #  to fetch code (actions/checkout)
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  # Replace obsolete CI runs, but never interrupt a test-machine deployment.
+  cancel-in-progress: ${{ github.ref != 'refs/heads/staging测试环境' }}
+
+env:
+  DEBIAN_FRONTEND: noninteractive
+
+jobs:
+
+  rip-and-test:
+    runs-on: ubuntu-24.04
+    steps:
+    - name: Dump GitHub context
+      env:
+        GITHUB_CONTEXT: ${{ toJson(github) }}
+      run: |
+        echo Number of CPUs: $(nproc)
+        echo "$GITHUB_CONTEXT"
+    - name: Checkout repository
+      uses: actions/checkout@v6
+      with:
+        submodules: false
+        fetch-depth: 1
+    - name: Install dependencies
+      run: |
+        set -x
+        .github/scripts/install-deps.sh
+    - name: Check package versions with and without release tags
+      run: python3 .github/scripts/test-package-version.py
+    - name: Build RIP GCC
+      run: |
+        set -x
+        .github/scripts/build-rip.sh --with-realtime=uspace
+    - name: Verify no untracked or modified files after build
+      run: |
+        .github/scripts/verify-clean-repo.sh
+    - name: Test
+      run: |
+        set -x
+        scripts/rip-environment runtests -p
+    - name: Verify no untracked or modified files after test
+      run: |
+        .github/scripts/verify-clean-repo.sh
+
+  rip-rtai:
+    runs-on: ubuntu-24.04
+    steps:
+    - name: Dump GitHub context
+      env:
+        GITHUB_CONTEXT: ${{ toJson(github) }}
+      run: |
+        echo Number of CPUs: $(nproc)
+        echo "$GITHUB_CONTEXT"
+    - name: Checkout repository
+      uses: actions/checkout@v6
+      with:
+        submodules: false
+        fetch-depth: 1
+    - name: Install dependencies
+      run: |
+        set -x
+        .github/scripts/install-rtai.sh trixie
+        .github/scripts/install-deps.sh
+    - name: Build RIP RTAI
+      run: |
+        set -x
+        .github/scripts/build-rip.sh --with-realtime=/usr/realtime-*
+    - name: Verify no untracked or modified files after build
+      run: |
+        .github/scripts/verify-clean-repo.sh
+
+  rip-and-test-clang:
+    runs-on: ubuntu-24.04
+    steps:
+    - name: Dump GitHub context
+      env:
+        GITHUB_CONTEXT: ${{ toJson(github) }}
+      run: |
+        echo Number of CPUs: $(nproc)
+        echo "$GITHUB_CONTEXT"
+    - name: Checkout repository
+      uses: actions/checkout@v6
+      with:
+        submodules: false
+        fetch-depth: 1
+    - name: Install dependencies
+      run: |
+        set -x
+        .github/scripts/install-deps.sh
+    - name: Build RIP Clang
+      run: |
+        set -x
+        CC=clang CXX=clang++ .github/scripts/build-rip.sh --with-realtime=uspace
+    - name: Verify no untracked or modified files after build
+      run: |
+        .github/scripts/verify-clean-repo.sh
+    - name: Test
+      run: |
+        set -x
+        scripts/rip-environment runtests -p
+    - name: Verify no untracked or modified files after test
+      run: |
+        .github/scripts/verify-clean-repo.sh
+
+# Not supported on 2.9
+#  cppcheck:
+#    runs-on: ubuntu-24.04
+#    steps:
+#    - name: Checkout repository
+#      uses: actions/checkout@v6
+#      with:
+#        submodules: false
+#        fetch-depth: 1
+#    - name: Install dependencies
+#      run: |
+#        set -x
+#        sudo apt-get -q update
+#        sudo apt-get --yes install cppcheck shellcheck
+#    - name: Cppcheck
+#      continue-on-error: true
+#      run: |
+#        set -x
+#        scripts/cppcheck.sh
+#    - name: Shellcheck
+#      continue-on-error: true
+#      run: |
+#        scripts/shellcheck.sh
+
+  htmldocs:
+    runs-on: ubuntu-24.04
+    steps:
+    - name: Dump GitHub context
+      env:
+        GITHUB_CONTEXT: ${{ toJson(github) }}
+      run: |
+        echo Number of CPUs: $(nproc)
+        echo "$GITHUB_CONTEXT"
+    - name: Checkout repository
+      uses: actions/checkout@v6
+      with:
+        submodules: false
+        fetch-depth: 1
+    - name: Install dependencies
+      run: |
+        set -x
+        .github/scripts/install-deps.sh
+    - name: Build HTML docmentation
+      run: |
+        set -x
+        .github/scripts/build-doc.sh
+    - name: Verify no untracked or modified files after build
+      run: |
+        #*.po and documentation.pot are modifyed by build. Ignore them for now.
+        .github/scripts/verify-clean-repo.sh ':(exclude)docs/po/*.po' ':(exclude)docs/po/documentation.pot'
+    - name: Tar linuxcnc-doc
+      run: |
+        set -x
+        tar -czf linuxcnc-doc.tar.gz -C docs html
+    - name: Upload linuxcnc-doc artifact
+      uses: actions/upload-artifact@v7
+      with:
+        name: linuxcnc-doc
+        archive: false
+        path: linuxcnc-doc.tar.gz
+        if-no-files-found: error
+
+  package-arch:
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: ["ubuntu-24.04"]
+        image: ["debian:bullseye", "debian:bookworm", "debian:trixie", "debian:sid"]
+        include:
+          - allow_fail: false
+            image: debian:bullseye
+          - allow_fail: false
+            image: debian:bookworm
+          - allow_fail: false
+            image: debian:trixie
+          - allow_fail: true
+            image: debian:sid
+    container:
+      image: ${{ matrix.image }}
+      # IPC_OWNER is needed for shmget IPC_CREAT
+      # SYS_ADMIN is needed for shmctl IPC_SET
+      options: --cap-add=IPC_OWNER --cap-add=SYS_ADMIN
+    continue-on-error: ${{ matrix.allow_fail }}
+    steps:
+    - name: Dump GitHub context
+      env:
+        GITHUB_CONTEXT: ${{ toJson(github) }}
+      run: |
+        echo Allow failure: ${{ matrix.allow_fail }}
+        echo Number of CPUs: $(nproc)
+        echo "$GITHUB_CONTEXT"
+    - name: Install pre-dependencies
+      run: |
+        set -x
+        # Bullseye LTS ended on 2026-08-31. Its live security index now
+        # references removed packages; use a consistent signed snapshot.
+        if [ "${{ matrix.image }}" = debian:bullseye ]; then
+          printf '%s\n' \
+            'deb [check-valid-until=no] http://snapshot.debian.org/archive/debian/20260831T235959Z/ bullseye main' \
+            'deb [check-valid-until=no] http://snapshot.debian.org/archive/debian-security/20260831T235959Z/ bullseye-security main' \
+            > /etc/apt/sources.list
+          rm -f /etc/apt/sources.list.d/debian.sources
+        fi
+        apt-get -q -o Acquire::http::No-Cache=true -o Acquire::Retries=3 -o APT::Update::Error-Mode=any update
+        # Install stuff needed to check out the linuxcnc repo and turn it into a debian source package and run tests.
+        apt-get --yes --no-install-recommends install curl git lsb-release python3 devscripts sudo adduser xauth
+    - name: Checkout repository
+      uses: actions/checkout@v6
+      with:
+        submodules: false
+        # "fetch-depth: 0" fetches all of history, this is needed by
+        # our build system to determine the version from tags
+        fetch-depth: 0
+    - name: Git config
+      run: |
+        set -x
+        git config --global --add safe.directory ${PWD}
+    - name: Build architecture-specific Debian packages
+      env:
+        DEBEMAIL: emc-developers@lists.sourceforge.net
+        DEBFULLNAME: LinuxCNC Github CI Robot
+      run: |
+        set -x
+        .github/scripts/build-package-arch.sh
+    - name: Verify no untracked or modified files after build
+      run: |
+        .github/scripts/verify-clean-repo.sh ':(exclude)VERSION' ':(exclude)debian/changelog'
+    - name: Install debian packages
+      run: |
+        set -x
+        apt-get --yes --no-install-recommends install ../*.deb
+    - name: Test debian packages
+      run: |
+        set -x
+        adduser --disabled-password --gecos "" testrunner
+        passwd -d testrunner
+        adduser testrunner sudo
+        chmod 0777 $(find tests/ -type d) # make test dirs world-writable for the testrunner
+        su -c "./scripts/runtests -p ./tests" testrunner
+    - name: Verify no untracked or modified files after test
+      run: |
+        .github/scripts/verify-clean-repo.sh ':(exclude)VERSION' ':(exclude)debian/changelog'
+    - name: Gather build artifacts
+      run: |
+        set -x
+        ARCH=$(dpkg --print-architecture)
+        DIST=$(echo ${{ matrix.image }} | cut -d : -f 2)
+        OUTDIR="artifacts/${DIST}/${ARCH}"
+        mkdir -p "$OUTDIR"
+        cp -v $(find .. -maxdepth 1 -type f | LC_ALL=C sort) "$OUTDIR" || true
+        (cd "$OUTDIR" && sha256sum * > SHA256SUMS.txt)
+        echo "DIST=$DIST" >> "$GITHUB_ENV"
+        echo "ARCH=$ARCH" >> "$GITHUB_ENV"
+    - name: Compute artifact metadata
+      id: meta
+      run: |
+        echo "dist=$(echo ${{ matrix.image }} | cut -d : -f 2)" >> $GITHUB_OUTPUT
+        echo "arch=$(dpkg --print-architecture)" >> $GITHUB_OUTPUT
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v7
+      with:
+        name: linuxcnc-${{ steps.meta.outputs.dist }}-${{ steps.meta.outputs.arch }}
+        path: artifacts/${{ steps.meta.outputs.dist }}/${{ steps.meta.outputs.arch }}
+        if-no-files-found: error
+
+  package-indep:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        image: ["debian:bullseye", "debian:bookworm", "debian:trixie", "debian:sid"]
+        include:
+        - allow_fail: false
+          image: debian:bullseye
+        - allow_fail: false
+          image: debian:bookworm
+        - allow_fail: false
+          image: debian:trixie
+        - allow_fail: true
+          image: debian:sid
+    container:
+      image: ${{ matrix.image }}
+      # IPC_OWNER is needed for shmget IPC_CREAT
+      # SYS_ADMIN is needed for shmctl IPC_SET
+      options: --cap-add=IPC_OWNER --cap-add=SYS_ADMIN
+    continue-on-error: ${{ matrix.allow_fail }}
+    steps:
+    - name: Dump GitHub context
+      env:
+        GITHUB_CONTEXT: ${{ toJson(github) }}
+      run: |
+        echo Allow failure: ${{ matrix.allow_fail }}
+        echo Number of CPUs: $(nproc)
+        echo "$GITHUB_CONTEXT"
+    - name: Install pre-dependencies
+      run: |
+        set -x
+        # Bullseye LTS ended on 2026-08-31. Its live security index now
+        # references removed packages; use a consistent signed snapshot.
+        if [ "${{ matrix.image }}" = debian:bullseye ]; then
+          printf '%s\n' \
+            'deb [check-valid-until=no] http://snapshot.debian.org/archive/debian/20260831T235959Z/ bullseye main' \
+            'deb [check-valid-until=no] http://snapshot.debian.org/archive/debian-security/20260831T235959Z/ bullseye-security main' \
+            > /etc/apt/sources.list
+          rm -f /etc/apt/sources.list.d/debian.sources
+        fi
+        apt-get -q -o Acquire::http::No-Cache=true -o Acquire::Retries=3 -o APT::Update::Error-Mode=any update
+        # Install stuff needed to check out the linuxcnc repo and turn it into a debian source package.
+        apt-get --yes --no-install-recommends install curl git lsb-release python3 devscripts sudo
+    - name: Checkout repository
+      uses: actions/checkout@v6
+      with:
+        submodules: false
+        # "fetch-depth: 0" fetches all of history, this is needed by
+        # our build system to determine the version from tags
+        fetch-depth: 0
+    - name: Add linuxcnc.org deb archive
+      env:
+        DEBIAN_FRONTEND: noninteractive
+      run: |
+        set -x
+        if [ "${{matrix.image}}" = debian:bullseye ] ; then
+          #For "debian:bullseye", po4a from linuxcnc repo is needed for sucessfull build
+          DIST=$(echo ${{matrix.image}} | cut -d : -f 2)
+          .github/scripts/add-linuxcnc-repository.sh $DIST
+        fi
+    - name: Git config
+      run: |
+        set -x
+        git config --global --add safe.directory ${PWD}
+    - name: Build architecture-independent Debian packages
+      env:
+        DEBEMAIL: emc-developers@lists.sourceforge.net
+        DEBFULLNAME: LinuxCNC Github CI Robot
+      run: |
+        set -x
+        .github/scripts/build-package-indep.sh
+    - name: Verify no untracked or modified files after build
+      run: |
+        #*.po and documentation.pot are modifyed by build. Ignore them for now.
+        .github/scripts/verify-clean-repo.sh ':(exclude)VERSION' ':(exclude)debian/changelog' ':(exclude)docs/po/*.po' ':(exclude)docs/po/documentation.pot'
+    - name: Install debian packages
+      run: |
+        set -x
+        apt-get --yes --no-install-recommends install ../*.deb
+    - name: Gather build artifacts
+      run: |
+        set -x
+        ARCH=all
+        DIST=$(echo ${{ matrix.image }} | cut -d : -f 2)
+        OUTDIR="artifacts/${DIST}/${ARCH}"
+        mkdir -p "$OUTDIR"
+        cp -v $(find .. -maxdepth 1 -type f | LC_ALL=C sort) "$OUTDIR" || true
+        (cd "$OUTDIR" && sha256sum * > SHA256SUMS.txt)
+        echo "DIST=$DIST" >> "$GITHUB_ENV"
+        echo "ARCH=$ARCH" >> "$GITHUB_ENV"
+    - name: Compute artifact metadata
+      id: meta
+      run: |
+        echo "dist=$(echo ${{ matrix.image }} | cut -d : -f 2)" >> $GITHUB_OUTPUT
+        echo "arch=all" >> $GITHUB_OUTPUT
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v7
+      with:
+        name: linuxcnc-${{ steps.meta.outputs.dist }}-${{ steps.meta.outputs.arch }}
+        path: artifacts/${{ steps.meta.outputs.dist }}/${{ steps.meta.outputs.arch }}
+        if-no-files-found: error

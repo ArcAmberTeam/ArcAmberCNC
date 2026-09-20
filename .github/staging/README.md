@@ -4,13 +4,25 @@
 `main` is the stable branch. Open development PRs from `kihon` into
 `staging测试环境`; after acceptance, open a PR from `staging测试环境` into `main`.
 Pushes (including merged PRs) to `staging测试环境` run
-the existing x86 CI. Only a successful `CI Gate` permits deployment. PRs,
+the Debian 13 amd64 package build and test suite. Only a successful `CI Gate`
+permits deployment of the artifact from that same run. PRs,
 other branches, and releases never trigger this deployment job. Manual
 `Build CI` runs on `staging测试环境` also build, test, and deploy.
 Development branches are checked through PRs; pushes to `main` and
 `staging测试环境` are also checked. This avoids duplicate push/PR builds for
 `kihon`. Superseded CI runs are cancelled, while test-branch deployments remain
 serialized and are not interrupted by a newer commit.
+
+PR checks build the architecture-specific Debian 13 package, install it in an
+isolated CI container, and run the upstream tests as an unprivileged user.
+They do not connect to the staging VM. After a merge into `staging测试环境`,
+the same checks run against the merged commit before VM installation and
+XYZ simulation acceptance. The RT kernel is validated on the VM, not in the
+GitHub runner container.
+
+The slower GCC/Clang/RTAI, translated-documentation, and Debian 11/12/13/Sid
+matrix is retained in `Full compatibility CI`, triggered manually from the
+Actions page. It is not a PR gate and does not deploy or publish releases.
 
 ## Environment
 

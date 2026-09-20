@@ -18,7 +18,7 @@ capabilities=()
 if [[ $mode == test ]]; then capabilities=(--cap-add=IPC_OWNER --cap-add=SYS_ADMIN); fi
 docker run --rm --init --name "$container" --cpus=4 --memory=6g --memory-swap=6g \
   "${capabilities[@]}" \
-  --tmpfs /work:rw,size=3g --workdir /work \
+  --tmpfs /work:rw,exec,size=3g --workdir /work \
   --mount "type=bind,src=$root,dst=/source,readonly" \
   --mount "type=bind,src=$root/artifacts,dst=/output" \
   --mount type=volume,src=betterlinuxcnc-ccache,dst=/ccache \

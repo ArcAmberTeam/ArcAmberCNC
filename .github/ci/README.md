@@ -53,4 +53,6 @@ runner instance and sufficient CPU/RAM.
 This runner uses a loopback Mihomo HTTP proxy at `127.0.0.1:7897` through its
 systemd service environment to reach GitHub reliably. The subscription is
 stored privately on the CI VM, outside the repository. The proxy starts on
-boot, refreshes the subscription daily, and exposes no LAN or public listener.
+boot and exposes no LAN or public listener. It currently uses the imported
+node snapshot; automatic subscription refresh is deferred until a working
+replacement subscription URL is supplied.

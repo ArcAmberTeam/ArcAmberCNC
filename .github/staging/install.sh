@@ -6,6 +6,7 @@ release=$1
 base=/srv/betterlinuxcnc
 exec 9>/run/lock/betterlinuxcnc-deploy.lock
 flock -w 600 9
+# shellcheck disable=SC1091 # Provided by the target Debian system.
 [[ $(. /etc/os-release; printf '%s' "$VERSION_ID") == 13 ]]
 [[ $(dpkg --print-architecture) == amd64 ]]
 [[ $(cat /sys/kernel/realtime) == 1 ]]
@@ -39,6 +40,7 @@ smoke() {
   chown -R linuxcnc:linuxcnc "$scratch"
   # A result marker is mandatory: a launcher exit code alone is insufficient.
   local result=0
+  # shellcheck disable=SC2016 # The child shell expands its own positional argument.
   runuser -u linuxcnc -- bash -c \
     'cd "$1"; timeout --kill-after=10s 120s linuxcnc -r smoke.ini' bash "$scratch" \
     > "$location/smoke.log" 2>&1 || result=$?

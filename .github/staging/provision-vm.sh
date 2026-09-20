@@ -2,6 +2,7 @@
 # Run as root on a fresh Debian 13 staging VM after cloud-init and frpc upload.
 # /etc/frp/frpc.toml and its pinned server.crt must already be provisioned.
 set -euo pipefail
+# shellcheck disable=SC1091 # Provided by the target Debian system.
 [[ $EUID == 0 && $(. /etc/os-release; printf '%s' "$VERSION_ID") == 13 ]]
 [[ $(dpkg --print-architecture) == amd64 ]]
 export DEBIAN_FRONTEND=noninteractive
@@ -47,7 +48,8 @@ ProtectHome=true
 [Install]
 WantedBy=multi-user.target
 EOF
-install -d -m 700 -o linuxcnc -g linuxcnc /home/linuxcnc/.config/tigervnc
+install -d -m 700 -o linuxcnc -g linuxcnc \
+  /home/linuxcnc/.config /home/linuxcnc/.config/tigervnc
 install -d -m 700 /root/staging-credentials
 if [[ ! -f /home/linuxcnc/.config/tigervnc/passwd ]]; then
   umask 077

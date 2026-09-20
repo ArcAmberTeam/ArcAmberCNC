@@ -47,6 +47,7 @@ scp "${ssh_options[@]}" -P "$STAGING_PORT" "$work/bundle/"* \
 ssh "${ssh_options[@]}" -p "$STAGING_PORT" "$target" \
   "sudo /usr/local/sbin/betterlinuxcnc-deploy $release"
 if [[ -n ${GITHUB_STEP_SUMMARY:-} ]]; then
+  # shellcheck disable=SC2016 # Backticks format Markdown, not command substitution.
   printf 'Deployed and smoke-tested `%s` on Debian 13 PREEMPT_RT through FRP.\n' \
     "$GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
 fi

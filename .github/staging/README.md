@@ -13,10 +13,11 @@ Development branches are checked through PRs; pushes to `main` and
 `kihon`. Superseded CI runs are cancelled, while test-branch deployments remain
 serialized and are not interrupted by a newer commit.
 
-PR checks compile and package the architecture-specific Debian 13 build and
-check version generation. They do not install the resulting packages, run the
-runtime test suite, or connect to the staging VM. Pushes to `main` also only
-build. After a merge into `staging测试环境`, CI installs the newly built packages
+PR checks compile and package the architecture-specific Debian 13 build,
+check workflows/scripts and toolbar images, and run eight quick interpreter
+regressions against the extracted same-run artifact. They do not install the
+resulting packages, run the full runtime suite, or connect to the staging VM.
+Pushes to `main` use the same checks. After a merge into `staging测试环境`, CI installs the newly built packages
 in an isolated container and runs the upstream tests as an unprivileged user.
 Only after those pass does CD install the same-run artifact on the VM and
 perform XYZ simulation acceptance. The RT kernel is validated on the VM, not
@@ -24,8 +25,9 @@ in the GitHub runner container. Installing build dependencies in CI is still
 necessary for compilation.
 
 The Debian 13 build runs on the dedicated PVE CI VM with reusable dependency
-layers and compiler cache; see [CI operations](../ci/README.md). The required
-gate and deployment run on GitHub-hosted runners. The CI VM and the realtime
+layers and compiler cache; see [CI operations](../ci/README.md). All required
+checks and the gate run on that CI VM; deployment runs on a GitHub-hosted runner.
+The CI VM and the realtime
 staging VM are separate machines with separate administration credentials.
 
 The slower GCC/Clang/RTAI, translated-documentation, and Debian 11/12/13/Sid

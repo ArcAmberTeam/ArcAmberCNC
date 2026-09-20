@@ -5,12 +5,8 @@ mode=${1:-build}
 [[ $mode == build || $mode == test ]]
 root=$(git rev-parse --show-toplevel)
 cd "$root"
-.github/ci/bootstrap-base.sh
+.github/ci/prepare-image.sh
 image=betterlinuxcnc-ci:trixie
-# Only packaging inputs enter the image; application sources are never cached
-# in a layer. Docker invalidates dependencies when these inputs change.
-tar -cf - .github/ci/Dockerfile debian |
-  docker build -f .github/ci/Dockerfile -t "$image" -
 mkdir -p artifacts
 container="betterlinuxcnc-build-$$"
 trap 'docker rm -f "$container" >/dev/null 2>&1 || true' EXIT

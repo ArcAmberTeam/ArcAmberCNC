@@ -12,7 +12,28 @@ public CI port is required.
 Run `.github/ci/run.sh build` from a checkout to compile and produce Debian
 packages in `artifacts/`, with `SHA256SUMS.txt`. The `test` mode also installs
 the packages and runs the upstream runtime suite, and is selected only after
-a push or manual run on `staging测试环境`. PRs only build.
+a push or manual run on `staging测试环境`. PRs do not install packages or run
+the full runtime suite.
+
+## Required checks
+
+All four checks and their final `CI Gate` run on the self-hosted runner:
+
+- **Debian 13 x86 build**: compile and package, using dependency and compiler caches.
+- **Workflow and source checks**: actionlint, ShellCheck and shell syntax for
+  maintained CI/deployment scripts, renderer syntax, changed Python syntax,
+  diff whitespace/conflict markers, and four package-version regressions.
+- **AXIS GIF and Tk checks**: validate all 21 manifest entries, SVG sources,
+  dimensions, transparency and static frames; load each GIF with actual Tk
+  under Xvfb and reject PNG files that would shadow the GIF.
+- **G-code interpreter regressions**: download and checksum the same-run
+  artifact, extract it without installing packages, and run eight upstream
+  interpreter fixtures with exact expected-output comparisons and timeouts.
+  This container has no network and does not start realtime motion.
+
+Host tools are provisioned once: `shellcheck`, `python3-pil`, `python3-tk`,
+`xvfb`, `xauth`, `nodejs`, and checksum-verified actionlint 1.7.7.
+LinuxCNC and its package dependencies remain inside build/test containers.
 
 `run.sh` is the host entry point. `build-in-container.sh` is its private
 container implementation and calls the existing `.github/scripts` packaging
@@ -44,11 +65,17 @@ For an OS dependency refresh without a packaging change,
 rebuild it with `--no-cache` during runner maintenance. Do not prune the
 ccache volume unless intentionally discarding compiler cache.
 
-`CI Gate` and the deployment job stay on short-lived GitHub-hosted runners.
-Deployment environment credentials are not passed to the persistent build
-runner. The manual `Full compatibility CI` matrix also remains GitHub-hosted.
+Only the deployment job stays on a short-lived GitHub-hosted runner.
+Deployment environment credentials are not passed to the persistent CI
+runner. The manual `Full compatibility CI` matrix also uses the self-hosted
+runner, with one disposable container per GCC/Clang/RTAI/HTML or Debian package
+combination. `compatibility.sh` owns this host interface and delegates to
+`compatibility-in-container.sh`; package installation never modifies the host.
+The Docker daemon uses the loopback proxy to pull official Debian images.
+Manual containers use host networking to reach that proxy, with CPU/RAM limits.
 The runner executes one job at a time; additional parallel jobs need another
-runner instance and sufficient CPU/RAM.
+runner instance and sufficient CPU/RAM. The manual matrix is serialized and
+can occupy this runner for a long time; run it outside active PR iteration.
 
 This runner uses a loopback Mihomo HTTP proxy at `127.0.0.1:7897` through its
 systemd service environment to reach GitHub reliably. The subscription is

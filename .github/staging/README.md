@@ -18,6 +18,22 @@ other branches, and releases never trigger this deployment job. Manual
 - This VM is for simulation only. A VM test is not a hardware latency or
   machine safety acceptance test.
 
+`provision-vm.sh` installs the RT kernel, a minimal XFCE/TigerVNC desktop,
+HTTPS noVNC, and the FRP client service. It expects the cloud-init users
+(`root`, `deploy`, `linuxcnc`), pinned FRP certificate/configuration, and a
+checksum-verified `frpc` binary to already exist. Upload `install.sh` as
+root-owned `/usr/local/sbin/betterlinuxcnc-deploy` with mode 0755 first.
+The distribution's LinuxCNC package is installed as a bootstrap version;
+it is replaced by the repository's package only after CI passes.
+
+The generated VNC password is saved only in
+`/root/staging-credentials/novnc-password` on the VM. The TLS certificate is
+`/etc/novnc/server.crt`; its fingerprint can be checked with
+`openssl x509 -in /etc/novnc/server.crt -noout -fingerprint -sha256`.
+Both the VNC server (5901) and noVNC (6080) bind to loopback. Only the HTTPS
+noVNC endpoint is forwarded publicly. FRP verifies the relay's pinned TLS
+certificate, and the independent relay instance permits only 39011–39012.
+
 ## GitHub configuration
 
 Create a GitHub Environment named `staging`, with a deployment branch policy

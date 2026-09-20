@@ -245,6 +245,15 @@ jobs:
     - name: Install pre-dependencies
       run: |
         set -x
+        # Bullseye LTS ended on 2026-08-31. Its live security index now
+        # references removed packages; use a consistent signed snapshot.
+        if [ "${{ matrix.image }}" = debian:bullseye ]; then
+          printf '%s\n' \
+            'deb [check-valid-until=no] http://snapshot.debian.org/archive/debian/20260831T235959Z/ bullseye main' \
+            'deb [check-valid-until=no] http://snapshot.debian.org/archive/debian-security/20260831T235959Z/ bullseye-security main' \
+            > /etc/apt/sources.list
+          rm -f /etc/apt/sources.list.d/debian.sources
+        fi
         apt-get -q -o Acquire::http::No-Cache=true -o Acquire::Retries=3 -o APT::Update::Error-Mode=any update
         # Install stuff needed to check out the linuxcnc repo and turn it into a debian source package and run tests.
         apt-get --yes --no-install-recommends install curl git lsb-release python3 devscripts sudo adduser xauth
@@ -339,6 +348,15 @@ jobs:
     - name: Install pre-dependencies
       run: |
         set -x
+        # Bullseye LTS ended on 2026-08-31. Its live security index now
+        # references removed packages; use a consistent signed snapshot.
+        if [ "${{ matrix.image }}" = debian:bullseye ]; then
+          printf '%s\n' \
+            'deb [check-valid-until=no] http://snapshot.debian.org/archive/debian/20260831T235959Z/ bullseye main' \
+            'deb [check-valid-until=no] http://snapshot.debian.org/archive/debian-security/20260831T235959Z/ bullseye-security main' \
+            > /etc/apt/sources.list
+          rm -f /etc/apt/sources.list.d/debian.sources
+        fi
         apt-get -q -o Acquire::http::No-Cache=true -o Acquire::Retries=3 -o APT::Update::Error-Mode=any update
         # Install stuff needed to check out the linuxcnc repo and turn it into a debian source package.
         apt-get --yes --no-install-recommends install curl git lsb-release python3 devscripts sudo

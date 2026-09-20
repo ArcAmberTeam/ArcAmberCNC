@@ -5,10 +5,10 @@ name: Build CI
 on:
   push:
   pull_request:
+  merge_group:
+  workflow_dispatch:
   release:
     types: [published]
-  check_suite:
-    types: [rerequested]
 
 permissions:
   contents: read #  to fetch code (actions/checkout)
@@ -21,6 +21,37 @@ env:
   DEBIAN_FRONTEND: noninteractive
 
 jobs:
+
+  ci-gate:
+    name: CI Gate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    # A failed dependency must fail the required check, not skip it.
+    if: ${{ always() }}
+    needs:
+      - rip-and-test
+      - rip-rtai
+      - rip-and-test-clang
+      - htmldocs
+      - package-arch
+      - package-indep
+    steps:
+    - name: Require all build and test jobs to pass
+      env:
+        NEEDS_JSON: ${{ toJSON(needs) }}
+      run: |
+        python3 - <<'PY'
+        import json
+        import os
+        import sys
+
+        results = json.loads(os.environ["NEEDS_JSON"])
+        for name, job in results.items():
+            print(f"{name}: {job['result']}")
+        sys.exit(0 if results and all(
+            job["result"] == "success" for job in results.values()
+        ) else 1)
+        PY
 
   rip-and-test:
     runs-on: ubuntu-24.04
@@ -184,13 +215,13 @@ jobs:
         runner: ["ubuntu-24.04", "ubuntu-24.04-arm"]
         image: ["debian:bullseye", "debian:bookworm", "debian:trixie", "debian:sid"]
         include:
-          - allow_fail: False
+          - allow_fail: false
             image: debian:bullseye
-          - allow_fail: False
+          - allow_fail: false
             image: debian:bookworm
-          - allow_fail: False
+          - allow_fail: false
             image: debian:trixie
-          - allow_fail: True
+          - allow_fail: true
             image: debian:sid
     container:
       image: ${{ matrix.image }}
@@ -278,13 +309,13 @@ jobs:
       matrix:
         image: ["debian:bullseye", "debian:bookworm", "debian:trixie", "debian:sid"]
         include:
-        - allow_fail: False
+        - allow_fail: false
           image: debian:bullseye
-        - allow_fail: False
+        - allow_fail: false
           image: debian:bookworm
-        - allow_fail: False
+        - allow_fail: false
           image: debian:trixie
-        - allow_fail: True
+        - allow_fail: true
           image: debian:sid
     container:
       image: ${{ matrix.image }}

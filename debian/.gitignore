@@ -1,0 +1,26 @@
+linuxcnc-uspace
+files
+rules
+compat
+control
+tmp
+linuxcnc
+linuxcnc-dev
+linuxcnc-uspace-dev
+linuxcnc-doc-*/
+*.substvars
+
+# generated from `.in` by debian/configure
+linuxcnc-uspace.install
+linuxcnc-uspace.manpages
+
+*.debhelper
+shlibs.local
+linuxcnc-uspace.lintian-overrides
+
+autoreconf.after
+autoreconf.before
+debhelper-build-stamp
+
+# from debian/tests
+*.out

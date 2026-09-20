@@ -50,75 +50,28 @@ jobs:
 
   package-arch:
     name: Debian 13 x86 build
-    runs-on: ubuntu-24.04
+    # Only trusted same-repository PRs may execute on our persistent runner.
+    if: >-
+      github.event_name != 'pull_request' ||
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, Linux, X64, betterlinuxcnc]
     timeout-minutes: 35
-    container:
-      image: debian:trixie
-      # IPC_OWNER is needed for shmget IPC_CREAT
-      # SYS_ADMIN is needed for shmctl IPC_SET
-      options: --cap-add=IPC_OWNER --cap-add=SYS_ADMIN
     steps:
-    - name: Install pre-dependencies
-      run: |
-        set -x
-        apt-get -q -o Acquire::http::No-Cache=true -o Acquire::Retries=3 -o APT::Update::Error-Mode=any update
-        # Install stuff needed to check out the linuxcnc repo and turn it into a debian source package and run tests.
-        apt-get --yes --no-install-recommends install curl git lsb-release python3 devscripts sudo adduser xauth
     - name: Checkout repository
       uses: actions/checkout@v6
       with:
         submodules: false
-        # "fetch-depth: 0" fetches all of history, this is needed by
-        # our build system to determine the version from tags
         fetch-depth: 0
-    - name: Git config
-      run: |
-        set -x
-        git config --global --add safe.directory "$PWD"
-    - name: Check package versions with and without release tags
-      run: python3 .github/scripts/test-package-version.py
-    - name: Build architecture-specific Debian packages
+        persist-credentials: false
+    - name: Build Debian 13 packages in a clean cached container
       env:
-        DEBEMAIL: emc-developers@lists.sourceforge.net
-        DEBFULLNAME: LinuxCNC Github CI Robot
+        RUN_ACCEPTANCE: >-
+          ${{ github.ref == 'refs/heads/staging测试环境' &&
+              (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
       run: |
-        set -x
-        .github/scripts/build-package-arch.sh
-    - name: Verify no untracked or modified files after build
-      run: |
-        .github/scripts/verify-clean-repo.sh ':(exclude)VERSION' ':(exclude)debian/changelog'
-    # Runtime acceptance belongs to the test branch, after merge.
-    # PRs and main only compile and package the code.
-    - name: Install debian packages
-      if: >-
-        github.ref == 'refs/heads/staging测试环境' &&
-        (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
-      run: |
-        set -x
-        apt-get --yes --no-install-recommends install ../*.deb
-    - name: Test debian packages
-      if: >-
-        github.ref == 'refs/heads/staging测试环境' &&
-        (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
-      run: |
-        set -x
-        adduser --disabled-password --gecos "" testrunner
-        passwd -d testrunner
-        adduser testrunner sudo
-        chmod 0777 $(find tests/ -type d) # make test dirs world-writable for the testrunner
-        su -c "./scripts/runtests -p ./tests" testrunner
-    - name: Verify no untracked or modified files after test
-      if: >-
-        github.ref == 'refs/heads/staging测试环境' &&
-        (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
-      run: |
-        .github/scripts/verify-clean-repo.sh ':(exclude)VERSION' ':(exclude)debian/changelog'
-    - name: Gather Debian 13 packages
-      run: |
-        test "$(dpkg --print-architecture)" = amd64
-        mkdir -p artifacts
-        cp ../*.deb artifacts/
-        (cd artifacts && sha256sum *.deb > SHA256SUMS.txt)
+        mode=build
+        if [ "$RUN_ACCEPTANCE" = true ]; then mode=test; fi
+        .github/ci/run.sh "$mode"
     - name: Upload Debian 13 packages
       uses: actions/upload-artifact@v7
       with:

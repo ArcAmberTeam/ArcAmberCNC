@@ -23,6 +23,11 @@ perform XYZ simulation acceptance. The RT kernel is validated on the VM, not
 in the GitHub runner container. Installing build dependencies in CI is still
 necessary for compilation.
 
+The Debian 13 build runs on the dedicated PVE CI VM with reusable dependency
+layers and compiler cache; see [CI operations](../ci/README.md). The required
+gate and deployment run on GitHub-hosted runners. The CI VM and the realtime
+staging VM are separate machines with separate administration credentials.
+
 The slower GCC/Clang/RTAI, translated-documentation, and Debian 11/12/13/Sid
 matrix is retained in `Full compatibility CI`, triggered manually from the
 Actions page. It is not a PR gate and does not deploy or publish releases.

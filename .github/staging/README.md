@@ -1,10 +1,38 @@
 # BetterLinuxCNC staging
 
-`kihon` is the development branch, `staging` is the acceptance branch, and
-`main` is the stable branch. Pushes (including merged PRs) to `staging` run
-the existing x86 CI. Only a successful `CI Gate` permits deployment. PRs,
+`kihon` is the development branch, `staging测试环境` is the acceptance branch, and
+`main` is the stable branch. Open development PRs from `kihon` into
+`staging测试环境`; after acceptance, open a PR from `staging测试环境` into `main`.
+Pushes (including merged PRs) to `staging测试环境` run
+the Debian 13 amd64 package build and test suite. Only a successful `CI Gate`
+permits deployment of the artifact from that same run. PRs,
 other branches, and releases never trigger this deployment job. Manual
-`Build CI` runs on `staging` also build, test, and deploy.
+`Build CI` runs on `staging测试环境` also build, test, and deploy.
+Development branches are checked through PRs; pushes to `main` and
+`staging测试环境` are also checked. This avoids duplicate push/PR builds for
+`kihon`. Superseded CI runs are cancelled, while test-branch deployments remain
+serialized and are not interrupted by a newer commit.
+
+PR checks compile and package the architecture-specific Debian 13 build,
+check workflows/scripts and toolbar images, and run eight quick interpreter
+regressions against the extracted same-run artifact. They do not install the
+resulting packages, run the full runtime suite, or connect to the staging VM.
+Pushes to `main` use the same checks. After a merge into `staging测试环境`, CI installs the newly built packages
+in an isolated container and runs the upstream tests as an unprivileged user.
+Only after those pass does CD install the same-run artifact on the VM and
+perform XYZ simulation acceptance. The RT kernel is validated on the VM, not
+in the GitHub runner container. Installing build dependencies in CI is still
+necessary for compilation.
+
+The Debian 13 build runs on the dedicated PVE CI VM with reusable dependency
+layers and compiler cache; see [CI operations](../ci/README.md). All required
+checks and the gate run on that CI VM; deployment runs on a GitHub-hosted runner.
+The CI VM and the realtime
+staging VM are separate machines with separate administration credentials.
+
+The slower GCC/Clang/RTAI, translated-documentation, and Debian 11/12/13/Sid
+matrix is retained in `Full compatibility CI`, triggered manually from the
+Actions page. It is not a PR gate and does not deploy or publish releases.
 
 ## Environment
 
@@ -37,7 +65,9 @@ certificate, and the independent relay instance permits only 39011–39012.
 ## GitHub configuration
 
 Create a GitHub Environment named `staging`, with a deployment branch policy
-that permits only the `staging` branch. No reviewer is required. A private
+that permits only the `staging测试环境` branch. The environment name remains
+`staging`, so its existing secrets and deployment history stay in place.
+No reviewer is required. A private
 organization repository needs GitHub Team (or higher) for this environment.
 
 Set these **environment secrets**, never commit their values:

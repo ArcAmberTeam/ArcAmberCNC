@@ -35,10 +35,16 @@ case "$CODENAME" in
 esac
 
 set -e
+# Snapshot imports and forks may have no annotated release tag. In that case
+# include the available history rather than passing the invalid range '..'.
+CHANGELOG_RANGE=HEAD
+if [ -n "$GIT_TAG" ]; then
+    CHANGELOG_RANGE="$GIT_TAG..HEAD"
+fi
 (
 echo "linuxcnc ($NEW_DEB_VERSION) $CODENAME; urgency=low"
 echo
-git log --pretty=format:"  * %w(72,0,6)%s" $GIT_TAG..
+git log --pretty=format:"  * %w(72,0,6)%s" "$CHANGELOG_RANGE"
 echo
 echo
 echo " -- buildbot <buildbot@example.com>  $(date -R)"

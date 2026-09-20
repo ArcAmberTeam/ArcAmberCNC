@@ -4,6 +4,7 @@ name: Build CI
 
 on:
   push:
+    branches: [main, staging测试环境]
   pull_request:
   merge_group:
   workflow_dispatch:
@@ -15,7 +16,8 @@ permissions:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  # Replace obsolete CI runs, but never interrupt a test-machine deployment.
+  cancel-in-progress: ${{ github.ref != 'refs/heads/staging测试环境' }}
 
 env:
   DEBIAN_FRONTEND: noninteractive
@@ -71,6 +73,8 @@ jobs:
       run: |
         set -x
         .github/scripts/install-deps.sh
+    - name: Check package versions with and without release tags
+      run: python3 .github/scripts/test-package-version.py
     - name: Build RIP GCC
       run: |
         set -x

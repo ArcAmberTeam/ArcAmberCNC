@@ -7,6 +7,10 @@ Pushes (including merged PRs) to `staging测试环境` run
 the existing x86 CI. Only a successful `CI Gate` permits deployment. PRs,
 other branches, and releases never trigger this deployment job. Manual
 `Build CI` runs on `staging测试环境` also build, test, and deploy.
+Development branches are checked through PRs; pushes to `main` and
+`staging测试环境` are also checked. This avoids duplicate push/PR builds for
+`kihon`. Superseded CI runs are cancelled, while test-branch deployments remain
+serialized and are not interrupted by a newer commit.
 
 ## Environment
 

@@ -49,7 +49,7 @@ jobs:
         PY
 
   package-arch:
-    name: Debian 13 x86 build and tests
+    name: Debian 13 x86 build
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     container:
@@ -87,11 +87,19 @@ jobs:
     - name: Verify no untracked or modified files after build
       run: |
         .github/scripts/verify-clean-repo.sh ':(exclude)VERSION' ':(exclude)debian/changelog'
+    # Runtime acceptance belongs to the test branch, after merge.
+    # PRs and main only compile and package the code.
     - name: Install debian packages
+      if: >-
+        github.ref == 'refs/heads/staging测试环境' &&
+        (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
       run: |
         set -x
         apt-get --yes --no-install-recommends install ../*.deb
     - name: Test debian packages
+      if: >-
+        github.ref == 'refs/heads/staging测试环境' &&
+        (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
       run: |
         set -x
         adduser --disabled-password --gecos "" testrunner
@@ -100,15 +108,18 @@ jobs:
         chmod 0777 $(find tests/ -type d) # make test dirs world-writable for the testrunner
         su -c "./scripts/runtests -p ./tests" testrunner
     - name: Verify no untracked or modified files after test
+      if: >-
+        github.ref == 'refs/heads/staging测试环境' &&
+        (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
       run: |
         .github/scripts/verify-clean-repo.sh ':(exclude)VERSION' ':(exclude)debian/changelog'
-    - name: Gather tested runtime packages
+    - name: Gather Debian 13 packages
       run: |
         test "$(dpkg --print-architecture)" = amd64
         mkdir -p artifacts
         cp ../*.deb artifacts/
         (cd artifacts && sha256sum *.deb > SHA256SUMS.txt)
-    - name: Upload tested Debian 13 packages
+    - name: Upload Debian 13 packages
       uses: actions/upload-artifact@v7
       with:
         name: linuxcnc-trixie-amd64

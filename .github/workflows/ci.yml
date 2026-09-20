@@ -211,6 +211,7 @@ jobs:
   package-arch:
     runs-on: ${{ matrix.runner }}
     strategy:
+      fail-fast: false
       matrix:
         runner: ["ubuntu-24.04"]
         image: ["debian:bullseye", "debian:bookworm", "debian:trixie", "debian:sid"]
@@ -240,8 +241,7 @@ jobs:
     - name: Install pre-dependencies
       run: |
         set -x
-        apt-get -q update
-        apt --yes upgrade
+        apt-get -q -o Acquire::http::No-Cache=true -o Acquire::Retries=3 -o APT::Update::Error-Mode=any update
         # Install stuff needed to check out the linuxcnc repo and turn it into a debian source package and run tests.
         apt-get --yes --no-install-recommends install curl git lsb-release python3 devscripts sudo adduser xauth
     - name: Checkout repository
@@ -306,6 +306,7 @@ jobs:
   package-indep:
     runs-on: ubuntu-24.04
     strategy:
+      fail-fast: false
       matrix:
         image: ["debian:bullseye", "debian:bookworm", "debian:trixie", "debian:sid"]
         include:
@@ -334,8 +335,7 @@ jobs:
     - name: Install pre-dependencies
       run: |
         set -x
-        apt-get -q update
-        apt --yes upgrade
+        apt-get -q -o Acquire::http::No-Cache=true -o Acquire::Retries=3 -o APT::Update::Error-Mode=any update
         # Install stuff needed to check out the linuxcnc repo and turn it into a debian source package.
         apt-get --yes --no-install-recommends install curl git lsb-release python3 devscripts sudo
     - name: Checkout repository
@@ -396,6 +396,36 @@ jobs:
         name: linuxcnc-${{ steps.meta.outputs.dist }}-${{ steps.meta.outputs.arch }}
         path: artifacts/${{ steps.meta.outputs.dist }}/${{ steps.meta.outputs.arch }}
         if-no-files-found: error
+
+  deploy-staging:
+    name: Deploy and test staging
+    needs: ci-gate
+    if: >-
+      github.repository == 'Xamber-Software/BetterLinuxCNC' &&
+      github.ref == 'refs/heads/staging' &&
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment: staging
+    concurrency:
+      group: betterlinuxcnc-staging-deploy
+      cancel-in-progress: false
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        persist-credentials: false
+    - uses: actions/download-artifact@v8
+      with:
+        name: linuxcnc-trixie-amd64
+        path: staging-artifact
+    - name: Deploy the tested Debian 13 package through FRP
+      env:
+        STAGING_SSH_KEY: ${{ secrets.STAGING_SSH_KEY }}
+        STAGING_KNOWN_HOSTS: ${{ secrets.STAGING_KNOWN_HOSTS }}
+        STAGING_HOST: ${{ vars.STAGING_HOST || '45.192.97.209' }}
+        STAGING_PORT: ${{ vars.STAGING_PORT || '39011' }}
+        STAGING_USER: deploy
+      run: .github/staging/deploy.sh staging-artifact
 
   release:
     name: Release packages

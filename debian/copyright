@@ -409,35 +409,6 @@ Files: share/qtvcp/images/widgets/writer/icons/*
 Copyright: 2013 Yusuke Kamiyamane
 License: CC-BY-3.0
 
-Files: share/axis/images/tool_estop.gif
-       share/axis/images/tool_power.gif
-       share/axis/images/tool_open.gif
-       share/axis/images/tool_reload.gif
-       share/axis/images/tool_run.gif
-       share/axis/images/tool_step.gif
-       share/axis/images/tool_pause.gif
-       share/axis/images/tool_stop.gif
-       share/axis/images/tool_blockdelete.gif
-       share/axis/images/tool_optpause.gif
-       share/axis/images/tool_zoomin.gif
-       share/axis/images/tool_zoomout.gif
-       share/axis/images/tool_axis_z.gif
-       share/axis/images/tool_axis_z2.gif
-       share/axis/images/tool_axis_x.gif
-       share/axis/images/tool_axis_y.gif
-       share/axis/images/tool_axis_y2.gif
-       share/axis/images/tool_axis_p.gif
-       share/axis/images/tool_rotate.gif
-       share/axis/images/tool_clear.gif
-       share/axis/images/resume_inhibit.gif
-       share/axis/images/toolbar-source/*.svg
-Copyright: 2026 Lucide Icons and Contributors
-           2013-present Cole Bemis
-License: ISC and MIT
-Comment: Adapted toolbar artwork from Lucide, revision
- 951813ce76a859d4d8b145366972cbb237147a4e. The full upstream
- notices and per-icon source mapping are in share/axis/images/toolbar-source/.
-
 Files: unit_tests/catch.hpp
 Copyright: 2019 Two Blue Cubes Ltd. All rights reserved.
 License: Boost-1.0

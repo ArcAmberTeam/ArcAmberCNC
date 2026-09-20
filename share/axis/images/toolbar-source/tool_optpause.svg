@@ -1,0 +1,15 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  width="24"
+  height="24"
+  viewBox="0 0 24 24"
+  fill="none"
+  stroke="#374151"
+  stroke-width="1.8"
+  stroke-linecap="round"
+  stroke-linejoin="round"
+>
+<!-- Adapted from Lucide pause, revision 951813ce76a859d4d8b145366972cbb237147a4e; see LICENSE. --><g transform="translate(0 -1) scale(1 .65)">
+  <rect x="14" y="3" width="5" height="18" rx="1" />
+  <rect x="5" y="3" width="5" height="18" rx="1" />
+</g><path d="M5 22v-6l3 4 3-4v6m4-4 2-2v6m-2 0h4" stroke-width="1.5"/></svg>

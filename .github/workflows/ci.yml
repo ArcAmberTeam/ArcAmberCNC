@@ -402,7 +402,7 @@ jobs:
     needs: ci-gate
     if: >-
       github.repository == 'Xamber-Software/BetterLinuxCNC' &&
-      github.ref == 'refs/heads/staging' &&
+      github.ref == 'refs/heads/staging测试环境' &&
       (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-24.04
     timeout-minutes: 20

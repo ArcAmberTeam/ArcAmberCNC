@@ -1,10 +1,12 @@
 # BetterLinuxCNC staging
 
-`kihon` is the development branch, `staging` is the acceptance branch, and
-`main` is the stable branch. Pushes (including merged PRs) to `staging` run
+`kihon` is the development branch, `staging测试环境` is the acceptance branch, and
+`main` is the stable branch. Open development PRs from `kihon` into
+`staging测试环境`; after acceptance, open a PR from `staging测试环境` into `main`.
+Pushes (including merged PRs) to `staging测试环境` run
 the existing x86 CI. Only a successful `CI Gate` permits deployment. PRs,
 other branches, and releases never trigger this deployment job. Manual
-`Build CI` runs on `staging` also build, test, and deploy.
+`Build CI` runs on `staging测试环境` also build, test, and deploy.
 
 ## Environment
 
@@ -37,7 +39,9 @@ certificate, and the independent relay instance permits only 39011–39012.
 ## GitHub configuration
 
 Create a GitHub Environment named `staging`, with a deployment branch policy
-that permits only the `staging` branch. No reviewer is required. A private
+that permits only the `staging测试环境` branch. The environment name remains
+`staging`, so its existing secrets and deployment history stay in place.
+No reviewer is required. A private
 organization repository needs GitHub Team (or higher) for this environment.
 
 Set these **environment secrets**, never commit their values:

@@ -212,7 +212,7 @@ jobs:
     runs-on: ${{ matrix.runner }}
     strategy:
       matrix:
-        runner: ["ubuntu-24.04", "ubuntu-24.04-arm"]
+        runner: ["ubuntu-24.04"]
         image: ["debian:bullseye", "debian:bookworm", "debian:trixie", "debian:sid"]
         include:
           - allow_fail: false

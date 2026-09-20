@@ -38,7 +38,9 @@ stored locally as `betterlinuxcnc-base:trixie-20260918`. Update the revision,
 checksum and dated image name together when refreshing the base.
 
 The dependency image is rebuilt when the Dockerfile or Debian packaging
-inputs change. For an OS dependency refresh without a packaging change,
+inputs change. Dependency installation uses `eatmydata` only inside the
+disposable image build layer to reduce HDD flushes. A failed layer is discarded.
+For an OS dependency refresh without a packaging change,
 rebuild it with `--no-cache` during runner maintenance. Do not prune the
 ccache volume unless intentionally discarding compiler cache.
 
@@ -47,3 +49,8 @@ Deployment environment credentials are not passed to the persistent build
 runner. The manual `Full compatibility CI` matrix also remains GitHub-hosted.
 The runner executes one job at a time; additional parallel jobs need another
 runner instance and sufficient CPU/RAM.
+
+This runner uses a loopback Mihomo HTTP proxy at `127.0.0.1:7897` through its
+systemd service environment to reach GitHub reliably. The subscription is
+stored privately on the CI VM, outside the repository. The proxy starts on
+boot, refreshes the subscription daily, and exposes no LAN or public listener.

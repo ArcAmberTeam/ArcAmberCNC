@@ -1,0 +1,1632 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>机床界面 · 中文清单</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --ink: #202a37;
+        --muted: #566579;
+        --line: #dce3eb;
+        --blue: #155ec7;
+        --paper: #fff;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html {
+        scroll-behavior: smooth;
+        scroll-padding-top: 24px;
+      }
+      body {
+        margin: 0;
+        background: #f3f5f8;
+        color: var(--ink);
+        font:
+          15px/1.7 -apple-system,
+          BlinkMacSystemFont,
+          'Noto Sans CJK SC',
+          'Microsoft YaHei',
+          sans-serif;
+      }
+      a {
+        color: var(--blue);
+        text-underline-offset: 3px;
+      }
+      a:focus-visible,
+      summary:focus-visible {
+        outline: 3px solid #1870db;
+        outline-offset: 4px;
+      }
+      .layout {
+        max-width: 1460px;
+        margin: auto;
+        display: grid;
+        grid-template-columns: 220px minmax(0, 1fr);
+        gap: 32px;
+        padding: 32px;
+      }
+      aside {
+        position: sticky;
+        top: 28px;
+        align-self: start;
+      }
+      aside h2 {
+        font-size: 15px;
+        margin: 0 0 12px;
+      }
+      aside a {
+        display: block;
+        padding: 7px 10px;
+        color: var(--muted);
+        text-decoration: none;
+        border-radius: 6px;
+      }
+      aside a:hover {
+        background: #e4ebf4;
+        color: var(--blue);
+      }
+      aside small {
+        display: block;
+        color: var(--muted);
+        margin-top: 20px;
+      }
+      main {
+        min-width: 0;
+      }
+      .hero,
+      section {
+        background: var(--paper);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 30px;
+        margin-bottom: 24px;
+      }
+      .eyebrow {
+        color: var(--blue);
+        font-size: 13px;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+      }
+      h1 {
+        font-size: 32px;
+        line-height: 1.3;
+        margin: 8px 0 16px;
+      }
+      h2 {
+        font-size: 23px;
+        line-height: 1.5;
+        margin: 0;
+      }
+      h3 {
+        font-size: 16px;
+        margin: 0 0 12px;
+      }
+      p {
+        margin: 10px 0;
+      }
+      .subtle {
+        color: var(--muted);
+      }
+      .links {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+        margin: 20px 0;
+      }
+      .links a {
+        border: 1px solid var(--line);
+        padding: 7px 12px;
+        border-radius: 7px;
+        text-decoration: none;
+      }
+      .stats {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin: 20px 0;
+      }
+      .stats span {
+        background: #eef4fc;
+        padding: 6px 12px;
+        border-radius: 5px;
+        color: #254a7b;
+      }
+      .overview {
+        margin: 22px 0;
+      }
+      .overview img {
+        display: block;
+        width: 100%;
+        height: auto;
+        border: 1px solid var(--line);
+        border-radius: 5px;
+      }
+      .overview figcaption {
+        margin-top: 8px;
+        color: var(--muted);
+      }
+      .section-heading {
+        display: flex;
+        gap: 16px;
+        align-items: baseline;
+        margin-bottom: 24px;
+      }
+      .section-heading p {
+        color: var(--muted);
+        margin-bottom: 0;
+      }
+      .number {
+        color: var(--blue);
+        font-weight: 700;
+        font-size: 19px;
+        font-variant-numeric: tabular-nums;
+      }
+      .gallery {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 18px;
+        margin: 18px 0;
+      }
+      .gallery.wide {
+        grid-template-columns: 1fr;
+      }
+      figure {
+        margin: 0;
+        min-width: 0;
+        background: #fafbfd;
+        border: 1px solid var(--line);
+        border-radius: 7px;
+        padding: 14px;
+      }
+      .image-link {
+        display: flex;
+        align-items: flex-start;
+        justify-content: flex-start;
+        min-width: 0;
+      }
+      .image-link img {
+        display: block;
+        max-width: 100%;
+        height: auto;
+        object-fit: contain;
+        object-position: left top;
+      }
+      .gallery:not(.wide) .image-link img {
+        max-height: 530px;
+        width: auto;
+      }
+      .gallery:not(.wide) .image-link {
+        min-height: 48px;
+      }
+      figcaption {
+        padding-top: 12px;
+        line-height: 1.6;
+        font-size: 13px;
+      }
+      figcaption strong,
+      figcaption span {
+        display: block;
+      }
+      figcaption span {
+        font-size: 12px;
+        color: var(--muted);
+        margin-top: 4px;
+      }
+      figcaption p {
+        margin: 7px 0 0;
+        color: var(--muted);
+      }
+      .table-scroll {
+        overflow: auto;
+        margin: 20px 0;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+      }
+      th,
+      td {
+        border-bottom: 1px solid var(--line);
+        text-align: left;
+        vertical-align: top;
+        padding: 12px 10px;
+        overflow-wrap: anywhere;
+      }
+      th {
+        background: #f0f4f8;
+        font-weight: 600;
+      }
+      td:first-child {
+        width: 28%;
+        font-size: 12px;
+      }
+      .note {
+        background: #f0f4f9;
+        padding: 12px 16px;
+        border-left: 3px solid #a4b7d1;
+        color: #415269;
+        font-size: 14px;
+      }
+      details {
+        margin: 20px 0 0;
+      }
+      summary {
+        cursor: pointer;
+        color: var(--blue);
+        font-weight: 600;
+        padding: 6px 0;
+      }
+      .base-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 20px;
+        margin-top: 24px;
+      }
+      .base-card {
+        min-width: 0;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 18px;
+      }
+      .base-card figure {
+        border: 0;
+        padding: 0;
+        background: none;
+      }
+      .base-card .image-link img {
+        max-height: 210px;
+        width: auto;
+      }
+      .base-card p {
+        font-size: 13px;
+      }
+      footer {
+        text-align: center;
+        color: var(--muted);
+        padding: 10px 0 32px;
+        font-size: 13px;
+      }
+      .screen-links {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+      }
+      .legend {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 6px 20px;
+        font-size: 13px;
+        color: var(--muted);
+      }
+      .legend a {
+        text-decoration: none;
+      }
+      @media (max-width: 1000px) {
+        .layout {
+          grid-template-columns: 1fr;
+          padding: 20px;
+          gap: 16px;
+        }
+        aside {
+          position: static;
+        }
+        aside nav {
+          display: flex;
+          gap: 4px;
+          flex-wrap: wrap;
+        }
+        aside small {
+          display: none;
+        }
+        .hero,
+        section {
+          padding: 22px;
+        }
+      }
+      @media (max-width: 650px) {
+        .layout {
+          padding: 10px;
+        }
+        .gallery,
+        .base-grid,
+        .legend {
+          grid-template-columns: 1fr;
+        }
+        h1 {
+          font-size: 26px;
+        }
+        h2 {
+          font-size: 20px;
+        }
+        .hero,
+        section {
+          padding: 18px;
+        }
+        .section-heading {
+          gap: 10px;
+        }
+      }
+      @media print {
+        body {
+          background: white;
+          font-size: 11px;
+        }
+        .layout {
+          display: block;
+          padding: 0;
+          max-width: none;
+        }
+        aside,
+        .links,
+        .screen-links {
+          display: none;
+        }
+        .hero,
+        section {
+          border: 0;
+          border-radius: 0;
+          padding: 10px 0;
+          margin: 0 0 22px;
+        }
+        .hero {
+          break-after: page;
+        }
+        .section-heading {
+          break-after: avoid;
+        }
+        figure,
+        .base-card,
+        tr {
+          break-inside: avoid;
+        }
+        .gallery:not(.wide) .image-link img {
+          max-height: 330px;
+        }
+        details {
+          display: block;
+        }
+        .note {
+          background: white;
+        }
+        .stats span {
+          background: white;
+          border: 1px solid #ccc;
+        }
+        a {
+          color: inherit;
+          text-decoration: none;
+        }
+      }
+
+      .meaning {
+        border: 1px solid var(--line);
+        border-radius: 7px;
+        padding: 16px 20px;
+        margin: 18px 0;
+      }
+      .meaning p {
+        margin: 6px 0;
+      }
+      .inline-figure {
+        max-width: 720px;
+      }
+      .base-card .image-link img {
+        max-height: 300px;
+      }
+      .section-heading p {
+        max-width: 760px;
+      }
+      .inventory main {
+        grid-column: 1/-1;
+      }
+      .inventory section {
+        scroll-margin-top: 24px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="layout inventory">
+      <main>
+        <div class="hero">
+          <h1>机床界面中文清单</h1>
+          <p>
+            这里按现有界面逐项列出名称和用途，便于设计时核对有没有遗漏。所有机床动作目前只是演示，表中的“用途”说明正式使用时这个入口做什么。
+          </p>
+          <div class="links">
+            <a href="index.html">返回看图说明</a><a href="#words">查看名词解释</a>
+          </div>
+          <p class="note">
+            截图中的轴名、坐标编号、机床指令、键盘按键和原始文件名按画面保留。设计时重点关注位置、层次、可读性和操作状态。
+          </p>
+        </div>
+        <section id="list-0">
+          <h2>功能菜单</h2>
+          <p>共 97 个条目，包含菜单标题和下一层入口。同一动作可能在菜单和按钮栏中重复出现。</p>
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>位置</th>
+                  <th>名称</th>
+                  <th>用途</th>
+                  <th>画面形式</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>主菜单</td>
+                  <td>文件</td>
+                  <td>打开与管理加工文件。</td>
+                  <td>可展开的菜单</td>
+                </tr>
+                <tr>
+                  <td>文件</td>
+                  <td>打开程序…</td>
+                  <td>选择要加工的程序文件。</td>
+                  <td>可点击的一行</td>
+                </tr>
+                <tr>
+                  <td>文件</td>
+                  <td>最近打开</td>
+                  <td>再次选择近期使用过的文件。</td>
+                  <td>可展开的菜单</td>
+                </tr>
+                <tr>
+                  <td>文件 / 最近打开</td>
+                  <td>示例加工文件</td>
+                  <td>打开列表中的示例加工文件。</td>
+                  <td>可点击的一行</td>
+                </tr>
+                <tr>
+                  <td>文件 / 最近打开</td>
+                  <td>清空最近打开记录</td>
+                  <td>清空近期文件列表，不是删除磁盘文件。</td>
+                  <td>可点击的一行</td>
+                </tr>
+                <tr>
+                  <td>文件</td>
+                  <td>编辑程序…</td>
+                  <td>修改加工程序内容。</td>
+                  <td>可点击的一行</td>
+                </tr>
+                <tr>
+                  <td>文件</td>
+                  <td>重新加载</td>
+                  <td>重新读取当前程序的最新内容。</td>
+                  <td>可点击的一行</td>
+                </tr>
+                <tr>
+                  <td>文件</td>
+                  <td>程序另存为…</td>
+                  <td>把当前程序保存成另一个文件。</td>
+                  <td>可点击的一行</td>
+                </tr>
+                <tr>
+                  <td>文件</td>
+                  <td>程序属性…</td>
+                  <td>查看文件名称、行数、来源等信息。</td>
+                  <td>可点击的一行</td>
+                </tr>
+                <tr>
+                  <td>文件</td>
+                  <td>编辑刀具表…</td>
+                  <td>查看或填写刀具编号、尺寸等资料。</td>
+                  <td>可点击的一行</td>
+                </tr>
+                <tr>
+                  <td>文件</td>
+                  <td>重新加载刀具表</td>
+                  <td>重新读取刀具资料。</td>
+                  <td>可点击的一行</td>
+                </tr>
+                <tr>
+                  <td>文件</td>
+                  <td>梯形图编辑器…</td>
+                  <td>查看或编辑设备动作的逻辑关系，供设备调试使用。</td>
+                  <td>可点击的一行</td>
+                </tr>
+                <tr>
+                  <td>文件</td>
+                  <td>退出</td>
+                  <td>退出软件。</td>
+                  <td>可点击的一行</td>
+                </tr>
+                <tr>
+                  <td>主菜单</td>
+                  <td>机床</td>
+                  <td>查看机床操作和设备检查功能。</td>
+                  <td>可展开的菜单</td>
+                </tr>
+                <tr>
+                  <td>机床</td>
+                  <td>切换急停状态</td>
+                  <td>进入或退出软件中的急停状态。</td>
+                  <td>可点击的一行</td>
+                </tr>
+                <tr>
+                  <td>机床</td>
+                  <td>机床使能／关闭</td>
+                  <td>允许机床工作，或关闭机床使能。</td>
+                  <td>可点击的一行</td>
+                </tr>
+                <tr>
+                  <td>机床</td>
+                  <td>运行程序</td>
+                  <td>开始执行加工程序。</td>
+                  <td>可点击的一行</td>
+                </tr>
+                <tr>
+                  <td>机床</td>
+                  <td>从选中行运行</td>
+                  <td>从选中的程序行开始执行。</td>
+                  <td>可点击的一行</td>
+                </tr>
+                <tr>
+                  <td>机床</td>
+                  <td>单段运行</td>
+                  <td>每次只执行下一段程序。</td>
+                  <td>可点击的一行</td>
+                </tr>
+                <tr>
+                  <td>机床</td>
+                  <td>暂停运行</td>
+                  <td>暂时停住程序执行。</td>
+                  <td>可点击的一行</td>
+                </tr>
+                <tr>
+                  <td>机床</td>
+                  <td>继续运行</td>
+                  <td>继续执行已暂停的程序。</td>
+                  <td>可点击的一行</td>
+                </tr>
+                <tr>
+                  <td>机床</td>
+                  <td>停止运行</td>
+                  <td>停止当前程序执行。</td>
+                  <td>可点击的一行</td>
+                </tr>
+                <tr>
+                  <td>机床</td>
+                  <td>选择停（M1）</td>
+                  <td>决定程序遇到选择停止指令时是否暂停。</td>
+                  <td>可独立勾选</td>
+                </tr>
+                <tr>
+                  <td>机床</td>
+                  <td>程序段跳过（/）</td>
+                  <td>决定是否跳过带斜杠标记的程序段。</td>
+                  <td>可独立勾选</td>
+                </tr>
+                <tr>
+                  <td>机床</td>
+                  <td>清空手动输入历史</td>
+                  <td>清空手动输入的历史记录。</td>
+                  <td>可点击的一行</td>
+                </tr>
+                <tr>
+                  <td>机床</td>
+                  <td>复制历史指令</td>
+                  <td>复制一条历史指令。</td>
+                  <td>可点击的一行</td>
+                </tr>
+                <tr>
+                  <td>机床</td>
+                  <td>粘贴到历史指令</td>
+                  <td>把复制的指令放进历史记录。</td>
+                  <td>可点击的一行</td>
+                </tr>
+                <tr>
+                  <td>机床</td>
+                  <td>参数校准</td>
+                  <td>检查并调整机床参数，供调试使用。</td>
+                  <td>可点击的一行</td>
+                </tr>
+                <tr>
+                  <td>机床</td>
+                  <td>查看机床信号配置</td>
+                  <td>查看设备信号之间的连接和设置。</td>
+                  <td>可点击的一行</td>
+                </tr>
+                <tr>
+                  <td>机床</td>
+                  <td>机床信号监视</td>
+                  <td>观察一个设备信号的当前值。</td>
+                  <td>可点击的一行</td>
+                </tr>
+                <tr>
+                  <td>机床</td>
+                  <td>机床信号波形</td>
+                  <td>用曲线观察设备信号随时间的变化。</td>
+                  <td>可点击的一行</td>
+                </tr>
+                <tr>
+                  <td>机床</td>
+                  <td>查看控制器状态</td>
+                  <td>查看控制系统当前状态。</td>
+                  <td>可点击的一行</td>
+                </tr>
+                <tr>
+                  <td>机床</td>
+                  <td>设置调试级别</td>
+                  <td>选择诊断信息显示的详细程度。</td>
+                  <td>可点击的一行</td>
+                </tr>
+                <tr>
+                  <td>机床</td>
+                  <td>回零</td>
+                  <td>展开各轴回零的选项。</td>
+                  <td>可展开的菜单</td>
+                </tr>
+                <tr>
+                  <td>机床 / 回零</td>
+                  <td>全部轴回零</td>
+                  <td>让所有轴寻找机床参考位置。</td>
+                  <td>可点击的一行</td>
+                </tr>
+                <tr>
+                  <td>机床 / 回零</td>
+                  <td>X 轴回零</td>
+                  <td>让所选轴寻找机床参考位置。</td>
+                  <td>可点击的一行</td>
+                </tr>
+                <tr>
+                  <td>机床 / 回零</td>
+                  <td>Y 轴回零</td>
+                  <td>让所选轴寻找机床参考位置。</td>
+                  <td>可点击的一行</td>
+                </tr>
+                <tr>
+                  <td>机床 / 回零</td>
+                  <td>Z 轴回零</td>
+                  <td>让所选轴寻找机床参考位置。</td>
+                  <td>可点击的一行</td>
+                </tr>
+                <tr>
+                  <td>机床</td>
+                  <td>清除回零状态</td>
+                  <td>展开清除回零记录的选项。</td>
+                  <td>可展开的菜单</td>
+                </tr>
+                <tr>
+                  <td>机床 / 清除回零状态</td>
+                  <td>清除全部轴回零状态</td>
+                  <td>清除全部轴已回零的记录；不执行轴移动。</td>
+                  <td>可点击的一行</td>
+                </tr>
+                <tr>
+                  <td>机床 / 清除回零状态</td>
+                  <td>清除 X 轴回零状态</td>
+                  <td>清除这一轴已回零的记录；不执行轴移动。</td>
+                  <td>可点击的一行</td>
+                </tr>
+                <tr>
+                  <td>机床 / 清除回零状态</td>
+                  <td>清除 Y 轴回零状态</td>
+                  <td>清除这一轴已回零的记录；不执行轴移动。</td>
+                  <td>可点击的一行</td>
+                </tr>
+                <tr>
+                  <td>机床 / 清除回零状态</td>
+                  <td>清除 Z 轴回零状态</td>
+                  <td>清除这一轴已回零的记录；不执行轴移动。</td>
+                  <td>可点击的一行</td>
+                </tr>
+                <tr>
+                  <td>机床</td>
+                  <td>清除坐标系偏置</td>
+                  <td>选择要清除哪一组工件位置修正值。</td>
+                  <td>可展开的菜单</td>
+                </tr>
+                <tr>
+                  <td>机床 / 清除坐标系偏置</td>
+                  <td>G54 工件坐标系（P1）</td>
+                  <td>清除这一组位置基准的修正值；不是移动到零点。</td>
+                  <td>可点击的一行</td>
+                </tr>
+                <tr>
+                  <td>机床 / 清除坐标系偏置</td>
+                  <td>G55 工件坐标系（P2）</td>
+                  <td>清除这一组位置基准的修正值；不是移动到零点。</td>
+                  <td>可点击的一行</td>
+                </tr>
+                <tr>
+                  <td>机床 / 清除坐标系偏置</td>
+                  <td>G56 工件坐标系（P3）</td>
+                  <td>清除这一组位置基准的修正值；不是移动到零点。</td>
+                  <td>可点击的一行</td>
+                </tr>
+                <tr>
+                  <td>机床 / 清除坐标系偏置</td>
+                  <td>G57 工件坐标系（P4）</td>
+                  <td>清除这一组位置基准的修正值；不是移动到零点。</td>
+                  <td>可点击的一行</td>
+                </tr>
+                <tr>
+                  <td>机床 / 清除坐标系偏置</td>
+                  <td>G58 工件坐标系（P5）</td>
+                  <td>清除这一组位置基准的修正值；不是移动到零点。</td>
+                  <td>可点击的一行</td>
+                </tr>
+                <tr>
+                  <td>机床 / 清除坐标系偏置</td>
+                  <td>G59 工件坐标系（P6）</td>
+                  <td>清除这一组位置基准的修正值；不是移动到零点。</td>
+                  <td>可点击的一行</td>
+                </tr>
+                <tr>
+                  <td>机床 / 清除坐标系偏置</td>
+                  <td>G59.1 工件坐标系（P7）</td>
+                  <td>清除这一组位置基准的修正值；不是移动到零点。</td>
+                  <td>可点击的一行</td>
+                </tr>
+                <tr>
+                  <td>机床 / 清除坐标系偏置</td>
+                  <td>G59.2 工件坐标系（P8）</td>
+                  <td>清除这一组位置基准的修正值；不是移动到零点。</td>
+                  <td>可点击的一行</td>
+                </tr>
+                <tr>
+                  <td>机床 / 清除坐标系偏置</td>
+                  <td>G59.3 工件坐标系（P9）</td>
+                  <td>清除这一组位置基准的修正值；不是移动到零点。</td>
+                  <td>可点击的一行</td>
+                </tr>
+                <tr>
+                  <td>机床 / 清除坐标系偏置</td>
+                  <td>G92 临时坐标偏置</td>
+                  <td>清除这一组位置基准的修正值；不是移动到零点。</td>
+                  <td>可点击的一行</td>
+                </tr>
+                <tr>
+                  <td>机床</td>
+                  <td>以工件为对刀基准</td>
+                  <td>用工件作为设置位置的参照。</td>
+                  <td>同组只能选一项</td>
+                </tr>
+                <tr>
+                  <td>机床</td>
+                  <td>以夹具为对刀基准</td>
+                  <td>用装夹工件的夹具作为设置位置的参照。</td>
+                  <td>同组只能选一项</td>
+                </tr>
+                <tr>
+                  <td>主菜单</td>
+                  <td>视图</td>
+                  <td>调整右侧图形和位置数字的显示方式。</td>
+                  <td>可展开的菜单</td>
+                </tr>
+                <tr>
+                  <td>视图</td>
+                  <td>俯视图</td>
+                  <td>从上方看。</td>
+                  <td>同组只能选一项</td>
+                </tr>
+                <tr>
+                  <td>视图</td>
+                  <td>旋转俯视图</td>
+                  <td>从上方看，并旋转观察方向。</td>
+                  <td>同组只能选一项</td>
+                </tr>
+                <tr>
+                  <td>视图</td>
+                  <td>侧视图</td>
+                  <td>从侧面看。</td>
+                  <td>同组只能选一项</td>
+                </tr>
+                <tr>
+                  <td>视图</td>
+                  <td>正视图</td>
+                  <td>从正面看。</td>
+                  <td>同组只能选一项</td>
+                </tr>
+                <tr>
+                  <td>视图</td>
+                  <td>透视图</td>
+                  <td>从有透视效果的角度看。</td>
+                  <td>同组只能选一项</td>
+                </tr>
+                <tr>
+                  <td>视图</td>
+                  <td>使用英寸显示</td>
+                  <td>用英寸显示长度。</td>
+                  <td>同组只能选一项</td>
+                </tr>
+                <tr>
+                  <td>视图</td>
+                  <td>使用毫米显示</td>
+                  <td>用毫米显示长度。</td>
+                  <td>同组只能选一项</td>
+                </tr>
+                <tr>
+                  <td>视图</td>
+                  <td>显示程序刀路</td>
+                  <td>显示或隐藏程序中的刀具路线。</td>
+                  <td>可独立勾选</td>
+                </tr>
+                <tr>
+                  <td>视图</td>
+                  <td>显示快速移动轨迹</td>
+                  <td>显示或隐藏非切削快速移动路线。</td>
+                  <td>可独立勾选</td>
+                </tr>
+                <tr>
+                  <td>视图</td>
+                  <td>半透明显示刀路</td>
+                  <td>把路线改为半透明，便于观察重叠内容。</td>
+                  <td>可独立勾选</td>
+                </tr>
+                <tr>
+                  <td>视图</td>
+                  <td>显示实际运动轨迹</td>
+                  <td>显示或隐藏实际走过的路线。</td>
+                  <td>可独立勾选</td>
+                </tr>
+                <tr>
+                  <td>视图</td>
+                  <td>显示刀具</td>
+                  <td>显示或隐藏刀具形状。</td>
+                  <td>可独立勾选</td>
+                </tr>
+                <tr>
+                  <td>视图</td>
+                  <td>显示加工范围</td>
+                  <td>显示或隐藏加工范围框。</td>
+                  <td>可独立勾选</td>
+                </tr>
+                <tr>
+                  <td>视图</td>
+                  <td>网格</td>
+                  <td>选择背景网格的间距。</td>
+                  <td>可展开的菜单</td>
+                </tr>
+                <tr>
+                  <td>视图 / 网格</td>
+                  <td>隐藏网格</td>
+                  <td>不显示背景网格。</td>
+                  <td>同组只能选一项</td>
+                </tr>
+                <tr>
+                  <td>视图 / 网格</td>
+                  <td>自定义间距…</td>
+                  <td>自行填写网格间距。</td>
+                  <td>可点击的一行</td>
+                </tr>
+                <tr>
+                  <td>视图 / 网格</td>
+                  <td>10 毫米</td>
+                  <td>把背景网格改为这一间距。</td>
+                  <td>同组只能选一项</td>
+                </tr>
+                <tr>
+                  <td>视图 / 网格</td>
+                  <td>20 毫米</td>
+                  <td>把背景网格改为这一间距。</td>
+                  <td>同组只能选一项</td>
+                </tr>
+                <tr>
+                  <td>视图 / 网格</td>
+                  <td>50 毫米</td>
+                  <td>把背景网格改为这一间距。</td>
+                  <td>同组只能选一项</td>
+                </tr>
+                <tr>
+                  <td>视图 / 网格</td>
+                  <td>100 毫米</td>
+                  <td>把背景网格改为这一间距。</td>
+                  <td>同组只能选一项</td>
+                </tr>
+                <tr>
+                  <td>视图 / 网格</td>
+                  <td>1 英寸</td>
+                  <td>把背景网格改为这一间距。</td>
+                  <td>同组只能选一项</td>
+                </tr>
+                <tr>
+                  <td>视图 / 网格</td>
+                  <td>2 英寸</td>
+                  <td>把背景网格改为这一间距。</td>
+                  <td>同组只能选一项</td>
+                </tr>
+                <tr>
+                  <td>视图 / 网格</td>
+                  <td>5 英寸</td>
+                  <td>把背景网格改为这一间距。</td>
+                  <td>同组只能选一项</td>
+                </tr>
+                <tr>
+                  <td>视图 / 网格</td>
+                  <td>10 英寸</td>
+                  <td>把背景网格改为这一间距。</td>
+                  <td>同组只能选一项</td>
+                </tr>
+                <tr>
+                  <td>视图</td>
+                  <td>显示坐标偏置</td>
+                  <td>显示工件等位置基准的修正信息。</td>
+                  <td>可独立勾选</td>
+                </tr>
+                <tr>
+                  <td>视图</td>
+                  <td>显示机床行程范围</td>
+                  <td>显示机床可移动的范围。</td>
+                  <td>可独立勾选</td>
+                </tr>
+                <tr>
+                  <td>视图</td>
+                  <td>显示当前速度</td>
+                  <td>显示当前移动速度。</td>
+                  <td>可独立勾选</td>
+                </tr>
+                <tr>
+                  <td>视图</td>
+                  <td>显示剩余行程</td>
+                  <td>显示当前运动还剩多远。</td>
+                  <td>可独立勾选</td>
+                </tr>
+                <tr>
+                  <td>视图</td>
+                  <td>放大坐标字体</td>
+                  <td>放大位置数字。</td>
+                  <td>可独立勾选</td>
+                </tr>
+                <tr>
+                  <td>视图</td>
+                  <td>清除实际运动轨迹</td>
+                  <td>清除画面上记录的运动路线。</td>
+                  <td>可点击的一行</td>
+                </tr>
+                <tr>
+                  <td>视图</td>
+                  <td>显示自定义操作面板</td>
+                  <td>显示针对具体机床定制的操作面板。</td>
+                  <td>可独立勾选</td>
+                </tr>
+                <tr>
+                  <td>视图</td>
+                  <td>显示指令位置</td>
+                  <td>显示控制指令要求的位置。</td>
+                  <td>同组只能选一项</td>
+                </tr>
+                <tr>
+                  <td>视图</td>
+                  <td>显示实际位置</td>
+                  <td>显示系统反馈的位置。</td>
+                  <td>同组只能选一项</td>
+                </tr>
+                <tr>
+                  <td>视图</td>
+                  <td>显示机床坐标</td>
+                  <td>位置以机床的参考点为基准。</td>
+                  <td>同组只能选一项</td>
+                </tr>
+                <tr>
+                  <td>视图</td>
+                  <td>显示工件坐标</td>
+                  <td>位置以工件的参考点为基准。</td>
+                  <td>同组只能选一项</td>
+                </tr>
+                <tr>
+                  <td>视图</td>
+                  <td>关节模式</td>
+                  <td>按各个运动机构查看和操作。</td>
+                  <td>同组只能选一项</td>
+                </tr>
+                <tr>
+                  <td>视图</td>
+                  <td>坐标轴模式</td>
+                  <td>按空间坐标方向查看和操作。</td>
+                  <td>同组只能选一项</td>
+                </tr>
+                <tr>
+                  <td>主菜单</td>
+                  <td>帮助</td>
+                  <td>查看软件信息和键盘操作说明。</td>
+                  <td>可展开的菜单</td>
+                </tr>
+                <tr>
+                  <td>帮助</td>
+                  <td>关于本界面</td>
+                  <td>查看软件名称、版本和说明。</td>
+                  <td>可点击的一行</td>
+                </tr>
+                <tr>
+                  <td>帮助</td>
+                  <td>快捷键说明</td>
+                  <td>查看按哪些键可以使用对应功能。</td>
+                  <td>可点击的一行</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+        <section id="list-1">
+          <h2>顶部常用按钮</h2>
+          <p>共 19 个按钮。鼠标移到图标上时应显示中文名称；暂停和继续占同一个位置。</p>
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>从左到右</th>
+                  <th>名称</th>
+                  <th>用途</th>
+                  <th>分组</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>1</td>
+                  <td>切换急停状态</td>
+                  <td>进入或退出软件中的急停状态。</td>
+                  <td>与前一个按钮相邻</td>
+                </tr>
+                <tr>
+                  <td>2</td>
+                  <td>机床使能／关闭</td>
+                  <td>允许机床工作，或关闭机床使能。</td>
+                  <td>与前一个按钮相邻</td>
+                </tr>
+                <tr>
+                  <td>3</td>
+                  <td>打开加工程序</td>
+                  <td>选择要加工的程序文件。</td>
+                  <td>前面有分组线</td>
+                </tr>
+                <tr>
+                  <td>4</td>
+                  <td>重新加载当前程序</td>
+                  <td>重新读取当前程序的最新内容。</td>
+                  <td>与前一个按钮相邻</td>
+                </tr>
+                <tr>
+                  <td>5</td>
+                  <td>运行当前程序</td>
+                  <td>开始执行加工程序。</td>
+                  <td>前面有分组线</td>
+                </tr>
+                <tr>
+                  <td>6</td>
+                  <td>单段运行</td>
+                  <td>每次只执行下一段程序。</td>
+                  <td>与前一个按钮相邻</td>
+                </tr>
+                <tr>
+                  <td>7</td>
+                  <td>暂停／继续运行</td>
+                  <td>暂时停住程序执行。</td>
+                  <td>与前一个按钮相邻</td>
+                </tr>
+                <tr>
+                  <td>8</td>
+                  <td>停止程序</td>
+                  <td>停止当前程序执行。</td>
+                  <td>与前一个按钮相邻</td>
+                </tr>
+                <tr>
+                  <td>9</td>
+                  <td>程序段跳过（/）</td>
+                  <td>决定是否跳过带斜杠标记的程序段。</td>
+                  <td>前面有分组线</td>
+                </tr>
+                <tr>
+                  <td>10</td>
+                  <td>选择停（M1）</td>
+                  <td>决定程序遇到选择停止指令时是否暂停。</td>
+                  <td>与前一个按钮相邻</td>
+                </tr>
+                <tr>
+                  <td>11</td>
+                  <td>放大</td>
+                  <td>放大右侧图形。</td>
+                  <td>前面有分组线</td>
+                </tr>
+                <tr>
+                  <td>12</td>
+                  <td>缩小</td>
+                  <td>缩小右侧图形。</td>
+                  <td>与前一个按钮相邻</td>
+                </tr>
+                <tr>
+                  <td>13</td>
+                  <td>俯视图</td>
+                  <td>从上方看。</td>
+                  <td>与前一个按钮相邻</td>
+                </tr>
+                <tr>
+                  <td>14</td>
+                  <td>旋转俯视图</td>
+                  <td>从上方看，并旋转观察方向。</td>
+                  <td>与前一个按钮相邻</td>
+                </tr>
+                <tr>
+                  <td>15</td>
+                  <td>侧视图</td>
+                  <td>从侧面看。</td>
+                  <td>与前一个按钮相邻</td>
+                </tr>
+                <tr>
+                  <td>16</td>
+                  <td>正视图</td>
+                  <td>从正面看。</td>
+                  <td>与前一个按钮相邻</td>
+                </tr>
+                <tr>
+                  <td>17</td>
+                  <td>透视图</td>
+                  <td>从有透视效果的角度看。</td>
+                  <td>与前一个按钮相邻</td>
+                </tr>
+                <tr>
+                  <td>18</td>
+                  <td>切换平移／旋转视图</td>
+                  <td>切换拖动图形时是平移还是旋转。</td>
+                  <td>与前一个按钮相邻</td>
+                </tr>
+                <tr>
+                  <td>19</td>
+                  <td>清除实际运动轨迹</td>
+                  <td>清除画面上记录的运动路线。</td>
+                  <td>前面有分组线</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+        <section id="list-2">
+          <h2>操作和显示区域</h2>
+          <p>尺寸均为像素，供查看现状；数值范围是演示内容，不代表机床本身的极限。</p>
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>位置</th>
+                  <th>名称</th>
+                  <th>现有大小或形式</th>
+                  <th>当前画面表现</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>窗口</td>
+                  <td>当前文件 · 模拟机床</td>
+                  <td>标题栏，高 29</td>
+                  <td>显示示例加工文件的名称；长标题省略</td>
+                </tr>
+                <tr>
+                  <td>窗口</td>
+                  <td>界面演示</td>
+                  <td>状态提示标记</td>
+                  <td>始终可见；鼠标移上去时说明未连接控制器</td>
+                </tr>
+                <tr>
+                  <td>窗口</td>
+                  <td>最小化／最大化／关闭图形</td>
+                  <td>3 个标题栏装饰</td>
+                  <td>当前无操作能力，不与应用退出混淆</td>
+                </tr>
+                <tr>
+                  <td>手动操作</td>
+                  <td>手动操作</td>
+                  <td>标签页，高 28</td>
+                  <td>初始选中</td>
+                </tr>
+                <tr>
+                  <td>手动操作</td>
+                  <td>手动输入</td>
+                  <td>标签页，高 28</td>
+                  <td>切换后显示历史与输入区</td>
+                </tr>
+                <tr>
+                  <td>手动操作</td>
+                  <td>坐标轴：X / Y / Z</td>
+                  <td>3 个单选项，圆点 12 × 12</td>
+                  <td>初始 X；关节模式对应 0 / 1 / 2</td>
+                </tr>
+                <tr>
+                  <td>手动操作</td>
+                  <td>负向点动（−）</td>
+                  <td>图标／文字按钮 26 × 25</td>
+                  <td>目前只作演示，标题带当前轴名</td>
+                </tr>
+                <tr>
+                  <td>手动操作</td>
+                  <td>正向点动（+）</td>
+                  <td>图标／文字按钮 26 × 25</td>
+                  <td>目前只作演示，标题带当前轴名</td>
+                </tr>
+                <tr>
+                  <td>手动操作</td>
+                  <td>点动方式与步距</td>
+                  <td>下拉框，128 × 25</td>
+                  <td>连续点动、0.1000、0.0100、0.0010、0.0001；初始连续</td>
+                </tr>
+                <tr>
+                  <td>手动操作</td>
+                  <td>全部回零</td>
+                  <td>普通按钮，约 81 × 25</td>
+                  <td>目前只作演示；与工件对刀分开</td>
+                </tr>
+                <tr>
+                  <td>手动操作</td>
+                  <td>工件对刀</td>
+                  <td>普通按钮，约 107 × 25</td>
+                  <td>打开所选轴的工件位置设置窗口</td>
+                </tr>
+                <tr>
+                  <td>手动操作</td>
+                  <td>刀具对刀</td>
+                  <td>普通按钮，约 107 × 25</td>
+                  <td>打开所选轴的刀具位置修正窗口</td>
+                </tr>
+                <tr>
+                  <td>手动操作</td>
+                  <td>临时解除硬限位</td>
+                  <td>可独立勾选的方框和名称</td>
+                  <td>初始不勾选；目前只作演示</td>
+                </tr>
+                <tr>
+                  <td>主轴</td>
+                  <td>主轴反转</td>
+                  <td>图标按钮，图标 18 × 18</td>
+                  <td>目前只作演示</td>
+                </tr>
+                <tr>
+                  <td>主轴</td>
+                  <td>停止</td>
+                  <td>文字按钮，最小宽 64</td>
+                  <td>固定选中示例；目前只作演示</td>
+                </tr>
+                <tr>
+                  <td>主轴</td>
+                  <td>主轴正转</td>
+                  <td>图标按钮，图标 18 × 18</td>
+                  <td>目前只作演示</td>
+                </tr>
+                <tr>
+                  <td>主轴</td>
+                  <td>降低主轴转速（−）</td>
+                  <td>普通按钮</td>
+                  <td>目前只作演示</td>
+                </tr>
+                <tr>
+                  <td>主轴</td>
+                  <td>提高主轴转速（+）</td>
+                  <td>普通按钮</td>
+                  <td>目前只作演示</td>
+                </tr>
+                <tr>
+                  <td>主轴</td>
+                  <td>主轴制动</td>
+                  <td>可独立勾选的方框和名称</td>
+                  <td>初始不勾选；目前只作演示</td>
+                </tr>
+                <tr>
+                  <td>冷却</td>
+                  <td>喷雾冷却</td>
+                  <td>可独立勾选的方框和名称</td>
+                  <td>初始不勾选；目前只作演示</td>
+                </tr>
+                <tr>
+                  <td>冷却</td>
+                  <td>切削液冷却</td>
+                  <td>可独立勾选的方框和名称</td>
+                  <td>初始不勾选；目前只作演示</td>
+                </tr>
+                <tr>
+                  <td>手动输入</td>
+                  <td>历史指令</td>
+                  <td>可向下翻看的列表，最小高 126</td>
+                  <td>3 条固定指令；单击填入输入框</td>
+                </tr>
+                <tr>
+                  <td>手动输入</td>
+                  <td>手动输入指令：</td>
+                  <td>单行输入框，高 25</td>
+                  <td>可以输入；指令和参数按原样显示</td>
+                </tr>
+                <tr>
+                  <td>手动输入</td>
+                  <td>执行</td>
+                  <td>普通按钮</td>
+                  <td>只弹出说明，不会让机床执行指令</td>
+                </tr>
+                <tr>
+                  <td>手动输入</td>
+                  <td>当前模态指令（当前生效的加工设置）</td>
+                  <td>只能查看的文字区，字符对齐</td>
+                  <td>当前生效的加工方式与参数示例，可换行</td>
+                </tr>
+                <tr>
+                  <td>倍率与速度</td>
+                  <td>进给倍率</td>
+                  <td>滑条，整组高 42</td>
+                  <td>0–120%；初始 100%；只改变画面里的数值</td>
+                </tr>
+                <tr>
+                  <td>倍率与速度</td>
+                  <td>快移倍率</td>
+                  <td>滑条，整组高 42</td>
+                  <td>0–100%；初始 100%；只改变画面里的数值</td>
+                </tr>
+                <tr>
+                  <td>倍率与速度</td>
+                  <td>主轴倍率</td>
+                  <td>滑条，整组高 42</td>
+                  <td>0–120%；初始 100%；只改变画面里的数值</td>
+                </tr>
+                <tr>
+                  <td>倍率与速度</td>
+                  <td>点动速度</td>
+                  <td>滑条，整组高 42</td>
+                  <td>0–3000 毫米/分钟；初始 600</td>
+                </tr>
+                <tr>
+                  <td>倍率与速度</td>
+                  <td>最大速度</td>
+                  <td>滑条，整组高 42</td>
+                  <td>0–6000 毫米/分钟；初始 3000</td>
+                </tr>
+                <tr>
+                  <td>预览</td>
+                  <td>刀路预览</td>
+                  <td>标签页，高 28</td>
+                  <td>初始选中</td>
+                </tr>
+                <tr>
+                  <td>预览</td>
+                  <td>坐标数显</td>
+                  <td>标签页，高 28</td>
+                  <td>切换到坐标、偏置详情</td>
+                </tr>
+                <tr>
+                  <td>预览</td>
+                  <td>X / Y / Z 坐标读数</td>
+                  <td>等宽数字，24／34 字号</td>
+                  <td>固定零值；毫米 3 位小数、英寸 4 位</td>
+                </tr>
+                <tr>
+                  <td>预览</td>
+                  <td>已回零标记（示例）</td>
+                  <td>坐标旁图标</td>
+                  <td>固定样例，不表示真实机床已回零</td>
+                </tr>
+                <tr>
+                  <td>预览</td>
+                  <td>剩余行程</td>
+                  <td>坐标旁辅助读数</td>
+                  <td>初始隐藏；通过菜单切换</td>
+                </tr>
+                <tr>
+                  <td>预览</td>
+                  <td>速度：</td>
+                  <td>辅助读数</td>
+                  <td>初始显示固定零值</td>
+                </tr>
+                <tr>
+                  <td>预览</td>
+                  <td>刀路示意图</td>
+                  <td>随显示区域大小变化的绘图区</td>
+                  <td>刀路、快速移动、刀具、范围、坐标轴、网格等图层</td>
+                </tr>
+                <tr>
+                  <td>数显</td>
+                  <td>坐标数显</td>
+                  <td>等宽数字，35／45 字号</td>
+                  <td>固定的三轴位置示例</td>
+                </tr>
+                <tr>
+                  <td>数显</td>
+                  <td>速度／剩余行程／G54、G92 偏置／刀长补偿／坐标旋转角度</td>
+                  <td>仅供查看详情，15 字号</td>
+                  <td>固定样例；内容较多时可向下翻看</td>
+                </tr>
+                <tr>
+                  <td>程序</td>
+                  <td>调整程序区高度</td>
+                  <td>分隔拖动条，高 7</td>
+                  <td>程序区高 90–340；初始 150；方向键可调整</td>
+                </tr>
+                <tr>
+                  <td>程序</td>
+                  <td>加工程序</td>
+                  <td>行号列 47；代码 13 字号、19 行高</td>
+                  <td>200 行固定样例；可选中一行，也可向下翻看</td>
+                </tr>
+                <tr>
+                  <td>程序</td>
+                  <td>从此行运行</td>
+                  <td>右键菜单项</td>
+                  <td>目前只作演示；仅显示说明</td>
+                </tr>
+                <tr>
+                  <td>状态栏</td>
+                  <td>急停</td>
+                  <td>状态区，高 25</td>
+                  <td>固定机床状态示例</td>
+                </tr>
+                <tr>
+                  <td>状态栏</td>
+                  <td>未装刀</td>
+                  <td>状态区，高 25</td>
+                  <td>固定刀具状态示例</td>
+                </tr>
+                <tr>
+                  <td>状态栏</td>
+                  <td>位置：工件坐标 实际位置</td>
+                  <td>状态区，高 25</td>
+                  <td>随显示选项切换坐标系及位置类型</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+        <section id="list-3">
+          <h2>弹出窗口</h2>
+          <p>共 11 类。相同外框可以共用，标题和内容按用途变化。</p>
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>窗口名称</th>
+                  <th>里面有什么</th>
+                  <th>当前画面表现</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>打开程序／示例加工文件</td>
+                  <td>
+                    文件夹位置（不可修改）、上级目录、选中文件行、文件名（不可修改）、文件类型下拉框
+                  </td>
+                  <td>仅显示示例文件，不读取实际文件</td>
+                </tr>
+                <tr>
+                  <td>程序另存为</td>
+                  <td>与打开程序共用文件展示布局</td>
+                  <td>没有保存动作</td>
+                </tr>
+                <tr>
+                  <td>程序属性</td>
+                  <td>文件名、程序行数、程序来源、刀路预览说明</td>
+                  <td>供查看的信息</td>
+                </tr>
+                <tr>
+                  <td>工件对刀</td>
+                  <td>当前轴、设定值输入框、工件坐标系下拉框（G54–G59.3）</td>
+                  <td>可以改画面里的输入值，不会真的设置工件位置</td>
+                </tr>
+                <tr>
+                  <td>刀具对刀</td>
+                  <td>当前轴、刀具偏置设定值输入框、坐标系下拉框</td>
+                  <td>可以改画面里的输入值，不会真的修改刀具资料</td>
+                </tr>
+                <tr>
+                  <td>自定义间距</td>
+                  <td>网格间距输入框、毫米单位</td>
+                  <td>输入可编辑，但不应用到预览网格</td>
+                </tr>
+                <tr>
+                  <td>编辑刀具表</td>
+                  <td>刀具号、刀位号、X、Y、Z、直径、备注；空表提示</td>
+                  <td>当前没有刀具资料，也不能修改实际资料</td>
+                </tr>
+                <tr>
+                  <td>关于本界面</td>
+                  <td>48 × 48 图标、软件版本、示例配置、中文说明</td>
+                  <td>供查看的信息</td>
+                </tr>
+                <tr>
+                  <td>快捷键说明</td>
+                  <td>键名与中文功能的两列表格、目前只作演示提示</td>
+                  <td>供查看的信息，内容较多时可向下翻看</td>
+                </tr>
+                <tr>
+                  <td>显示自定义操作面板</td>
+                  <td>机床专属面板未配置的说明</td>
+                  <td>当前没有对应的机床专用面板</td>
+                </tr>
+                <tr>
+                  <td>按所选操作显示中文标题</td>
+                  <td>统一未连接控制器说明与关闭按钮</td>
+                  <td>只显示说明，不执行对应操作</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+        <section id="words">
+          <h2>不熟悉的词怎么理解</h2>
+          <p>这些解释帮助安排画面，不要求设计师掌握机床编程。</p>
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>名称</th>
+                  <th>白话说明</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>回零</td>
+                  <td>让机床找到自己的参考位置。</td>
+                </tr>
+                <tr>
+                  <td>对刀</td>
+                  <td>建立工件或刀具的位置基准；工件对刀与刀具对刀是不同设置。</td>
+                </tr>
+                <tr>
+                  <td>点动</td>
+                  <td>操作员手动移动某个轴。连续方式持续移动，步距方式每次移动一小段。</td>
+                </tr>
+                <tr>
+                  <td>倍率</td>
+                  <td>相对于原设定的百分比。100% 表示原设定值，50% 表示一半。</td>
+                </tr>
+                <tr>
+                  <td>主轴</td>
+                  <td>带动刀具或工件旋转的部分。</td>
+                </tr>
+                <tr>
+                  <td>刀路</td>
+                  <td>刀具运动的路线。</td>
+                </tr>
+                <tr>
+                  <td>工件坐标、机床坐标</td>
+                  <td>位置数字所采用的两种不同基准。</td>
+                </tr>
+                <tr>
+                  <td>坐标偏置</td>
+                  <td>将位置基准平移一段距离的修正值。</td>
+                </tr>
+                <tr>
+                  <td>刀长补偿</td>
+                  <td>修正不同刀具长度带来的差异。</td>
+                </tr>
+                <tr>
+                  <td>实际位置、指令位置</td>
+                  <td>系统反馈的位置，与控制指令要求的位置。</td>
+                </tr>
+                <tr>
+                  <td>剩余行程</td>
+                  <td>当前这一段运动还没有走完的距离。</td>
+                </tr>
+                <tr>
+                  <td>当前模态指令</td>
+                  <td>目前持续生效的加工方式和参数。</td>
+                </tr>
+                <tr>
+                  <td>关节模式、坐标轴模式</td>
+                  <td>前者按运动机构区分，后者按空间方向区分；保留两个独立选择。</td>
+                </tr>
+                <tr>
+                  <td>选择停、程序段跳过</td>
+                  <td>前者决定遇到特定停止指令是否暂停；后者决定是否跳过带斜杠的程序段。</td>
+                </tr>
+                <tr>
+                  <td>硬限位</td>
+                  <td>机床到达行程边界时触发的限制。</td>
+                </tr>
+                <tr>
+                  <td>单选、多选</td>
+                  <td>圆圈通常表示一组中选一个；方框表示每一项可分别勾选。</td>
+                </tr>
+                <tr>
+                  <td>只读</td>
+                  <td>只能看，不能在这里修改。</td>
+                </tr>
+                <tr>
+                  <td>悬停、焦点</td>
+                  <td>悬停是鼠标移到上面；焦点是键盘操作当前落到的位置。</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+        <footer>机床操作界面 · 设计参考</footer>
+      </main>
+    </div>
+  </body>
+</html>

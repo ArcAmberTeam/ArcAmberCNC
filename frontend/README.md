@@ -1,10 +1,44 @@
 # BetterLinuxCNC Web
 
-使用 Vue 3、TypeScript、Vite、Pinia、Reka UI 和 Tailwind CSS 开发独立 Web 界面。现有原型以 LinuxCNC **2.9.10** 的 AXIS 功能和布局为起点；原生 AXIS 应用已经删除，后续只维护 Web。
+使用 Vue 3、TypeScript、Vite、Pinia、Reka UI 和 Tailwind CSS 开发独立 Web 界面。界面使用简体中文及国内数控常用术语。现有原型以 LinuxCNC **2.9.10** 的 AXIS 功能和布局为起点；原生 AXIS 应用已经删除，后续只维护 Web。
 
 当前是 **UI 原型**。所有机床动作只展示未接入说明；不连接 LinuxCNC、HAL 或网络控制服务，不执行 G-code，不读写真实程序文件。黑色预览区的 SVG 是静态刀路示意，坐标和状态来自固定样例。
 
+正式产品确定只通过 **Tauri 桌面程序**操作。当前已实现 Vue → Tauri → Rust → Unix socket → Python 的服务健康查询；LinuxCNC 控制尚未接入。浏览器仅用于界面预览和展示测试，不提供 HTTP/WebSocket 控制入口。详见 [本地控制架构](../docs/tauri-local-control-architecture.md)。
+
+给设计师的 [界面图文说明](docs/ui-design/index.html) 按 8 个操作与显示区域配图，用中文说明功能和操作状态；[完整中文清单](docs/ui-design/controls.html) 逐项列出名称、用途并附白话解释，[资料说明](docs/ui-design/README.md) 提供阅读方法和离线资料包。
+
 ## 启动
+
+桌面开发需要 Node 24、Rust 1.97.1、Python 3.11+ 和平台的 Tauri 开发依赖。在仓库根目录的第一个终端启动 Python 服务：
+
+```sh
+python3 -m venv backend/.venv
+backend/.venv/bin/python -m pip install -e backend
+backend/.venv/bin/python -m betterlinuxcnc_service
+```
+
+第二个终端启动桌面：
+
+```sh
+cd frontend
+npm ci
+npm run desktop:dev
+```
+
+桌面标题栏显示本地服务连接状态，每五秒检查一次，也可点击重新检查。它与“机床已连接”无关，所有机床按钮仍只弹说明。Python 服务独立运行，退出桌面不结束服务，按服务终端的中断键可退出。两端需使用同一用户和相同运行目录，详见 [Python 服务说明](../backend/README.md)。
+
+Debian 13 需要 `libwebkit2gtk-4.1-dev`、`libxdo-dev`、`libayatana-appindicator3-dev`、`librsvg2-dev`、`libssl-dev`、`pkg-config`、`build-essential` 和 `patchelf` 等构建依赖；完整安装命令在 CI 的桌面构建任务中。
+
+```sh
+npm run desktop:check
+npm run desktop:test
+npm run desktop:build -- --bundles deb -- --locked
+```
+
+`.deb` 在 Debian/Linux 上构建，macOS 开发机使用 `--bundles app`。桌面包不内置 Python 解释器或自动安装服务；Python 的 wheel 是单独产物。Rust 集成测试可用 `SERVICE_TEST_PYTHON` 指定 Python 3.11+ 路径。
+
+## 浏览器预览
 
 使用 Node.js 24 LTS 和 npm，在仓库根目录运行：
 
@@ -47,4 +81,6 @@ npm run test:e2e
 
 ## CI/CD
 
-[Web CI](../.github/ci/README.md) 执行检查和构建，将 `dist/` 打包为带 commit 与校验和的静态产物，再通过浏览器测试验证同一份产物。发布只经过 [Web staging 安装器](../.github/staging/README.md)，不安装 LinuxCNC/AXIS 包。已有测试机需要按该文档更新一次安装器及 nginx；当前仓库变更不代表远端已迁移。
+[桌面与网页 CI](../.github/ci/README.md) 检查前端、Python 服务和 Rust 桌面框架。Python 在 3.11/3.13 上验证安装包，Tauri 在 Debian 13 容器中执行检查、通信测试并生成 `.deb`；两类产物分别上传，不自动安装到机床。所有检查均纳入 `CI Gate`。
+
+网页预览仍将 `dist/` 打包为带 commit 与校验和的静态产物，再通过浏览器测试验证同一份产物。发布只经过 [Web staging 安装器](../.github/staging/README.md)，不安装 LinuxCNC/AXIS 包。已有测试机需要按该文档更新一次安装器及 nginx；当前仓库变更不代表远端已迁移。

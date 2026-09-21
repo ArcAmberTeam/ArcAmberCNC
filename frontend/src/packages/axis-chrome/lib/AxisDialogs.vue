@@ -7,11 +7,11 @@ const ui = useAxisPresentation();
 const value = ref('0.0');
 const system = ref('G54');
 const description = computed(() => {
-  if (ui.dialog?.id === 'help.about') return 'AXIS — LinuxCNC graphical user interface';
+  if (ui.dialog?.id === 'help.about') return '基于 AXIS 的 LinuxCNC 中文操作界面';
   if (ui.dialog?.id === 'help.reference')
-    return 'AXIS keyboard reference. This preview enables F3, F5 and display shortcuts only.';
-  if (ui.dialog?.id === 'file.properties') return 'Properties of the bundled display sample.';
-  return 'Static UI preview — no controller connected. This action is not implemented.';
+    return '快捷键说明：当前仅支持 F3、F5 和视图操作快捷键，机床控制快捷键尚未接入。';
+  if (ui.dialog?.id === 'file.properties') return '当前内置演示程序的信息。';
+  return '尚未连接控制器。当前仅演示界面，此操作不会执行。';
 });
 watch(
   () => ui.dialog?.id,
@@ -32,9 +32,9 @@ watch(
       <img src="/axis/axis-48x48.png" alt="AXIS" />
       <div>
         <strong>AXIS {{ fixture.version }}</strong>
-        <p>LinuxCNC-HAL-SIM-AXIS</p>
-        <p>Web interface study · UI only</p>
-        <p>Based on this repository’s Tcl / Python interface.</p>
+        <p>示例配置：{{ fixture.machine }}</p>
+        <p>中文界面原型 · 仅作展示</p>
+        <p>功能与布局参考 AXIS 2.9.10。</p>
       </div>
     </div>
     <dl v-else-if="ui.dialog.id === 'help.reference'" class="shortcut-list">
@@ -44,14 +44,14 @@ watch(
       >
     </dl>
     <dl v-else-if="ui.dialog.id === 'file.properties'" class="property-list">
-      <dt>File</dt>
+      <dt>文件名</dt>
       <dd>{{ fixture.fileName }}</dd>
-      <dt>Lines</dt>
+      <dt>程序行数</dt>
       <dd>{{ sampleProgram.length }}</dd>
-      <dt>Source</dt>
-      <dd>Bundled AXIS splash G-code</dd>
-      <dt>Preview</dt>
-      <dd>Static illustration; no G-code interpreter</dd>
+      <dt>程序来源</dt>
+      <dd>内置 AXIS 标识演示程序</dd>
+      <dt>刀路预览</dt>
+      <dd>静态示意图，尚未接入程序解释器</dd>
     </dl>
     <div
       v-else-if="
@@ -61,16 +61,16 @@ watch(
       "
       class="file-dialog"
     >
-      <label>Directory: <input value="/linuxcnc/nc_files" readonly /></label>
+      <label>文件夹： <input value="/linuxcnc/nc_files" readonly /></label>
       <div class="tk-inset file-list">
-        <span>📁&nbsp; ../</span><span class="selected-file">▤&nbsp; axis.ngc</span>
+        <span>📁&nbsp; 上级目录</span><span class="selected-file">▤&nbsp; axis.ngc</span>
       </div>
-      <label>File name: <input :value="fixture.fileName" readonly /></label>
+      <label>文件名： <input :value="fixture.fileName" readonly /></label>
       <label
-        >Files of type:
-        <select aria-label="File type">
-          <option>G-code files (*.ngc)</option>
-          <option>All files (*)</option>
+        >文件类型：
+        <select aria-label="文件类型">
+          <option>加工程序（*.ngc）</option>
+          <option>所有文件（*）</option>
         </select></label
       >
     </div>
@@ -79,42 +79,40 @@ watch(
       class="touch-dialog"
     >
       <p>
-        Set {{ ui.dialog.axis }}
-        {{ ui.dialog.id.startsWith('tool') ? 'tool offset' : 'coordinate' }} to:
+        设置 {{ ui.dialog.axis }} 轴{{
+          ui.dialog.id.startsWith('tool') ? '刀具偏置' : '工件坐标'
+        }}：
       </p>
-      <label>Value <input v-model="value" inputmode="decimal" /></label>
+      <label>设定值 <input v-model="value" inputmode="decimal" /></label>
       <label
-        >Coordinate system
-        <select v-model="system">
+        >工件坐标系
+        <select v-model="system" aria-label="工件坐标系">
           <option v-for="item in coordinateSystems" :key="item">{{ item }}</option>
         </select></label
       >
     </div>
     <div v-else-if="ui.dialog.id === 'view.grid-custom'" class="touch-dialog">
-      <label>Grid size <input v-model="value" inputmode="decimal" /> mm</label>
+      <label>网格间距 <input v-model="value" inputmode="decimal" /> 毫米</label>
     </div>
     <div v-else-if="ui.dialog.id === 'tool.edit'" class="tk-inset tool-table-wrap">
       <table class="tool-table">
         <thead>
           <tr>
-            <th
-              v-for="label in ['Tool', 'Pocket', 'X', 'Y', 'Z', 'Diameter', 'Comment']"
-              :key="label"
-            >
+            <th v-for="label in ['刀具号', '刀位号', 'X', 'Y', 'Z', '直径', '备注']" :key="label">
               {{ label }}
             </th>
           </tr>
         </thead>
         <tbody>
           <tr>
-            <td colspan="7">No tool table connected</td>
+            <td colspan="7">尚未加载刀具表</td>
           </tr>
         </tbody>
       </table>
     </div>
     <div v-else-if="ui.dialog.id === 'show.pyvcp'" class="placeholder-detail">
-      PyVCP panels are machine-specific. No custom panel is configured for this XYZ preview.
+      自定义面板需根据具体机床配置。当前三轴演示界面未配置 PyVCP 面板。
     </div>
-    <div class="dialog-actions"><TkButton @click="ui.dialog = null">Close</TkButton></div>
+    <div class="dialog-actions"><TkButton @click="ui.dialog = null">关闭</TkButton></div>
   </TkDialog>
 </template>

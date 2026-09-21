@@ -19,7 +19,7 @@ const emit = defineEmits<{ close: [] }>();
       <DialogContent class="tk-dialog">
         <div class="tk-dialog-titlebar">
           <DialogTitle>{{ title }}</DialogTitle>
-          <DialogClose class="dialog-x" aria-label="Close dialog">×</DialogClose>
+          <DialogClose class="dialog-x" aria-label="关闭对话框">×</DialogClose>
         </div>
         <div class="tk-dialog-body">
           <DialogDescription class="dialog-description">{{ description }}</DialogDescription>

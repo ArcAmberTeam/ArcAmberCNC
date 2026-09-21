@@ -16,15 +16,16 @@ manual-control/
 
 ## 所有权和依赖
 
-| 模块                | 拥有的职责                                       | 允许依赖                                                                            |
-| ------------------- | ------------------------------------------------ | ----------------------------------------------------------------------------------- |
-| `axis-catalog`      | AXIS 入口定义、只读样例和出处                    | 无其他业务模块                                                                      |
-| `ui-system`         | 无业务的 Tk 控件、视觉 token、Reka 组合          | 无其他业务模块                                                                      |
-| `axis-presentation` | 跨区域展示对话框宿主、入口元数据查找             | `axis-catalog`                                                                      |
-| `manual-control`    | Manual / MDI、选轴、点动选择、倍率及自身展示状态 | 上述三个基础模块                                                                    |
-| `toolpath-view`     | Preview / DRO、视图选择、缩放及自身展示状态      | 上述三个基础模块                                                                    |
-| `program-view`      | 程序列表、行选择、程序相关展示状态               | 上述三个基础模块                                                                    |
-| `axis-chrome`       | AXIS 菜单、工具栏与展示对话框组合                | 上述三个基础模块；`manual-control/presentation.ts`、`toolpath-view/presentation.ts` |
+| 模块                 | 拥有的职责                                                 | 允许依赖                                                                            |
+| -------------------- | ---------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| `controller-session` | 本地服务连接提示，Tauri 健康查询与结果校验；不提供机床命令 | 无其他业务模块；Tauri API 由本模块独占                                              |
+| `axis-catalog`       | AXIS 入口定义、只读样例和出处                              | 无其他业务模块                                                                      |
+| `ui-system`          | 无业务的 Tk 控件、视觉 token、Reka 组合                    | 无其他业务模块                                                                      |
+| `axis-presentation`  | 跨区域展示对话框宿主、入口元数据查找                       | `axis-catalog`                                                                      |
+| `manual-control`     | Manual / MDI、选轴、点动选择、倍率及自身展示状态           | 上述三个基础模块                                                                    |
+| `toolpath-view`      | Preview / DRO、视图选择、缩放及自身展示状态                | 上述三个基础模块                                                                    |
+| `program-view`       | 程序列表、行选择、程序相关展示状态                         | 上述三个基础模块                                                                    |
+| `axis-chrome`        | AXIS 菜单、工具栏与展示对话框组合                          | 上述三个基础模块；`manual-control/presentation.ts`、`toolpath-view/presentation.ts` |
 
 `axis-presentation` 不是全局业务 store，不保存选轴、点动模式、选中程序行或预览几何。每个功能模块拥有自己的状态；只有真正跨模块的展示宿主才留在该基础模块。未来机床状态由 `controller-session` 独占会话入口，不能迁入展示 store。
 

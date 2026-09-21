@@ -20,25 +20,21 @@ const zero = computed(() => (ui.choices.units === 'inch' ? '0.0000' : '0.000'));
 
 <template>
   <TabsRoot v-model="ui.previewTab" class="preview-column">
-    <TabsList class="tk-tabs" aria-label="Preview display"
-      ><TabsTrigger value="preview" class="tk-tab">Preview</TabsTrigger
-      ><TabsTrigger value="dro" class="tk-tab">DRO</TabsTrigger></TabsList
+    <TabsList class="tk-tabs" aria-label="刀路与坐标显示"
+      ><TabsTrigger value="preview" class="tk-tab">刀路预览</TabsTrigger
+      ><TabsTrigger value="dro" class="tk-tab">坐标数显</TabsTrigger></TabsList
     >
     <TabsContent value="preview" class="preview-panel tk-inset" tabindex="-1">
-      <div
-        class="preview-readout"
-        :class="{ large: ui.flags['show.large'] }"
-        aria-label="Position readout"
-      >
+      <div class="preview-readout" :class="{ large: ui.flags['show.large'] }" aria-label="坐标读数">
         <div v-for="axis in axes" :key="axis">
-          <span>{{ axis }}:</span><span class="home-symbol" title="Sample homed marker">⌖</span
+          <span>{{ axis }}:</span><span class="home-symbol" title="已回零标记（示例）">⌖</span
           ><span>{{ zero }}</span
           ><template v-if="ui.flags['show.dtg']"
-            ><span class="dtg">DTG {{ zero }}</span></template
+            ><span class="dtg">剩余 {{ zero }}</span></template
           >
         </div>
         <div v-if="ui.flags['show.velocity']" class="velocity-readout">
-          <span>Vel:</span><span>{{ zero }}</span>
+          <span>速度：</span><span>{{ zero }}</span>
         </div>
         <div v-if="ui.flags['show.offsets']" class="offset-readout">
           G54 X: 0.000 Y: 0.000 Z: 0.000
@@ -48,7 +44,7 @@ const zero = computed(() => (ui.choices.units === 'inch' ? '0.0000' : '0.000'));
         class="toolpath-svg"
         viewBox="0 0 740 520"
         role="img"
-        aria-label="Static LinuxCNC splash toolpath illustration; not an interpreted machining path"
+        aria-label="LinuxCNC 标识刀路示意图，仅作展示，未经程序解释器计算"
       >
         <defs>
           <pattern id="preview-grid" width="24" height="24" patternUnits="userSpaceOnUse">
@@ -170,18 +166,18 @@ const zero = computed(() => (ui.choices.units === 'inch' ? '0.0000' : '0.000'));
         </div>
       </div>
       <div class="dro-details">
-        <p>Vel: 0.000</p>
-        <p>DTG: 0.000</p>
+        <p>速度：0.000</p>
+        <p>剩余行程：0.000</p>
         <hr />
-        <p>G54 offsets</p>
+        <p>G54 工件坐标偏置</p>
         <p v-for="axis in axes" :key="`offset-${axis}`">{{ axis }}: 0.000</p>
         <hr />
-        <p>G92 offsets</p>
+        <p>G92 临时坐标偏置</p>
         <p>X: 0.000 &nbsp; Y: 0.000 &nbsp; Z: 0.000</p>
         <hr />
-        <p>Tool length offset</p>
+        <p>刀具长度补偿</p>
         <p>Z: 0.000</p>
-        <p>Rotation: 0.000</p>
+        <p>坐标旋转角度：0.000</p>
       </div>
     </TabsContent>
   </TabsRoot>

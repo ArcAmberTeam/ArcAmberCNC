@@ -8,7 +8,7 @@ const preview = useToolpathPresentation();
 </script>
 
 <template>
-  <div class="axis-toolbar" role="toolbar" aria-label="AXIS controls">
+  <div class="axis-toolbar" role="toolbar" aria-label="常用操作工具栏">
     <template v-for="item in toolbar" :key="item.id">
       <span v-if="item.separator" class="toolbar-separator" role="separator" />
       <TkButton

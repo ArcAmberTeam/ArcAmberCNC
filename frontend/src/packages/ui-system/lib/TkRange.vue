@@ -6,7 +6,7 @@ defineProps<{ label: string; max: number; unit?: string }>();
 <template>
   <label class="tk-range">
     <span
-      >{{ label }}: <span class="range-value">{{ value }}</span
+      >{{ label }}： <span class="range-value">{{ value }}</span
       >{{ unit ?? '%' }}</span
     >
     <input v-model.number="value" type="range" min="0" :max="max" :aria-label="label" />

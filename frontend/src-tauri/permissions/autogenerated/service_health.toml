@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-service-health"
+description = "Enables the service_health command without any pre-configured scope."
+commands.allow = ["service_health"]
+
+[[permission]]
+identifier = "deny-service-health"
+description = "Denies the service_health command without any pre-configured scope."
+commands.deny = ["service_health"]

@@ -8,6 +8,7 @@ import { fixture } from '../packages/axis-catalog';
 import { useManualPresentation } from '../packages/manual-control/presentation';
 import { useToolpathPresentation } from '../packages/toolpath-view/presentation';
 import { useAxisPresentation } from '../packages/axis-presentation';
+import { LocalServiceStatus } from '../packages/controller-session';
 const dialogs = useAxisPresentation();
 const manual = useManualPresentation();
 const preview = useToolpathPresentation();
@@ -60,10 +61,9 @@ onUnmounted(() => window.removeEventListener('keydown', shortcuts));
   <main class="axis-window" :style="{ '--program-height': `${programHeight}px` }">
     <header class="window-titlebar">
       <img src="/axis/axis-16x16.png" alt="" /><span class="window-title"
-        >{{ fixture.fileName }} — AXIS {{ fixture.version }} on {{ fixture.machine }}</span
-      ><span class="static-label" title="Static interface. No LinuxCNC connection."
-        >STATIC PREVIEW</span
-      >
+        >{{ fixture.fileName }} — AXIS {{ fixture.version }} · 模拟机床</span
+      ><span class="static-label" title="界面演示，尚未连接控制器">界面演示</span>
+      <LocalServiceStatus />
       <div class="window-controls" aria-hidden="true">
         <span>−</span><span>□</span><span>×</span>
       </div>
@@ -74,7 +74,7 @@ onUnmounted(() => window.removeEventListener('keydown', shortcuts));
     <div
       class="pane-sash"
       role="separator"
-      aria-label="Resize program panel"
+      aria-label="调整程序区高度"
       aria-orientation="horizontal"
       :aria-valuenow="programHeight"
       :aria-valuemin="90"
@@ -90,12 +90,12 @@ onUnmounted(() => window.removeEventListener('keydown', shortcuts));
       <span />
     </div>
     <ProgramView />
-    <footer class="statusbar" aria-label="Sample machine status">
+    <footer class="statusbar" aria-label="机床状态示例">
       <span>{{ fixture.taskState }}</span
       ><span>{{ fixture.tool }}</span
       ><span class="position-status"
-        >Position: {{ preview.choices.coordinates === 'relative' ? 'Relative' : 'Machine' }}
-        {{ preview.choices.position === 'actual' ? 'Actual' : 'Commanded' }}</span
+        >位置： {{ preview.choices.coordinates === 'relative' ? '工件坐标' : '机床坐标' }}
+        {{ preview.choices.position === 'actual' ? '实际位置' : '指令位置' }}</span
       >
     </footer>
     <AxisDialogs />
@@ -134,7 +134,7 @@ onUnmounted(() => window.removeEventListener('keydown', shortcuts));
   text-overflow: ellipsis;
 }
 .static-label {
-  font-size: 9px;
+  font-size: 11px;
   letter-spacing: 0.6px;
   color: #e9eff6;
   margin-left: auto;
@@ -205,7 +205,7 @@ onUnmounted(() => window.removeEventListener('keydown', shortcuts));
     grid-template-columns: 307px minmax(0, 1fr);
   }
   .static-label {
-    font-size: 8px;
+    font-size: 11px;
   }
   .window-title {
     font-size: 12px;

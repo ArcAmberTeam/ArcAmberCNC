@@ -1,4 +1,4 @@
-name: Web CI
+name: Desktop and Web CI
 
 on:
   push:
@@ -51,7 +51,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@v7
         with:
-          node-version: '24'
+          node-version: "24"
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - name: Install locked frontend dependencies
@@ -82,7 +82,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@v7
         with:
-          node-version: '24'
+          node-version: "24"
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - uses: actions/download-artifact@v8
@@ -105,7 +105,7 @@ jobs:
       - name: Exercise the release build without a controller
         working-directory: frontend
         env:
-          PLAYWRIGHT_TEST_DIST: '1'
+          PLAYWRIGHT_TEST_DIST: "1"
           EXPECTED_COMMIT: ${{ github.sha }}
         run: npm run test:e2e
       - name: Upload browser diagnostics
@@ -116,15 +116,112 @@ jobs:
           path: frontend/test-results/
           if-no-files-found: ignore
 
+  python-checks:
+    name: Python service (${{ matrix.python }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.11", "3.13"]
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+          cache-dependency-path: backend/requirements-ci.txt
+      - name: Install pinned Python build and check tools
+        run: python -m pip install -r backend/requirements-ci.txt
+      - name: Check Python formatting and code
+        run: |
+          ruff check backend
+          ruff format --check backend
+      - name: Build and install the service package
+        run: |
+          python -m build --no-isolation backend
+          python -m pip install --no-deps backend/dist/*.whl
+      - name: Test the installed CLI and Unix socket protocol
+        run: python -m unittest discover -s backend/tests -v
+      - uses: actions/upload-artifact@v7
+        if: matrix.python == '3.13'
+        with:
+          name: betterlinuxcnc-python
+          path: backend/dist/
+          if-no-files-found: error
+
+  tauri-build:
+    name: Tauri Debian 13 build and service bridge
+    runs-on: ubuntu-24.04
+    container: debian:13
+    timeout-minutes: 45
+    env:
+      CARGO_TERM_COLOR: always
+    steps:
+      - name: Install Debian desktop build dependencies
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            ca-certificates curl git build-essential pkg-config libssl-dev \
+            libwebkit2gtk-4.1-dev libxdo-dev libayatana-appindicator3-dev \
+            librsvg2-dev patchelf file python3
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.97.1"
+          components: rustfmt, clippy
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            frontend/src-tauri/target
+          key: tauri-debian13-x64-rust1971-${{ hashFiles('frontend/src-tauri/Cargo.lock') }}
+          restore-keys: tauri-debian13-x64-rust1971-
+      - name: Install locked frontend dependencies and prepare assets
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+      - name: Check Rust formatting and lint
+        working-directory: frontend
+        run: npm run desktop:check
+      - name: Test Rust against the real Python service
+        working-directory: frontend
+        run: npm run desktop:test
+      - name: Build the desktop Debian package
+        working-directory: frontend
+        run: npm run desktop:build -- --bundles deb -- --locked
+      - name: Inspect the desktop package
+        run: |
+          for package in frontend/src-tauri/target/release/bundle/deb/*.deb; do
+            dpkg-deb --info "$package"
+            dpkg-deb --contents "$package"
+          done
+      - uses: actions/upload-artifact@v7
+        with:
+          name: betterlinuxcnc-desktop-debian13
+          path: frontend/src-tauri/target/release/bundle/deb/*.deb
+          if-no-files-found: error
+
   ci-gate:
     # Preserve this exact check name for existing branch protection.
     name: CI Gate
     runs-on: [self-hosted, Linux, X64, betterlinuxcnc]
     timeout-minutes: 5
     if: ${{ always() }}
-    needs: [source-checks, web-build, browser-tests]
+    needs: [source-checks, web-build, browser-tests, python-checks, tauri-build]
     steps:
-      - name: Require all Web build and verification jobs to pass
+      - name: Require Web, Python and Tauri verification jobs to pass
         env:
           NEEDS_JSON: ${{ toJSON(needs) }}
         run: |

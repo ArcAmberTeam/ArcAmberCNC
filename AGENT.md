@@ -6,16 +6,17 @@
 
 项目维护和发布入口统一为 **`frontend/` Web 界面**。原生 AXIS 应用已删除，包括 Python 主程序、Tcl 界面、axis-remote、专属资源和构建/安装入口。现有 Web 界面及其独立资源保留。LinuxCNC 控制核心、共享 Python API 和其他上游工具保留，不属于当前 Web 发布产物。删除边界及遗留配置说明见 [迁移记录](docs/native-axis-removal.md)。
 
-当前 Web 仍是静态原型，只实现菜单、标签、选择、输入、滚动和展示设置等本地界面行为。不得发送机床命令、启动控制进程、读取硬件或声称完成了运动。机床动作只显示未接入说明。视觉设计可在 Web 模块内部演进，不向原生 Tcl/Python 回写样式。
+当前界面仍是机床操作原型；已加入 Tauri 宿主和独立 Python 诊断服务，通过 Unix socket 查询服务健康，但没有接入 LinuxCNC。机床动作只显示未接入说明；不得发送机床命令、读取硬件或声称完成了运动。服务启动由开发者显式执行，桌面不自动启动 LinuxCNC 或 Python。视觉设计不向原生 Tcl/Python 回写。
 
 ## 技术与系统边界
 
 - 目标运行环境：Debian 13、Intel 核显。CPU 型号、LinuxCNC 安装版本和 WebKitGTK 能力仍须在目标机确认。
-- 前端：Vue 3、TypeScript、Vite、Pinia、Reka UI、Tailwind CSS。桌面宿主未来采用 Tauri 2，当前先提供可独立运行的浏览器界面。
-- 后续控制接入：Python LinuxCNC 适配器与 FastAPI 网关；LinuxCNC 自身负责插补、运动规划、实时线程及 HAL。Web/Rust/Python UI 网关均不得承担实时伺服职责。
+- 前端：Vue 3、TypeScript、Vite、Pinia、Reka UI、Tailwind CSS。用户已确定正式产品仅通过 Tauri 2 桌面程序操作；浏览器只用于界面预览和展示测试，不提供真实控制入口。
+- 后续控制链路固定为 Vue → Tauri IPC → Rust → Unix domain socket → Python 控制服务 → LinuxCNC。不建设 HTTP/WebSocket 控制网关，不以 OpenAPI 作为本地消息协议；消息结构、版本与运行时校验仍须明确。详见 [Tauri 专用控制架构](docs/tauri-local-control-architecture.md)。
+- LinuxCNC 自身负责插补、运动规划、实时线程及 HAL。Vue、Rust 与 Python 控制服务均不得承担实时伺服职责。Rust 拥有桌面权限和通信桥接；Python 拥有机床操作规则，不复制两套控制逻辑。
 - 未来控制器进程持有应用内唯一命令写入口和错误通道读取入口。其他 UI/HALUI 的写权限需显式协调。预览解释工作放在独立进程。
 - 不假设关闭 `DISPLAY` 后 LinuxCNC 仍运行；在接入前明确启动、关闭、重连及进程监管策略。
-- 不为静态阶段预建空服务、假 WebSocket、Tauri 命令或伪控制状态机。
+- 本阶段只提供有实际用途的 `health` 服务查询与对应 Tauri 命令；不创建假 WebSocket、未实现的控制命令或伪控制状态机。
 
 ## 模块边界
 
@@ -37,7 +38,7 @@
 
 ## CI/CD 边界
 
-当前唯一自动工作流为 `.github/workflows/ci.yml` 的 Web CI：前端类型/格式/模块边界检查、Vite 构建、产物浏览器测试和静态发布。保留 `CI Gate` 检查名与现有分支部署策略，检查原生 AXIS 删除边界，但不构建或部署 LinuxCNC/AXIS `.deb`，不运行 Tk 图标检查或运动仿真。
+当前唯一自动工作流为 `.github/workflows/ci.yml` 的 Desktop and Web CI：保留 Web 构建、浏览器测试和预览发布，新增 Python 3.11/3.13 安装包测试，以及 Debian 13 容器内的 Rust 格式/lint、Rust→Python 集成测试和 Tauri `.deb` 构建。所有任务纳入原有 `CI Gate`，保留分支部署策略。新增产物只上传 CI，不自动安装到机床；不构建或部署原生 LinuxCNC/AXIS `.deb`，不运行运动仿真。构建成功不代表机床控制或目标机图形已验收。
 
 `.github/ci/package-web.py` 拥有构建打包；`.github/staging/` 拥有传输、目标机安装和回滚。部署只能使用同一次 CI 已测试的产物。目标机新安装器和本机 Web 服务须按 staging README 一次性配置；修改仓库配置不代表已更新真实服务器。敏感凭据只进入部署 job。
 

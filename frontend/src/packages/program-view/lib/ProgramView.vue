@@ -20,7 +20,7 @@ const selectedLine = ref(0);
     <ContextMenuTrigger as-child>
       <section
         class="program-pane tk-inset"
-        aria-label="G-code program"
+        aria-label="加工程序"
         tabindex="0"
         @keydown.down.prevent="selectedLine = Math.min(sampleProgram.length - 1, selectedLine + 1)"
         @keydown.up.prevent="selectedLine = Math.max(0, selectedLine - 1)"
@@ -42,11 +42,11 @@ const selectedLine = ref(0);
     </ContextMenuTrigger>
     <ContextMenuPortal
       ><ContextMenuContent class="tk-menu"
-        ><ContextMenuItem class="menu-item" disabled>AXIS</ContextMenuItem
+        ><ContextMenuItem class="menu-item" disabled>加工程序</ContextMenuItem
         ><ContextMenuSeparator class="menu-separator" /><ContextMenuItem
           class="menu-item"
           @select="dialogs.openDialog('program.run-line')"
-          >Run from here</ContextMenuItem
+          >从此行运行</ContextMenuItem
         ></ContextMenuContent
       ></ContextMenuPortal
     >

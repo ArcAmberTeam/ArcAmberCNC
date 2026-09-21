@@ -18,9 +18,6 @@
   border-color: #fff #888 #888 #fff;
   background: #e5e5e5;
 }
-.menu-trigger u {
-  text-underline-offset: 2px;
-}
 .axis-toolbar {
   display: flex;
   align-items: center;

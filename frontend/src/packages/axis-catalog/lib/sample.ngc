@@ -1,15 +1,15 @@
-( AXIS "splash G-code" Not intended for actual milling )
-( To run this code anyway you might have to Touch Off the Z axis)
-( depending on your setup. As if you had some material in your mill... )
-( Hint jog the Z axis down a bit then touch off )
-( Also press the Toggle Skip Lines with "/" to see that part )
-( If the program is too big or small for your machine, change the scale below )
-( LinuxCNC 19/1/2012 2:13:51 PM )
+( AXIS 标识演示程序，不用于实际加工 )
+( 原程序说明：如需试运行，可能需要先进行 Z 轴工件对刀。 )
+( 对刀方式取决于实际机床配置及工件位置。 )
+( 原程序提示：先将 Z 轴向下点动少许，再进行对刀。 )
+( 切换“程序段跳过”可查看带 / 标记程序段的效果。 )
+( 图形尺寸不合适时，可调整下方 scale 缩放参数。 )
+( LinuxCNC 原作时间：2012年1月19日 14:13:51 )
 #<depth>=2.0
 #<scale>=1.0
 G21 G90 G64 G40
 G0 Z3.0
-( engraving )
+( 雕刻 )
 G17
 M3 S10000
 G0 X[1.75781*#<scale>] Y[0.5*#<scale>]

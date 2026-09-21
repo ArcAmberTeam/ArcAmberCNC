@@ -1,8 +1,9 @@
-# Web CI
+# 桌面与网页 CI
 
-The only active workflow is **Web CI** (`.github/workflows/ci.yml`). It checks,
-builds and deploys `frontend/`. Native AXIS artwork generation/Tk validation,
-Debian package builds and the full compatibility workflow have been removed
+The only active workflow is **Desktop and Web CI** (`.github/workflows/ci.yml`).
+It checks the Web UI, Python diagnostic service and Tauri desktop host. It
+deploys only the static Web preview. Native AXIS artwork generation/Tk validation,
+LinuxCNC Debian package builds and the full compatibility workflow have been removed
 from the active pipeline. The native AXIS application itself has also been
 removed. Source checks guard the removed build/install entries and exercise
 the launcher's rejection of legacy AXIS configurations before controller startup.
@@ -18,7 +19,16 @@ do not replace a Linux native build. See [removal boundaries](../../docs/native-
 - **Web browser tests**: downloads that exact build, verifies its checksums and
   commit, and exercises it with Playwright Chromium using Vite preview. It does
   not build again. The release metadata test must match the selected commit.
-- **CI Gate**: requires all three jobs to succeed. This exact name remains for
+- **Python service**: Python 3.11 and 3.13, pinned build/lint tools, Ruff, wheel
+  and source builds, then public CLI/socket tests against the installed wheel.
+  Python 3.13 uploads `betterlinuxcnc-python` with the wheel and source archive.
+- **Tauri desktop / Debian 13**: disposable Debian 13 container on an Ubuntu
+  runner, Node 24 and Rust 1.97.1; formatting, Clippy, Rust-to-Python integration
+  tests, then a locked release build. It checks the generated `.deb` metadata
+  and contents and uploads `betterlinuxcnc-desktop-debian13`. This is the desktop
+  host package, not the LinuxCNC engine or Python service. It does not install
+  the Python wheel or start a service automatically.
+- **CI Gate**: requires all five jobs to succeed. This exact name remains for
   existing branch protection. Failed/skipped dependencies fail the gate.
 
 The first two jobs and gate retain the dedicated `betterlinuxcnc` self-hosted
@@ -83,4 +93,6 @@ them; they do not publish the Web or reinstall AXIS on staging.
 
 References: [setup-node](https://github.com/actions/setup-node) and
 [Playwright CI](https://playwright.dev/docs/ci-intro). Browser tests on Ubuntu or
-macOS do not replace Debian 13/Intel graphics and future Tauri acceptance.
+macOS, and headless Debian package builds, do not replace desktop acceptance
+on the target Debian 13/Intel graphics machine. See the [desktop startup and
+verification commands](../../frontend/README.md) and [Python service guide](../../backend/README.md).

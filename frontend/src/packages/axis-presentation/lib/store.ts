@@ -16,7 +16,7 @@ export const useAxisPresentation = defineStore('axis-presentation', () => {
 
   function openDialog(id: string, label?: string, axis?: string) {
     const item = findItem(id, menus);
-    dialog.value = { id, title: item?.label.replace('…', '') ?? label ?? id, axis };
+    dialog.value = { id, title: item?.label.replace('…', '') ?? label ?? '操作说明', axis };
   }
 
   return { dialog, openDialog };

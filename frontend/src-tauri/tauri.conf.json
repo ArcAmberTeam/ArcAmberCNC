@@ -1,0 +1,41 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "BetterLinuxCNC",
+  "version": "0.1.0",
+  "identifier": "com.xamber.betterlinuxcnc",
+  "build": {
+    "beforeDevCommand": "npm run dev:desktop",
+    "devUrl": "http://127.0.0.1:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "BetterLinuxCNC · 中文操作界面",
+        "width": 1100,
+        "height": 820,
+        "minWidth": 760,
+        "minHeight": 640
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; connect-src ipc: http://ipc.localhost; img-src 'self' asset: http://asset.localhost data:; style-src 'self' 'unsafe-inline'; font-src 'self'; object-src 'none'; base-uri 'self'; frame-src 'none'"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["deb"],
+    "category": "Utility",
+    "shortDescription": "LinuxCNC 中文桌面界面原型",
+    "icon": ["icons/icon.png"],
+    "resources": {
+      "../../COPYING": "licenses/COPYING",
+      "../../debian/copyright": "licenses/COPYRIGHT"
+    },
+    "linux": {
+      "deb": { "depends": ["python3 (>= 3.11)"] }
+    }
+  }
+}

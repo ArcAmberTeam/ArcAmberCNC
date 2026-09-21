@@ -5,6 +5,7 @@ const R = PACKAGES_ROOT;
 const PACKAGE_INTERNALS = `^${R}/[^/]+/[^/]+/`;
 
 const packageDependencies = {
+  'controller-session': [],
   'axis-catalog': [],
   'ui-system': [],
   'axis-presentation': ['axis-catalog'],
@@ -26,6 +27,13 @@ const unregisteredPackage = `^${R}/(?!(?:${registeredPackages})/)[^/]+/`;
 /** @type {import('dependency-cruiser').IConfiguration} */
 module.exports = {
   forbidden: [
+    {
+      name: 'tauri-control-api-is-private',
+      comment: 'Only the control session may call the desktop control bridge.',
+      severity: 'error',
+      from: { path: '^src/', pathNot: `^${R}/controller-session/` },
+      to: { path: 'node_modules/@tauri-apps/' },
+    },
     {
       name: 'entrypoint-boundary-from-app',
       comment: 'App, pages and external tests may use package root entry points only.',

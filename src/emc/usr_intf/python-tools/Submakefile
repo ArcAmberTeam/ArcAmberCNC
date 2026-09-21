@@ -1,0 +1,13 @@
+# Standalone diagnostics, manual tool-change support and program utilities.
+LINUXCNC_TOOL_SCRIPTS := linuxcnctop.py hal_manualtoolchange.py mdi.py \
+	image-to-gcode.py lintini.py debuglevel.py teach-in.py tracking-test.py
+LINUXCNC_TOOL_BIN := $(patsubst %.py,../bin/%,$(LINUXCNC_TOOL_SCRIPTS))
+PYTARGETS += $(LINUXCNC_TOOL_BIN)
+
+$(LINUXCNC_TOOL_BIN): ../bin/%: emc/usr_intf/python-tools/%.py
+	@$(ECHO) Syntax checking python script $(notdir $@)
+	$(Q)$(PYTHON) -m py_compile $<
+	$(ECHO) Copying python script $(notdir $@)
+	$(Q)(echo '#!$(PYTHON)'; sed '1 { /^#!/d; }' $<) > $@.tmp && chmod +x $@.tmp && mv -f $@.tmp $@
+
+PYI18NSRCS += $(addprefix emc/usr_intf/python-tools/, $(LINUXCNC_TOOL_SCRIPTS))

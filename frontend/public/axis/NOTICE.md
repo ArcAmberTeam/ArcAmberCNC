@@ -37,7 +37,7 @@ std_error.gif  std_info.gif    std_warning.gif tool_verify.gif
 
 ## 程序样例与界面依据
 
-`frontend/src/packages/axis-catalog/lib/sample.ngc` 从 [`share/axis/images/axis.ngc`](../../../share/axis/images/axis.ngc) 原样复制，保留文件自身注释；按仓库通用 GPL-2+ 条目记录。程序注释明确这是 AXIS splash G-code，不是实际铣削作业。
+`frontend/src/packages/axis-catalog/lib/sample.ngc` 从 [`share/axis/images/axis.ngc`](https://github.com/Xamber-Software/BetterLinuxCNC/blob/e470d7aa6268a4ff56963cb8e162f2004ba89736/share/axis/images/axis.ngc) 原样复制，保留文件自身注释；按仓库通用 GPL-2+ 条目记录。程序注释明确这是 AXIS splash G-code，不是实际铣削作业。
 
 界面结构参考 `share/axis/tcl/axis.tcl` 和 `src/emc/usr_intf/axis/scripts/axis.py`，其中保留的上游版权声明列出 Jeff Epler、Chris Radek，并使用 GPL-2.0-or-later。新前端也使用 GPL-2.0-or-later 标记。
 

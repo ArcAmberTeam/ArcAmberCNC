@@ -2,9 +2,9 @@
 
 ## 范围与当前阶段
 
-本仓库包含 LinuxCNC 源码；`VERSION` 当前为 2.9.10。新增 Web 界面位于 `frontend/`，与现有 `src/`、`share/axis/`、HAL 和实时运动代码独立。
+本仓库包含 LinuxCNC 源码；`VERSION` 当前为 2.9.10。新增 Web 界面位于 `frontend/`，与现有 `src/`、HAL 和实时运动代码独立。
 
-项目维护和发布入口统一为 **`frontend/` Web 界面**。原生 AXIS 的工具栏改绘、生成器及专属 CI 已撤回，不再维护原生 AXIS 样式。LinuxCNC 上游源码保留作为后续控制引擎和功能参考，不属于当前 Web 发布产物。现有 Web 界面及其独立资源保留。
+项目维护和发布入口统一为 **`frontend/` Web 界面**。原生 AXIS 应用已删除，包括 Python 主程序、Tcl 界面、axis-remote、专属资源和构建/安装入口。现有 Web 界面及其独立资源保留。LinuxCNC 控制核心、共享 Python API 和其他上游工具保留，不属于当前 Web 发布产物。删除边界及遗留配置说明见 [迁移记录](docs/native-axis-removal.md)。
 
 当前 Web 仍是静态原型，只实现菜单、标签、选择、输入、滚动和展示设置等本地界面行为。不得发送机床命令、启动控制进程、读取硬件或声称完成了运动。机床动作只显示未接入说明。视觉设计可在 Web 模块内部演进，不向原生 Tcl/Python 回写样式。
 
@@ -30,14 +30,14 @@
 1. 写、改、设计、审查或测试代码前应用 `$code-boundary-standards`；先读本文件、子目录规范和已有实现。
 2. 修改范围限于当前任务，保留用户已有改动；未经需求不要重构 LinuxCNC 原生代码。
 3. 模块对外 API 小而明确；不创建通用 `utils` 垃圾桶，不为了测试暴露私有实现。
-4. 从真实 AXIS Tcl/Python 源码核对按钮与条件项，来源记录在前端功能对照表。保留拷贝资产的许可证及来源。
+4. 从前端对照表链接的删除前 AXIS 源码提交核对按钮与条件项，来源记录在前端功能对照表。保留拷贝资产的许可证及来源。
 5. 前端修改运行 `cd frontend && npm run check && npm run build`；影响交互时运行 `npm run test:e2e`，并目视检查页面。
 6. 建立/调整边界规则时，临时加入非法深层导入，确认失败后删除，再确认正常代码通过。
 7. 报告真实完成范围和验证结果；静态示意刀路不等于解释器结果或加工仿真。
 
 ## CI/CD 边界
 
-当前唯一自动工作流为 `.github/workflows/ci.yml` 的 Web CI：前端类型/格式/模块边界检查、Vite 构建、产物浏览器测试和静态发布。保留 `CI Gate` 检查名与现有分支部署策略，不构建或部署 LinuxCNC/AXIS `.deb`，不运行 Tk 图标检查或运动仿真。
+当前唯一自动工作流为 `.github/workflows/ci.yml` 的 Web CI：前端类型/格式/模块边界检查、Vite 构建、产物浏览器测试和静态发布。保留 `CI Gate` 检查名与现有分支部署策略，检查原生 AXIS 删除边界，但不构建或部署 LinuxCNC/AXIS `.deb`，不运行 Tk 图标检查或运动仿真。
 
 `.github/ci/package-web.py` 拥有构建打包；`.github/staging/` 拥有传输、目标机安装和回滚。部署只能使用同一次 CI 已测试的产物。目标机新安装器和本机 Web 服务须按 staging README 一次性配置；修改仓库配置不代表已更新真实服务器。敏感凭据只进入部署 job。
 

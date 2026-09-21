@@ -567,6 +567,12 @@ EMCDISPLAY=`(set -- $retval ; echo $1 )`
 EMCDISPLAYARGS=`(set -- $retval ; shift ; echo $* )`
 
 case $EMCDISPLAY in
+    axis|*/axis|axis.py|*/axis.py)
+        echo "The native AXIS GUI has been removed from BetterLinuxCNC." >&2
+        echo "Update [DISPLAY] DISPLAY to an available controller interface." >&2
+        echo "The Web frontend is currently a static prototype, not a controller DISPLAY." >&2
+        exit 1
+        ;;
     tkemc) EMCDISPLAY=tklinuxcnc ;;
 esac
 
@@ -667,12 +673,6 @@ function Cleanup() {
 	    KillTaskWithTimeout
 	fi
     done
-
-    if program_available axis-remote ; then
-	if [ ! -z "$DISPLAY" ]; then
-	    axis-remote --ping && axis-remote --quit
-	fi
-    fi
 
     if [ "$1" = "other" ]; then
         echo -n "Waiting for other session to finish exiting..."

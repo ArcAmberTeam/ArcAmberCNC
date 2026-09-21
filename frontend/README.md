@@ -1,6 +1,6 @@
 # BetterLinuxCNC Web
 
-使用 Vue 3、TypeScript、Vite、Pinia、Reka UI 和 Tailwind CSS 开发独立 Web 界面。现有原型以 LinuxCNC **2.9.10** 的 AXIS 功能和布局为起点；原生 AXIS 的样式定制已经撤回，后续只维护 Web。
+使用 Vue 3、TypeScript、Vite、Pinia、Reka UI 和 Tailwind CSS 开发独立 Web 界面。现有原型以 LinuxCNC **2.9.10** 的 AXIS 功能和布局为起点；原生 AXIS 应用已经删除，后续只维护 Web。
 
 当前是 **UI 原型**。所有机床动作只展示未接入说明；不连接 LinuxCNC、HAL 或网络控制服务，不执行 G-code，不读写真实程序文件。黑色预览区的 SVG 是静态刀路示意，坐标和状态来自固定样例。
 

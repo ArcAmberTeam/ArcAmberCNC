@@ -508,7 +508,7 @@ def ui(im, nim, im_name):
 
     app = tkinter.Tk()
     rs274.options.install(app)
-    app.tk.call("source", os.path.join(BASE, "share", "axis", "tcl", "combobox.tcl"))
+    nf.source_lib_tcl(app, "combobox.tcl")
 
     name = os.path.basename(im_name)
     app.wm_title(_("%s: Image to G-code") % name)

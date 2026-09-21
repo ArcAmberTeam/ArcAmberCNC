@@ -3,8 +3,11 @@
 The only active workflow is **Web CI** (`.github/workflows/ci.yml`). It checks,
 builds and deploys `frontend/`. Native AXIS artwork generation/Tk validation,
 Debian package builds and the full compatibility workflow have been removed
-from the active pipeline. LinuxCNC engine source remains in this repository;
-changes to that source require separately selected engine checks.
+from the active pipeline. The native AXIS application itself has also been
+removed. Source checks guard the removed build/install entries and exercise
+the launcher's rejection of legacy AXIS configurations before controller startup.
+LinuxCNC engine source and shared Python APIs remain; these lightweight checks
+do not replace a Linux native build. See [removal boundaries](../../docs/native-axis-removal.md).
 
 ## Required checks and ownership
 

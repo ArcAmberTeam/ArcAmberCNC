@@ -1,0 +1,12 @@
+# OpenGL/Tk support shared by rs274 previews and Vismach.
+TOGLMODULESRCS := emc/usr_intf/tk-support/_toglmodule.c
+PYSRCS += $(TOGLMODULESRCS)
+TOGLMODULE := ../lib/python/_togl.so
+
+$(call TOOBJSDEPS, $(TOGLMODULESRCS)) : EXTRAFLAGS = $(ULFLAGS) $(TCL_CFLAGS)
+
+$(TOGLMODULE): $(call TOOBJS, $(TOGLMODULESRCS))
+	$(ECHO) Linking python module $(notdir $@)
+	$(Q)$(CC) $(LDFLAGS) -shared -o $@ $(TCL_CFLAGS) $^ -L/usr/X11R6/lib -lX11 -lepoxy -lGL -lXmu $(TCL_LIBS)
+
+PYTARGETS += $(TOGLMODULE)

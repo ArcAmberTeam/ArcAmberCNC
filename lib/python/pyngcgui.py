@@ -226,19 +226,10 @@ def default_send(filename):
         return False
 
 def send_to_axis(filename): # return True for success
-    # NB: file with errors may hang in axis gui
-    s = subprocess.Popen(['axis-remote',filename]
-                         ,stdout=subprocess.PIPE
-                         ,stderr=subprocess.PIPE
-                         )
-    p,e = s.communicate()
-    if s.returncode:
-        print(_('%s:send_to_axis: stdout= %s') % (g_progname,p))
-        print(_('%s:send_to_axis: stderr= %s') % (g_progname,e))
-        return False
-    if p: print(_('%s:send_to_axis: stdout= %s') % (g_progname,p))
-    if e: print(_('%s:send_to_axis: stderr= %s') % (g_progname,e))
-    return True
+    # Retain the callback for old Glade configurations. Failure makes the
+    # caller offer Save File; never redirect a retired GUI action to motion.
+    print('Native AXIS has been removed; save the generated program to a file.')
+    return False
 
 def file_save(fname,title_message='Save File'):
     start_dir = os.path.dirname(fname)

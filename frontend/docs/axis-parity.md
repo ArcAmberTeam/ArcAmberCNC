@@ -4,14 +4,14 @@
 
 ## 核对依据
 
-| 本仓库来源                                                                             | 核对内容                                                                                                              |
-| -------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| [`share/axis/tcl/axis.tcl`](../../share/axis/tcl/axis.tcl)                             | 菜单 55–464、工具栏 489–780、Manual / MDI 及 Preview / DRO 788–1316、状态栏与程序区 1318–1376、倍率和速度控件 1380 起 |
-| [`src/emc/usr_intf/axis/scripts/axis.py`](../../src/emc/usr_intf/axis/scripts/axis.py) | 运行时菜单、轴与 joint、INI / HAL 条件显示、快捷键、工具与文件入口                                                    |
-| [`docs/src/gui/axis.adoc`](../../docs/src/gui/axis.adoc)                               | AXIS 功能说明                                                                                                         |
-| [`docs/src/gui/images/axis.png`](../../docs/src/gui/images/axis.png)                   | 经典布局与颜色参考；图片标题显示 2.7.0-pre6，功能清单以本仓库 2.9.10 源码为准                                         |
-| [`share/axis/images/`](../../share/axis/images/)                                       | 原生源码仅作历史参考；Web 工具栏快照及授权见 public/axis/NOTICE.md，原生改绘现已撤回                                  |
-| [`share/axis/images/axis.ngc`](../../share/axis/images/axis.ngc)                       | 打包展示的 200 行 AXIS splash G-code                                                                                  |
+| 本仓库来源                                                                                                                                                                       | 核对内容                                                                                                              |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| [`share/axis/tcl/axis.tcl`](https://github.com/Xamber-Software/BetterLinuxCNC/blob/e470d7aa6268a4ff56963cb8e162f2004ba89736/share/axis/tcl/axis.tcl)                             | 菜单 55–464、工具栏 489–780、Manual / MDI 及 Preview / DRO 788–1316、状态栏与程序区 1318–1376、倍率和速度控件 1380 起 |
+| [`src/emc/usr_intf/axis/scripts/axis.py`](https://github.com/Xamber-Software/BetterLinuxCNC/blob/e470d7aa6268a4ff56963cb8e162f2004ba89736/src/emc/usr_intf/axis/scripts/axis.py) | 运行时菜单、轴与 joint、INI / HAL 条件显示、快捷键、工具与文件入口                                                    |
+| [`docs/src/gui/axis.adoc`](../../docs/src/gui/axis.adoc)                                                                                                                         | AXIS 功能说明                                                                                                         |
+| [`docs/src/gui/images/axis.png`](../../docs/src/gui/images/axis.png)                                                                                                             | 经典布局与颜色参考；图片标题显示 2.7.0-pre6，功能清单以本仓库 2.9.10 源码为准                                         |
+| [`share/axis/images/`](https://github.com/Xamber-Software/BetterLinuxCNC/blob/e470d7aa6268a4ff56963cb8e162f2004ba89736/share/axis/images/)                                       | 删除前提交中的源码仅作历史参考；Web 工具栏快照及授权见 public/axis/NOTICE.md，原生改绘现已撤回                        |
+| [`share/axis/images/axis.ngc`](https://github.com/Xamber-Software/BetterLinuxCNC/blob/e470d7aa6268a4ff56963cb8e162f2004ba89736/share/axis/images/axis.ngc)                       | 打包展示的 200 行 AXIS splash G-code                                                                                  |
 
 以下“入口已展示”仅指标签、按钮和入口交互。涉及控制、磁盘、进程或外部程序的动作统一显示未实现说明，不执行对应操作。
 

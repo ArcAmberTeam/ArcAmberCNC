@@ -1,0 +1,1633 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>机床操作界面 · 看图了解功能</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --ink: #202a37;
+        --muted: #566579;
+        --line: #dce3eb;
+        --blue: #155ec7;
+        --paper: #fff;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html {
+        scroll-behavior: smooth;
+        scroll-padding-top: 24px;
+      }
+      body {
+        margin: 0;
+        background: #f3f5f8;
+        color: var(--ink);
+        font:
+          15px/1.7 -apple-system,
+          BlinkMacSystemFont,
+          'Noto Sans CJK SC',
+          'Microsoft YaHei',
+          sans-serif;
+      }
+      a {
+        color: var(--blue);
+        text-underline-offset: 3px;
+      }
+      a:focus-visible,
+      summary:focus-visible {
+        outline: 3px solid #1870db;
+        outline-offset: 4px;
+      }
+      .layout {
+        max-width: 1460px;
+        margin: auto;
+        display: grid;
+        grid-template-columns: 220px minmax(0, 1fr);
+        gap: 32px;
+        padding: 32px;
+      }
+      aside {
+        position: sticky;
+        top: 28px;
+        align-self: start;
+      }
+      aside h2 {
+        font-size: 15px;
+        margin: 0 0 12px;
+      }
+      aside a {
+        display: block;
+        padding: 7px 10px;
+        color: var(--muted);
+        text-decoration: none;
+        border-radius: 6px;
+      }
+      aside a:hover {
+        background: #e4ebf4;
+        color: var(--blue);
+      }
+      aside small {
+        display: block;
+        color: var(--muted);
+        margin-top: 20px;
+      }
+      main {
+        min-width: 0;
+      }
+      .hero,
+      section {
+        background: var(--paper);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 30px;
+        margin-bottom: 24px;
+      }
+      .eyebrow {
+        color: var(--blue);
+        font-size: 13px;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+      }
+      h1 {
+        font-size: 32px;
+        line-height: 1.3;
+        margin: 8px 0 16px;
+      }
+      h2 {
+        font-size: 23px;
+        line-height: 1.5;
+        margin: 0;
+      }
+      h3 {
+        font-size: 16px;
+        margin: 0 0 12px;
+      }
+      p {
+        margin: 10px 0;
+      }
+      .subtle {
+        color: var(--muted);
+      }
+      .links {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+        margin: 20px 0;
+      }
+      .links a {
+        border: 1px solid var(--line);
+        padding: 7px 12px;
+        border-radius: 7px;
+        text-decoration: none;
+      }
+      .stats {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin: 20px 0;
+      }
+      .stats span {
+        background: #eef4fc;
+        padding: 6px 12px;
+        border-radius: 5px;
+        color: #254a7b;
+      }
+      .overview {
+        margin: 22px 0;
+      }
+      .overview img {
+        display: block;
+        width: 100%;
+        height: auto;
+        border: 1px solid var(--line);
+        border-radius: 5px;
+      }
+      .overview figcaption {
+        margin-top: 8px;
+        color: var(--muted);
+      }
+      .section-heading {
+        display: flex;
+        gap: 16px;
+        align-items: baseline;
+        margin-bottom: 24px;
+      }
+      .section-heading p {
+        color: var(--muted);
+        margin-bottom: 0;
+      }
+      .number {
+        color: var(--blue);
+        font-weight: 700;
+        font-size: 19px;
+        font-variant-numeric: tabular-nums;
+      }
+      .gallery {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 18px;
+        margin: 18px 0;
+      }
+      .gallery.wide {
+        grid-template-columns: 1fr;
+      }
+      figure {
+        margin: 0;
+        min-width: 0;
+        background: #fafbfd;
+        border: 1px solid var(--line);
+        border-radius: 7px;
+        padding: 14px;
+      }
+      .image-link {
+        display: flex;
+        align-items: flex-start;
+        justify-content: flex-start;
+        min-width: 0;
+      }
+      .image-link img {
+        display: block;
+        max-width: 100%;
+        height: auto;
+        object-fit: contain;
+        object-position: left top;
+      }
+      .gallery:not(.wide) .image-link img {
+        max-height: 530px;
+        width: auto;
+      }
+      .gallery:not(.wide) .image-link {
+        min-height: 48px;
+      }
+      figcaption {
+        padding-top: 12px;
+        line-height: 1.6;
+        font-size: 13px;
+      }
+      figcaption strong,
+      figcaption span {
+        display: block;
+      }
+      figcaption span {
+        font-size: 12px;
+        color: var(--muted);
+        margin-top: 4px;
+      }
+      figcaption p {
+        margin: 7px 0 0;
+        color: var(--muted);
+      }
+      .table-scroll {
+        overflow: auto;
+        margin: 20px 0;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+      }
+      th,
+      td {
+        border-bottom: 1px solid var(--line);
+        text-align: left;
+        vertical-align: top;
+        padding: 12px 10px;
+        overflow-wrap: anywhere;
+      }
+      th {
+        background: #f0f4f8;
+        font-weight: 600;
+      }
+      td:first-child {
+        width: 28%;
+        font-size: 12px;
+      }
+      .note {
+        background: #f0f4f9;
+        padding: 12px 16px;
+        border-left: 3px solid #a4b7d1;
+        color: #415269;
+        font-size: 14px;
+      }
+      details {
+        margin: 20px 0 0;
+      }
+      summary {
+        cursor: pointer;
+        color: var(--blue);
+        font-weight: 600;
+        padding: 6px 0;
+      }
+      .base-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 20px;
+        margin-top: 24px;
+      }
+      .base-card {
+        min-width: 0;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 18px;
+      }
+      .base-card figure {
+        border: 0;
+        padding: 0;
+        background: none;
+      }
+      .base-card .image-link img {
+        max-height: 210px;
+        width: auto;
+      }
+      .base-card p {
+        font-size: 13px;
+      }
+      footer {
+        text-align: center;
+        color: var(--muted);
+        padding: 10px 0 32px;
+        font-size: 13px;
+      }
+      .screen-links {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+      }
+      .legend {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 6px 20px;
+        font-size: 13px;
+        color: var(--muted);
+      }
+      .legend a {
+        text-decoration: none;
+      }
+      @media (max-width: 1000px) {
+        .layout {
+          grid-template-columns: 1fr;
+          padding: 20px;
+          gap: 16px;
+        }
+        aside {
+          position: static;
+        }
+        aside nav {
+          display: flex;
+          gap: 4px;
+          flex-wrap: wrap;
+        }
+        aside small {
+          display: none;
+        }
+        .hero,
+        section {
+          padding: 22px;
+        }
+      }
+      @media (max-width: 650px) {
+        .layout {
+          padding: 10px;
+        }
+        .gallery,
+        .base-grid,
+        .legend {
+          grid-template-columns: 1fr;
+        }
+        h1 {
+          font-size: 26px;
+        }
+        h2 {
+          font-size: 20px;
+        }
+        .hero,
+        section {
+          padding: 18px;
+        }
+        .section-heading {
+          gap: 10px;
+        }
+      }
+      @media print {
+        body {
+          background: white;
+          font-size: 11px;
+        }
+        .layout {
+          display: block;
+          padding: 0;
+          max-width: none;
+        }
+        aside,
+        .links,
+        .screen-links {
+          display: none;
+        }
+        .hero,
+        section {
+          border: 0;
+          border-radius: 0;
+          padding: 10px 0;
+          margin: 0 0 22px;
+        }
+        .hero {
+          break-after: page;
+        }
+        .section-heading {
+          break-after: avoid;
+        }
+        figure,
+        .base-card,
+        tr {
+          break-inside: avoid;
+        }
+        .gallery:not(.wide) .image-link img {
+          max-height: 330px;
+        }
+        details {
+          display: block;
+        }
+        .note {
+          background: white;
+        }
+        .stats span {
+          background: white;
+          border: 1px solid #ccc;
+        }
+        a {
+          color: inherit;
+          text-decoration: none;
+        }
+      }
+
+      .meaning {
+        border: 1px solid var(--line);
+        border-radius: 7px;
+        padding: 16px 20px;
+        margin: 18px 0;
+      }
+      .meaning p {
+        margin: 6px 0;
+      }
+      .inline-figure {
+        max-width: 720px;
+      }
+      .base-card .image-link img {
+        max-height: 300px;
+      }
+      .section-heading p {
+        max-width: 760px;
+      }
+      .inventory main {
+        grid-column: 1/-1;
+      }
+      .inventory section {
+        scroll-margin-top: 24px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="layout">
+      <aside>
+        <h2>界面设计参考</h2>
+        <nav aria-label="目录">
+          <a href="#overview">先看整体</a><a href="#group-1">01 · 整体布局与顶部按钮</a
+          ><a href="#group-2">02 · 移动、回零与对刀</a><a href="#group-3">03 · 主轴与冷却</a
+          ><a href="#group-4">04 · 速度与倍率</a><a href="#group-5">05 · 手动输入指令</a
+          ><a href="#group-6">06 · 刀路与位置显示</a><a href="#group-7">07 · 加工程序与底部状态</a
+          ><a href="#group-8">08 · 弹出窗口与表格</a><a href="#group-9">09 · 常用小控件</a
+          ><a href="controls.html">逐项查看所有名称</a>
+        </nav>
+        <small>图片是现有样子，可点击放大。<br />本资料可离线阅读。</small>
+      </aside>
+      <main>
+        <div class="hero" id="overview">
+          <div class="eyebrow">机床操作界面 · 设计参考</div>
+          <h1>看图了解界面怎么用</h1>
+          <p>
+            这份资料给负责界面外观的设计师使用。每个区域都说明：它放在哪里、操作员拿它做什么、有哪些不同的样子需要设计。
+          </p>
+          <div class="stats">
+            <span>8 个操作与显示区域</span><span>12 种常用控件参考</span><span>30 张局部截图</span
+            ><span>8 张整页截图</span>
+          </div>
+          <p class="subtle">
+            “控件”就是屏幕上的按钮、输入框、开关等小部件。截图用于看清现有内容，颜色、字体和排版可以重新设计。目前是演示界面，点击机床按钮不会真的带动设备。
+          </p>
+          <div class="links">
+            <a href="controls.html">查看完整中文清单</a><a href="#group-9">查看常用小控件</a>
+          </div>
+          <figure class="overview">
+            <a href="screenshots/01-manual.png" target="_blank" rel="noopener"
+              ><img
+                src="screenshots/01-manual.png"
+                width="1100"
+                height="820"
+                alt="现有主界面：上方功能按钮，左侧操作，右侧路线与位置，下方程序和状态"
+            /></a>
+            <figcaption>
+              现有主界面：宽 1100、高 820
+              像素。点击图片可放大查看。所有尺寸只是现状参考，可以重新安排。
+            </figcaption>
+          </figure>
+          <div class="legend">
+            <a href="#group-1">上方：找功能、打开文件、控制加工</a
+            ><a href="#group-2">左上：手动移动、回零和对刀</a
+            ><a href="#group-3">左中：主轴旋转和冷却开关</a
+            ><a href="#group-4">左下：速度与倍率调节</a
+            ><a href="#group-6">右侧：刀具路线和位置数字</a
+            ><a href="#group-7">底部：加工程序和机床状态</a>
+          </div>
+          <div class="meaning">
+            <strong>截图里的字母怎么看？</strong>
+            <p>
+              轴名是几个运动方向的名称；字母加数字可能是工件坐标的编号，也可能是机床指令；菜单右侧的字母是键盘快捷键。设计时保留这些内容的位置和可读性即可。
+            </p>
+            <p>
+              图中软件名称、示例文件名及示例图案仍保留原样。正文已用中文解释，不需要设计师读代码。
+            </p>
+          </div>
+          <details>
+            <summary>展开看其他页面和窗口大小</summary>
+            <div class="screen-links">
+              <a href="screenshots/02-mdi.png">手动输入界面</a
+              ><a href="screenshots/03-dro.png">位置数字界面</a
+              ><a href="screenshots/04-machine-menu.png">机床菜单展开</a
+              ><a href="screenshots/05-work-offset.png">工件对刀窗口</a
+              ><a href="screenshots/06-open-program.png">打开程序窗口</a
+              ><a href="screenshots/07-compact.png">较小窗口布局</a
+              ><a href="screenshots/08-full-hd.png">较大窗口布局</a>
+            </div>
+          </details>
+        </div>
+        <section id="group-1">
+          <header class="section-heading">
+            <span class="number">01</span>
+            <div>
+              <h2>整体布局与顶部按钮</h2>
+              <p>这一部分相当于操作台的总面板，用来找到功能、打开文件、开始或停止加工。</p>
+            </div>
+          </header>
+          <div class="gallery wide">
+            <figure>
+              <a
+                class="image-link"
+                href="components/01-navigation.png"
+                target="_blank"
+                rel="noopener"
+                aria-label="查看原图：顶部菜单和常用按钮"
+                ><img
+                  src="components/01-navigation.png"
+                  width="1100"
+                  height="100"
+                  alt="现有界面：顶部菜单和常用按钮"
+                  loading="lazy"
+              /></a>
+              <figcaption>
+                <strong>顶部菜单和常用按钮</strong><span>图片大小：1100 × 100 像素</span>
+                <p>最上方是窗口名称，中间是功能菜单，下面一排是常用按钮。</p>
+              </figcaption>
+            </figure>
+          </div>
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>画面上的名称</th>
+                  <th>操作员用它做什么</th>
+                  <th>设计时要表达什么</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>文件、机床、视图、帮助</td>
+                  <td>按事情的类型查找功能。菜单展开后还能继续选择。</td>
+                  <td>区分菜单标题、普通条目、已勾选条目和更多选项的箭头。</td>
+                </tr>
+                <tr>
+                  <td>急停、机床使能／关闭</td>
+                  <td>急停表示进入紧急停止状态；机床使能表示允许机床工作。</td>
+                  <td>两种按钮要明显区分。机床使能不能画成关闭整个软件。</td>
+                </tr>
+                <tr>
+                  <td>打开、重新加载</td>
+                  <td>选择要加工的文件，或重新读取当前文件。</td>
+                  <td>两个动作分别配图标；鼠标移上去时显示中文说明。</td>
+                </tr>
+                <tr>
+                  <td>运行、单段运行、暂停／继续、停止</td>
+                  <td>控制加工程序的执行过程。“单段运行”是一次执行一段。</td>
+                  <td>运行、暂停和停止易于辨认；暂停与继续使用同一位置，分别画出状态。</td>
+                </tr>
+                <tr>
+                  <td>放大、缩小、切换视角、平移／旋转</td>
+                  <td>改变右侧刀路图的观察方式。</td>
+                  <td>当前视角要有选中标记；观察图形的按钮与加工按钮分组。</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="note">
+            尺寸参考：标题栏高 29 像素，菜单栏高 26 像素，常用按钮栏高 39 像素。按钮为 29 × 29
+            像素，图标最大 24 × 24 像素。新设计可以调整。
+          </p>
+          <details>
+            <summary>展开看三种菜单的现有样子</summary>
+            <div class="gallery">
+              <figure>
+                <a
+                  class="image-link"
+                  href="components/11-file-menu.png"
+                  target="_blank"
+                  rel="noopener"
+                  aria-label="查看原图：文件菜单"
+                  ><img
+                    src="components/11-file-menu.png"
+                    width="230"
+                    height="305"
+                    alt="现有界面：文件菜单"
+                    loading="lazy"
+                /></a>
+                <figcaption>
+                  <strong>文件菜单</strong><span>图片大小：230 × 305 像素</span>
+                  <p>一行一个功能，横线分组，右侧位置可显示键盘快捷键。</p>
+                </figcaption>
+              </figure>
+              <figure>
+                <a
+                  class="image-link"
+                  href="components/12-machine-menu.png"
+                  target="_blank"
+                  rel="noopener"
+                  aria-label="查看原图：机床菜单"
+                  ><img
+                    src="components/12-machine-menu.png"
+                    width="258"
+                    height="682"
+                    alt="现有界面：机床菜单"
+                    loading="lazy"
+                /></a>
+                <figcaption>
+                  <strong>机床菜单</strong><span>图片大小：258 × 682 像素</span>
+                  <p>包含加工、回零和设备检查功能；长菜单需要能上下滚动。</p>
+                </figcaption>
+              </figure>
+              <figure>
+                <a
+                  class="image-link"
+                  href="components/13-view-submenu.png"
+                  target="_blank"
+                  rel="noopener"
+                  aria-label="查看原图：视图菜单和二级选项"
+                  ><img
+                    src="components/13-view-submenu.png"
+                    width="500"
+                    height="759"
+                    alt="现有界面：视图菜单和二级选项"
+                    loading="lazy"
+                /></a>
+                <figcaption>
+                  <strong>视图菜单和二级选项</strong><span>图片大小：500 × 759 像素</span>
+                  <p>点击带箭头的项目后，旁边展开下一组选项。</p>
+                </figcaption>
+              </figure>
+            </div>
+          </details>
+        </section>
+        <section id="group-2">
+          <header class="section-heading">
+            <span class="number">02</span>
+            <div>
+              <h2>移动、回零与对刀</h2>
+              <p>用于手动移动机床，并确定机床、工件和刀具的位置基准。</p>
+            </div>
+          </header>
+          <div class="gallery">
+            <figure>
+              <a
+                class="image-link"
+                href="components/02-manual.png"
+                target="_blank"
+                rel="noopener"
+                aria-label="查看原图：选轴、点动、回零和对刀"
+                ><img
+                  src="components/02-manual.png"
+                  width="306"
+                  height="146"
+                  alt="现有界面：选轴、点动、回零和对刀"
+                  loading="lazy"
+              /></a>
+              <figcaption>
+                <strong>选轴、点动、回零和对刀</strong><span>图片大小：306 × 146 像素</span>
+                <p>先选要操作的轴，再使用这一组按钮。当前截图里选中了第一项。</p>
+              </figcaption>
+            </figure>
+            <figure>
+              <a
+                class="image-link"
+                href="components/05-tabs.png"
+                target="_blank"
+                rel="noopener"
+                aria-label="查看原图：手动操作和手动输入切换"
+                ><img
+                  src="components/05-tabs.png"
+                  width="328"
+                  height="38"
+                  alt="现有界面：手动操作和手动输入切换"
+                  loading="lazy"
+              /></a>
+              <figcaption>
+                <strong>手动操作和手动输入切换</strong><span>图片大小：328 × 38 像素</span>
+                <p>像文件夹标签一样，点击一个标题，下面显示对应内容。</p>
+              </figcaption>
+            </figure>
+          </div>
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>画面上的名称</th>
+                  <th>操作员用它做什么</th>
+                  <th>设计时要表达什么</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>坐标轴选择</td>
+                  <td>选择要移动或设置位置的那一个方向。截图里的三个字母是轴的名称。</td>
+                  <td>圆圈中有点表示选中；同一时间只能选一个。</td>
+                </tr>
+                <tr>
+                  <td>负向点动、正向点动</td>
+                  <td>沿选中的轴向两个相反方向移动。</td>
+                  <td>减号和加号成对放置，并有清楚的方向说明。</td>
+                </tr>
+                <tr>
+                  <td>点动方式与步距</td>
+                  <td>选择连续移动，或每次移动一小段固定距离。</td>
+                  <td>选择框要能显示当前方式和小数；小数是移动距离。</td>
+                </tr>
+                <tr>
+                  <td>全部回零</td>
+                  <td>让各轴寻找机床自己的参考位置。</td>
+                  <td>独立按钮，名称完整显示；与工件对刀分开。</td>
+                </tr>
+                <tr>
+                  <td>工件对刀、刀具对刀</td>
+                  <td>前者设置工件的位置基准，后者设置刀具的长度或位置修正。</td>
+                  <td>两个按钮分别命名；打开的窗口要写清当前设置的是工件还是刀具。</td>
+                </tr>
+                <tr>
+                  <td>临时解除硬限位</td>
+                  <td>用于机床触碰限位后的特定处理操作。</td>
+                  <td>独立勾选项，清楚表达是否开启；不能像普通移动按钮一样随意突出。</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="note">
+            “回零”不是把屏幕数字直接改成零。“工件对刀”和“刀具对刀”也不是同一个动作。三个名称和入口需要分清。
+          </p>
+        </section>
+        <section id="group-3">
+          <header class="section-heading">
+            <span class="number">03</span>
+            <div>
+              <h2>主轴与冷却</h2>
+              <p>主轴负责带动刀具或工件旋转；冷却开关控制加工时使用的喷雾或切削液。</p>
+            </div>
+          </header>
+          <div class="gallery">
+            <figure>
+              <a
+                class="image-link"
+                href="components/03-spindle-coolant.png"
+                target="_blank"
+                rel="noopener"
+                aria-label="查看原图：主轴和两路冷却"
+                ><img
+                  src="components/03-spindle-coolant.png"
+                  width="306"
+                  height="142"
+                  alt="现有界面：主轴和两路冷却"
+                  loading="lazy"
+              /></a>
+              <figcaption>
+                <strong>主轴和两路冷却</strong><span>图片大小：306 × 142 像素</span>
+                <p>上半部分控制旋转，下半部分是两个独立的冷却开关。</p>
+              </figcaption>
+            </figure>
+          </div>
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>画面上的名称</th>
+                  <th>操作员用它做什么</th>
+                  <th>设计时要表达什么</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>主轴反转、停止、正转</td>
+                  <td>选择旋转方向，或让主轴停止旋转。</td>
+                  <td>方向图标成对出现；停止按钮要容易找到。</td>
+                </tr>
+                <tr>
+                  <td>转速减小、转速增大</td>
+                  <td>降低或提高主轴的转速。</td>
+                  <td>加减按钮成对放置，与移动机床的加减按钮保持区域区分。</td>
+                </tr>
+                <tr>
+                  <td>主轴制动</td>
+                  <td>控制主轴的制动功能。</td>
+                  <td>用清楚的开、关状态表达。</td>
+                </tr>
+                <tr>
+                  <td>喷雾冷却、切削液冷却</td>
+                  <td>分别控制两种冷却方式。</td>
+                  <td>两个开关可以分别选择，不能画成只能二选一。</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="note">
+            截图中“停止”呈按下样式，冷却开关均未勾选。这是演示画面，不是实际机床反馈。
+          </p>
+        </section>
+        <section id="group-4">
+          <header class="section-heading">
+            <span class="number">04</span>
+            <div>
+              <h2>速度与倍率</h2>
+              <p>操作员在这里调节加工速度。“倍率”是相对原设定的百分比，速度则带有实际单位。</p>
+            </div>
+          </header>
+          <div class="gallery">
+            <figure>
+              <a
+                class="image-link"
+                href="components/04-overrides.png"
+                target="_blank"
+                rel="noopener"
+                aria-label="查看原图：五组调节滑条"
+                ><img
+                  src="components/04-overrides.png"
+                  width="328"
+                  height="225"
+                  alt="现有界面：五组调节滑条"
+                  loading="lazy"
+              /></a>
+              <figcaption>
+                <strong>五组调节滑条</strong><span>图片大小：328 × 225 像素</span>
+                <p>每一组都要保留名称、当前数字、单位和可以拖动的小滑块。</p>
+              </figcaption>
+            </figure>
+          </div>
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>名称</th>
+                  <th>含义</th>
+                  <th>目前显示范围</th>
+                  <th>初始显示值</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>进给倍率</td>
+                  <td>调整切削时沿刀路前进的速度比例。</td>
+                  <td>0–120%</td>
+                  <td>100%</td>
+                </tr>
+                <tr>
+                  <td>快移倍率</td>
+                  <td>调整非切削快速移动时的速度比例。</td>
+                  <td>0–100%</td>
+                  <td>100%</td>
+                </tr>
+                <tr>
+                  <td>主轴倍率</td>
+                  <td>调整主轴转速的比例。</td>
+                  <td>0–120%</td>
+                  <td>100%</td>
+                </tr>
+                <tr>
+                  <td>点动速度</td>
+                  <td>手动移动所选轴时的速度。</td>
+                  <td>0–3000 毫米/分钟</td>
+                  <td>600 毫米/分钟</td>
+                </tr>
+                <tr>
+                  <td>最大速度</td>
+                  <td>速度上限的设置。</td>
+                  <td>0–6000 毫米/分钟</td>
+                  <td>3000 毫米/分钟</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="note">
+            百分比和“毫米/分钟”不能混用。例如 100% 表示按原设定运行。每组目前高 42
+            像素，需画出拖动中、到最小值、到最大值和不能操作时的样子。
+          </p>
+        </section>
+        <section id="group-5">
+          <header class="section-heading">
+            <span class="number">05</span>
+            <div>
+              <h2>手动输入指令</h2>
+              <p>操作员可直接输入一条加工指令，也可以从历史记录中取用一条。</p>
+            </div>
+          </header>
+          <div class="gallery">
+            <figure>
+              <a
+                class="image-link"
+                href="components/09-mdi.png"
+                target="_blank"
+                rel="noopener"
+                aria-label="查看原图：历史记录、输入框和执行按钮"
+                ><img
+                  src="components/09-mdi.png"
+                  width="328"
+                  height="425"
+                  alt="现有界面：历史记录、输入框和执行按钮"
+                  loading="lazy"
+              /></a>
+              <figcaption>
+                <strong>历史记录、输入框和执行按钮</strong><span>图片大小：328 × 425 像素</span>
+                <p>上面是以前输入过的内容；下面的空白框用来输入新指令。</p>
+              </figcaption>
+            </figure>
+            <figure>
+              <a
+                class="image-link"
+                href="components/10-modal-codes.png"
+                target="_blank"
+                rel="noopener"
+                aria-label="查看原图：当前生效的加工设置"
+                ><img
+                  src="components/10-modal-codes.png"
+                  width="328"
+                  height="98"
+                  alt="现有界面：当前生效的加工设置"
+                  loading="lazy"
+              /></a>
+              <figcaption>
+                <strong>当前生效的加工设置</strong><span>图片大小：328 × 98 像素</span>
+                <p>截图中的“当前模态指令”指这一组正在生效的加工方式和参数；作为只读信息显示。</p>
+              </figcaption>
+            </figure>
+          </div>
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>画面上的名称</th>
+                  <th>操作员用它做什么</th>
+                  <th>设计时要表达什么</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>历史指令</td>
+                  <td>点击历史记录，把内容放进下面的输入框。</td>
+                  <td>设计普通行、鼠标移上去、选中行和没有记录时的样子。</td>
+                </tr>
+                <tr>
+                  <td>手动输入指令、执行</td>
+                  <td>输入一条指令，再点击执行。</td>
+                  <td>输入框要有清楚的输入位置；执行按钮放在旁边。</td>
+                </tr>
+                <tr>
+                  <td>当前模态指令</td>
+                  <td>查看当前生效的加工方式和参数。</td>
+                  <td>看起来应当是信息展示；内容较长时可以换行。</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="note">
+            截图里的字母和数字组合是机床指令，需要按原样显示，不要求设计师理解或编写。当前点击“执行”只出现说明窗口，不会让机床动作。
+          </p>
+        </section>
+        <section id="group-6">
+          <header class="section-heading">
+            <span class="number">06</span>
+            <div>
+              <h2>刀路与位置显示</h2>
+              <p>右侧可以看刀具走过的路线，也可以切换成大号的位置数字。</p>
+            </div>
+          </header>
+          <div class="gallery">
+            <figure>
+              <a
+                class="image-link"
+                href="components/06-preview.png"
+                target="_blank"
+                rel="noopener"
+                aria-label="查看原图：刀路预览"
+                ><img
+                  src="components/06-preview.png"
+                  width="778"
+                  height="729"
+                  alt="现有界面：刀路预览"
+                  loading="lazy"
+              /></a>
+              <figcaption>
+                <strong>刀路预览</strong><span>图片大小：778 × 729 像素</span>
+                <p>
+                  大图显示运动路线，左上角显示位置和速度；图中的英文轮廓只是示例图案，可以替换成其他演示工件。
+                </p>
+              </figcaption>
+            </figure>
+            <figure>
+              <a
+                class="image-link"
+                href="components/08-dro.png"
+                target="_blank"
+                rel="noopener"
+                aria-label="查看原图：坐标数显"
+                ><img
+                  src="components/08-dro.png"
+                  width="778"
+                  height="729"
+                  alt="现有界面：坐标数显"
+                  loading="lazy"
+              /></a>
+              <figcaption>
+                <strong>坐标数显</strong><span>图片大小：778 × 729 像素</span>
+                <p>用大号数字看位置，下面列出工件、刀具等位置修正信息。</p>
+              </figcaption>
+            </figure>
+          </div>
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>画面上的名称</th>
+                  <th>操作员用它做什么</th>
+                  <th>设计时要表达什么</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>刀路预览</td>
+                  <td>查看刀具准备怎样移动。</td>
+                  <td>用线型、颜色和图例区分切削路线、快速移动路线和范围边框。</td>
+                </tr>
+                <tr>
+                  <td>位置数字、速度、剩余行程</td>
+                  <td>查看当前位置、移动速度以及当前这段运动还剩多远。</td>
+                  <td>数字对齐，小数位和单位清楚；数值变化时尽量不要左右跳动。</td>
+                </tr>
+                <tr>
+                  <td>已回零标记</td>
+                  <td>表示这一轴是否已找到机床参考位置。</td>
+                  <td>已回零和未回零要能区分，不能只靠颜色。</td>
+                </tr>
+                <tr>
+                  <td>工件坐标、机床坐标</td>
+                  <td>两种不同的位置基准：一个以工件为准，一个以机床为准。</td>
+                  <td>明确写出当前使用哪种基准。</td>
+                </tr>
+                <tr>
+                  <td>实际位置、指令位置</td>
+                  <td>一个是系统反馈的位置，一个是控制指令要求的位置。</td>
+                  <td>与位置基准分别显示，避免混为一个开关。</td>
+                </tr>
+                <tr>
+                  <td>坐标偏置、刀长补偿</td>
+                  <td>用于修正工件安装位置或刀具长度差异的数值。</td>
+                  <td>用中文分组名称和对齐的数字列表展示。</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="note">
+            现有图是演示示意图，位置数字为固定样例。当前预览数字大小为 24 像素，放大后为 34
+            像素；数显页为 35 像素，放大后为 45 像素。
+          </p>
+        </section>
+        <section id="group-7">
+          <header class="section-heading">
+            <span class="number">07</span>
+            <div>
+              <h2>加工程序与底部状态</h2>
+              <p>底部用来阅读加工程序，并持续查看机床和刀具状态。</p>
+            </div>
+          </header>
+          <div class="gallery wide">
+            <figure>
+              <a
+                class="image-link"
+                href="components/07-program-status.png"
+                target="_blank"
+                rel="noopener"
+                aria-label="查看原图：程序文字、分隔条和底部状态"
+                ><img
+                  src="components/07-program-status.png"
+                  width="1100"
+                  height="188"
+                  alt="现有界面：程序文字、分隔条和底部状态"
+                  loading="lazy"
+              /></a>
+              <figcaption>
+                <strong>程序文字、分隔条和底部状态</strong><span>图片大小：1100 × 188 像素</span>
+                <p>左列是行号，右侧是指令。上边的分隔条可以拖动，调整这一块的高度。</p>
+              </figcaption>
+            </figure>
+            <figure>
+              <a
+                class="image-link"
+                href="components/23-program-context.png"
+                target="_blank"
+                rel="noopener"
+                aria-label="查看原图：在程序行上点击鼠标右键"
+                ><img
+                  src="components/23-program-context.png"
+                  width="1100"
+                  height="181"
+                  alt="现有界面：在程序行上点击鼠标右键"
+                  loading="lazy"
+              /></a>
+              <figcaption>
+                <strong>在程序行上点击鼠标右键</strong><span>图片大小：1100 × 181 像素</span>
+                <p>会弹出“从此行运行”。这是在选定位置开始执行程序的入口。</p>
+              </figcaption>
+            </figure>
+          </div>
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>画面上的名称</th>
+                  <th>操作员用它做什么</th>
+                  <th>设计时要表达什么</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>加工程序</td>
+                  <td>按行阅读指令和注释，选择需要查看的行。</td>
+                  <td>行号与正文分开；注释、选中行、当前执行行应有区别。</td>
+                </tr>
+                <tr>
+                  <td>程序区分隔条</td>
+                  <td>向上或向下拖动，扩大或缩小程序阅读区。</td>
+                  <td>让人看得出这里能拖动；变大变小后仍能读清文字。</td>
+                </tr>
+                <tr>
+                  <td>急停、未装刀</td>
+                  <td>显示机床状态和当前刀具信息。</td>
+                  <td>状态名称直接可读；急停、运行、暂停、报警等分别设计。</td>
+                </tr>
+                <tr>
+                  <td>位置显示方式</td>
+                  <td>显示当前位置采用哪种基准、来自哪种位置数据。</td>
+                  <td>固定位置显示完整中文，不能只剩一个颜色点。</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="note">
+            “没有连接机床”表示通信未建立；“急停”表示机床状态。两件事应分开表达。截图里的急停、未装刀及程序文字均为演示内容。
+          </p>
+        </section>
+        <section id="group-8">
+          <header class="section-heading">
+            <span class="number">08</span>
+            <div>
+              <h2>弹出窗口与表格</h2>
+              <p>
+                操作员点按钮后出现的小窗口。相同的外框可以共用，里面的标题、字段和内容按用途变化。
+              </p>
+            </div>
+          </header>
+          <p class="note">
+            每个窗口都包含标题、内容和关闭按钮。当前只有“关闭”，没有真正提交设置的动作。下面展示 9
+            个代表画面；另存为沿用文件窗口样式，自定义面板沿用说明窗口样式。
+          </p>
+          <div class="gallery">
+            <figure>
+              <a
+                class="image-link"
+                href="components/15-file-dialog.png"
+                target="_blank"
+                rel="noopener"
+                aria-label="查看原图：打开程序"
+                ><img
+                  src="components/15-file-dialog.png"
+                  width="410"
+                  height="426"
+                  alt="现有界面：打开程序"
+                  loading="lazy"
+              /></a>
+              <figcaption>
+                <strong>打开程序</strong><span>图片大小：410 × 426 像素</span>
+                <p>文件夹位置、文件列表、文件名、文件类型。让人清楚知道自己选的是哪个文件。</p>
+              </figcaption>
+            </figure>
+            <figure>
+              <a
+                class="image-link"
+                href="components/16-work-offset-dialog.png"
+                target="_blank"
+                rel="noopener"
+                aria-label="查看原图：工件对刀"
+                ><img
+                  src="components/16-work-offset-dialog.png"
+                  width="380"
+                  height="252"
+                  alt="现有界面：工件对刀"
+                  loading="lazy"
+              /></a>
+              <figcaption>
+                <strong>工件对刀</strong><span>图片大小：380 × 252 像素</span>
+                <p>
+                  显示当前轴，输入位置值，再选择一组工件位置基准。截图里的字母数字编号表示不同的坐标组。
+                </p>
+              </figcaption>
+            </figure>
+            <figure>
+              <a
+                class="image-link"
+                href="components/17-tool-offset-dialog.png"
+                target="_blank"
+                rel="noopener"
+                aria-label="查看原图：刀具对刀"
+                ><img
+                  src="components/17-tool-offset-dialog.png"
+                  width="380"
+                  height="252"
+                  alt="现有界面：刀具对刀"
+                  loading="lazy"
+              /></a>
+              <figcaption>
+                <strong>刀具对刀</strong><span>图片大小：380 × 252 像素</span>
+                <p>输入刀具的位置修正值。它与工件对刀外形相似，但标题和用途不同。</p>
+              </figcaption>
+            </figure>
+            <figure>
+              <a
+                class="image-link"
+                href="components/14-grid-dialog.png"
+                target="_blank"
+                rel="noopener"
+                aria-label="查看原图：网格间距"
+                ><img
+                  src="components/14-grid-dialog.png"
+                  width="380"
+                  height="186"
+                  alt="现有界面：网格间距"
+                  loading="lazy"
+              /></a>
+              <figcaption>
+                <strong>网格间距</strong><span>图片大小：380 × 186 像素</span>
+                <p>只填写一个数值，右侧保留“毫米”单位。</p>
+              </figcaption>
+            </figure>
+            <figure>
+              <a
+                class="image-link"
+                href="components/18-tool-table-dialog.png"
+                target="_blank"
+                rel="noopener"
+                aria-label="查看原图：刀具表没有内容时"
+                ><img
+                  src="components/18-tool-table-dialog.png"
+                  width="380"
+                  height="236"
+                  alt="现有界面：刀具表没有内容时"
+                  loading="lazy"
+              /></a>
+              <figcaption>
+                <strong>刀具表没有内容时</strong><span>图片大小：380 × 236 像素</span>
+                <p>表头保留刀具号、刀位号、各方向修正值、直径和备注；中间说明还没有数据。</p>
+              </figcaption>
+            </figure>
+            <figure>
+              <a
+                class="image-link"
+                href="components/19-properties-dialog.png"
+                target="_blank"
+                rel="noopener"
+                aria-label="查看原图：程序信息"
+                ><img
+                  src="components/19-properties-dialog.png"
+                  width="380"
+                  height="260"
+                  alt="现有界面：程序信息"
+                  loading="lazy"
+              /></a>
+              <figcaption>
+                <strong>程序信息</strong><span>图片大小：380 × 260 像素</span>
+                <p>显示文件名、程序行数和来源等信息，供查看。</p>
+              </figcaption>
+            </figure>
+            <figure>
+              <a
+                class="image-link"
+                href="components/20-about-dialog.png"
+                target="_blank"
+                rel="noopener"
+                aria-label="查看原图：软件信息"
+                ><img
+                  src="components/20-about-dialog.png"
+                  width="380"
+                  height="268"
+                  alt="现有界面：软件信息"
+                  loading="lazy"
+              /></a>
+              <figcaption>
+                <strong>软件信息</strong><span>图片大小：380 × 268 像素</span>
+                <p>
+                  版本、配置和软件名称等资料。截图中的外文名称按原样展示，设计师只需安排图标和信息层级。
+                </p>
+              </figcaption>
+            </figure>
+            <figure>
+              <a
+                class="image-link"
+                href="components/21-shortcuts-dialog.png"
+                target="_blank"
+                rel="noopener"
+                aria-label="查看原图：键盘快捷键说明"
+                ><img
+                  src="components/21-shortcuts-dialog.png"
+                  width="520"
+                  height="624"
+                  alt="现有界面：键盘快捷键说明"
+                  loading="lazy"
+              /></a>
+              <figcaption>
+                <strong>键盘快捷键说明</strong><span>图片大小：520 × 624 像素</span>
+                <p>左列是键盘按键，右列是对应功能。按键上的字母保留，功能说明用中文。</p>
+              </figcaption>
+            </figure>
+            <figure>
+              <a
+                class="image-link"
+                href="components/22-unconnected-dialog.png"
+                target="_blank"
+                rel="noopener"
+                aria-label="查看原图：操作暂时不能执行时"
+                ><img
+                  src="components/22-unconnected-dialog.png"
+                  width="380"
+                  height="144"
+                  alt="现有界面：操作暂时不能执行时"
+                  loading="lazy"
+              /></a>
+              <figcaption>
+                <strong>操作暂时不能执行时</strong><span>图片大小：380 × 144 像素</span>
+                <p>说明原因，并提供关闭按钮。不能用“成功”“已完成”来表达未执行的操作。</p>
+              </figcaption>
+            </figure>
+          </div>
+          <p class="note">
+            设计长文字和内容超出窗口时的样子。窗口要留边距，关闭按钮容易找到。目前宽度至少 370
+            像素，通常不超过 620 像素，同时要能放进屏幕。
+          </p>
+        </section>
+        <section id="group-9">
+          <header class="section-heading">
+            <span class="number">09</span>
+            <div>
+              <h2>常用小控件</h2>
+              <p>
+                把重复出现的小控件统一设计，再放进上面各个区域。这里的“状态”就是同一个控件在不同操作时的样子。
+              </p>
+            </div>
+          </header>
+          <div class="base-grid">
+            <article class="base-card">
+              <h3>01 · 文字按钮</h3>
+              <figure>
+                <a
+                  class="image-link"
+                  href="components/24-buttons.png"
+                  target="_blank"
+                  rel="noopener"
+                  aria-label="查看原图：文字按钮"
+                  ><img
+                    src="components/24-buttons.png"
+                    width="246"
+                    height="63"
+                    alt="现有界面：文字按钮"
+                    loading="lazy"
+                /></a>
+                <figcaption>
+                  <strong>文字按钮</strong><span>图片大小：246 × 63 像素</span>
+                  <p>用文字说明动作，例如“全部回零”。</p>
+                </figcaption>
+              </figure>
+              <p><strong>需要的样子：</strong>平时、鼠标移上去、按住、键盘定位、不能点击。</p>
+            </article>
+            <article class="base-card">
+              <h3>02 · 键盘定位提示</h3>
+              <figure>
+                <a
+                  class="image-link"
+                  href="components/29-button-focus.png"
+                  target="_blank"
+                  rel="noopener"
+                  aria-label="查看原图：键盘定位提示"
+                  ><img
+                    src="components/29-button-focus.png"
+                    width="246"
+                    height="63"
+                    alt="现有界面：键盘定位提示"
+                    loading="lazy"
+                /></a>
+                <figcaption>
+                  <strong>键盘定位提示</strong><span>图片大小：246 × 63 像素</span>
+                  <p>用键盘切换操作位置时，用外框提示目前落在哪个按钮上。</p>
+                </figcaption>
+              </figure>
+              <p><strong>需要的样子：</strong>定位在某个按钮时的边框，不与按下状态混淆。</p>
+            </article>
+            <article class="base-card">
+              <h3>03 · 图标按钮</h3>
+              <figure>
+                <a
+                  class="image-link"
+                  href="components/03-spindle-coolant.png"
+                  target="_blank"
+                  rel="noopener"
+                  aria-label="查看原图：图标按钮"
+                  ><img
+                    src="components/03-spindle-coolant.png"
+                    width="306"
+                    height="142"
+                    alt="现有界面：图标按钮"
+                    loading="lazy"
+                /></a>
+                <figcaption>
+                  <strong>图标按钮</strong><span>图片大小：306 × 142 像素</span>
+                  <p>用方向或符号表示动作，鼠标移上去时配中文说明。</p>
+                </figcaption>
+              </figure>
+              <p><strong>需要的样子：</strong>平时、鼠标移上去、按下、已选中、不能点击。</p>
+            </article>
+            <article class="base-card">
+              <h3>04 · 页面切换标签</h3>
+              <figure>
+                <a
+                  class="image-link"
+                  href="components/05-tabs.png"
+                  target="_blank"
+                  rel="noopener"
+                  aria-label="查看原图：页面切换标签"
+                  ><img
+                    src="components/05-tabs.png"
+                    width="328"
+                    height="38"
+                    alt="现有界面：页面切换标签"
+                    loading="lazy"
+                /></a>
+                <figcaption>
+                  <strong>页面切换标签</strong><span>图片大小：328 × 38 像素</span>
+                  <p>像文件夹的标签，点选后切换内容。</p>
+                </figcaption>
+              </figure>
+              <p><strong>需要的样子：</strong>当前页和其他页要明显不同。</p>
+            </article>
+            <article class="base-card">
+              <h3>05 · 输入框</h3>
+              <figure>
+                <a
+                  class="image-link"
+                  href="components/30-input-focus.png"
+                  target="_blank"
+                  rel="noopener"
+                  aria-label="查看原图：输入框"
+                  ><img
+                    src="components/30-input-focus.png"
+                    width="306"
+                    height="59"
+                    alt="现有界面：输入框"
+                    loading="lazy"
+                /></a>
+                <figcaption>
+                  <strong>输入框</strong><span>图片大小：306 × 59 像素</span>
+                  <p>用来填写文字或数字；截图里已填入一条示例指令。</p>
+                </figcaption>
+              </figure>
+              <p><strong>需要的样子：</strong>空白、正在输入、只能看不能改、不能输入、内容填错。</p>
+            </article>
+            <article class="base-card">
+              <h3>06 · 下拉选择框</h3>
+              <figure>
+                <a
+                  class="image-link"
+                  href="components/27-select.png"
+                  target="_blank"
+                  rel="noopener"
+                  aria-label="查看原图：下拉选择框"
+                  ><img
+                    src="components/27-select.png"
+                    width="138"
+                    height="35"
+                    alt="现有界面：下拉选择框"
+                    loading="lazy"
+                /></a>
+                <figcaption>
+                  <strong>下拉选择框</strong><span>图片大小：138 × 35 像素</span>
+                  <p>点开后从多个选项里选一个。</p>
+                </figcaption>
+              </figure>
+              <p><strong>需要的样子：</strong>收起、展开、选中、不能选择。</p>
+            </article>
+            <article class="base-card">
+              <h3>07 · 单选圆圈</h3>
+              <figure>
+                <a
+                  class="image-link"
+                  href="components/25-radio.png"
+                  target="_blank"
+                  rel="noopener"
+                  aria-label="查看原图：单选圆圈"
+                  ><img
+                    src="components/25-radio.png"
+                    width="246"
+                    height="32"
+                    alt="现有界面：单选圆圈"
+                    loading="lazy"
+                /></a>
+                <figcaption>
+                  <strong>单选圆圈</strong><span>图片大小：246 × 32 像素</span>
+                  <p>一组选项里只能选一个；圆点表示选中。</p>
+                </figcaption>
+              </figure>
+              <p><strong>需要的样子：</strong>未选中、已选中、不能选择。</p>
+            </article>
+            <article class="base-card">
+              <h3>08 · 多选方框</h3>
+              <figure>
+                <a
+                  class="image-link"
+                  href="components/26-checkbox.png"
+                  target="_blank"
+                  rel="noopener"
+                  aria-label="查看原图：多选方框"
+                  ><img
+                    src="components/26-checkbox.png"
+                    width="246"
+                    height="56"
+                    alt="现有界面：多选方框"
+                    loading="lazy"
+                /></a>
+                <figcaption>
+                  <strong>多选方框</strong><span>图片大小：246 × 56 像素</span>
+                  <p>每一项都能独立开关；勾号表示开启。</p>
+                </figcaption>
+              </figure>
+              <p><strong>需要的样子：</strong>未勾选、已勾选、不能操作。</p>
+            </article>
+            <article class="base-card">
+              <h3>09 · 滑条</h3>
+              <figure>
+                <a
+                  class="image-link"
+                  href="components/28-slider.png"
+                  target="_blank"
+                  rel="noopener"
+                  aria-label="查看原图：滑条"
+                  ><img
+                    src="components/28-slider.png"
+                    width="314"
+                    height="52"
+                    alt="现有界面：滑条"
+                    loading="lazy"
+                /></a>
+                <figcaption>
+                  <strong>滑条</strong><span>图片大小：314 × 52 像素</span>
+                  <p>拖动小滑块来改变旁边的数值。</p>
+                </figcaption>
+              </figure>
+              <p><strong>需要的样子：</strong>平时、拖动中、最小值、最大值、不能拖动。</p>
+            </article>
+            <article class="base-card">
+              <h3>10 · 菜单</h3>
+              <figure>
+                <a
+                  class="image-link"
+                  href="components/13-view-submenu.png"
+                  target="_blank"
+                  rel="noopener"
+                  aria-label="查看原图：菜单"
+                  ><img
+                    src="components/13-view-submenu.png"
+                    width="500"
+                    height="759"
+                    alt="现有界面：菜单"
+                    loading="lazy"
+                /></a>
+                <figcaption>
+                  <strong>菜单</strong><span>图片大小：500 × 759 像素</span>
+                  <p>一行一个功能；带箭头的行还能展开下一层。</p>
+                </figcaption>
+              </figure>
+              <p><strong>需要的样子：</strong>平时、鼠标移上去、已勾选、不能点、下一层展开。</p>
+            </article>
+            <article class="base-card">
+              <h3>11 · 列表和表格</h3>
+              <figure>
+                <a
+                  class="image-link"
+                  href="components/18-tool-table-dialog.png"
+                  target="_blank"
+                  rel="noopener"
+                  aria-label="查看原图：列表和表格"
+                  ><img
+                    src="components/18-tool-table-dialog.png"
+                    width="380"
+                    height="236"
+                    alt="现有界面：列表和表格"
+                    loading="lazy"
+                /></a>
+                <figcaption>
+                  <strong>列表和表格</strong><span>图片大小：380 × 236 像素</span>
+                  <p>多条信息按行排列，同类内容放在同一列。</p>
+                </figcaption>
+              </figure>
+              <p><strong>需要的样子：</strong>普通行、选中行、没有内容、内容多到需要滚动。</p>
+            </article>
+            <article class="base-card">
+              <h3>12 · 弹出窗口</h3>
+              <figure>
+                <a
+                  class="image-link"
+                  href="components/22-unconnected-dialog.png"
+                  target="_blank"
+                  rel="noopener"
+                  aria-label="查看原图：弹出窗口"
+                  ><img
+                    src="components/22-unconnected-dialog.png"
+                    width="380"
+                    height="144"
+                    alt="现有界面：弹出窗口"
+                    loading="lazy"
+                /></a>
+                <figcaption>
+                  <strong>弹出窗口</strong><span>图片大小：380 × 144 像素</span>
+                  <p>容纳说明或设置项，含标题和关闭按钮。</p>
+                </figcaption>
+              </figure>
+              <p><strong>需要的样子：</strong>普通内容、长文字、内容滚动、关闭按钮的操作提示。</p>
+            </article>
+          </div>
+          <p class="note">
+            截图展示目前已有的样子；上面列出的其他状态，需要在新设计中补画。判断能否操作时，还应有文字或符号提示，不能只用颜色区分。
+          </p>
+        </section>
+        <footer>机床操作界面 · 设计参考</footer>
+      </main>
+    </div>
+  </body>
+</html>

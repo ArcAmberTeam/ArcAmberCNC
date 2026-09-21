@@ -1,6 +1,4 @@
-# vim: sw=2
-
-name: Build CI
+name: Desktop and Web CI
 
 on:
   push:
@@ -8,143 +6,246 @@ on:
   pull_request:
   merge_group:
   workflow_dispatch:
+    inputs:
+      deploy_staging:
+        description: Deploy the checked Web UI from this branch to the shared test VM
+        type: boolean
+        required: true
+        default: false
 
 permissions:
-  contents: read #  to fetch code (actions/checkout)
+  contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  # Replace obsolete CI runs, but never interrupt a test-machine deployment.
-  cancel-in-progress: ${{ github.ref != 'refs/heads/staging测试环境' }}
-
-env:
-  DEBIAN_FRONTEND: noninteractive
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name == 'workflow_dispatch' && inputs.deploy_staging && 'deploy' || 'ci' }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/staging测试环境' && !(github.event_name == 'workflow_dispatch' && inputs.deploy_staging) }}
 
 jobs:
+  source-checks:
+    name: Workflow and deployment checks
+    if: >-
+      github.event_name != 'pull_request' ||
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, Linux, X64, betterlinuxcnc]
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Check workflows, scripts, release packaging and rollback behavior
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: .github/ci/check-source.sh
+
+  web-build:
+    name: Web types, boundaries and build
+    if: >-
+      github.event_name != 'pull_request' ||
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, Linux, X64, betterlinuxcnc]
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install locked frontend dependencies
+        working-directory: frontend
+        run: npm ci
+      - name: Check types, module boundaries and formatting
+        working-directory: frontend
+        run: npm run check
+      - name: Build the Web application
+        working-directory: frontend
+        run: npm run build
+      - name: Package the immutable static release
+        run: python3 .github/ci/package-web.py --dist frontend/dist --output web-artifact --commit "$GITHUB_SHA"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: betterlinuxcnc-web
+          path: web-artifact/
+          if-no-files-found: error
+
+  browser-tests:
+    name: Web browser tests
+    needs: web-build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - uses: actions/download-artifact@v8
+        with:
+          name: betterlinuxcnc-web
+          path: checked-artifact
+      - name: Verify and extract the same-run Web build
+        env:
+          EXPECTED_COMMIT: ${{ github.sha }}
+        run: |
+          (cd checked-artifact && sha256sum --check SHA256SUMS)
+          test "$(cat checked-artifact/COMMIT)" = "$EXPECTED_COMMIT"
+          mkdir -p frontend/dist
+          tar -xzf checked-artifact/web.tar.gz -C frontend/dist
+      - name: Install frontend test dependencies
+        working-directory: frontend
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+      - name: Exercise the release build without a controller
+        working-directory: frontend
+        env:
+          PLAYWRIGHT_TEST_DIST: "1"
+          EXPECTED_COMMIT: ${{ github.sha }}
+        run: npm run test:e2e
+      - name: Upload browser diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: web-browser-diagnostics
+          path: frontend/test-results/
+          if-no-files-found: ignore
+
+  python-checks:
+    name: Python service (${{ matrix.python }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.11", "3.13"]
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+          cache-dependency-path: backend/requirements-ci.txt
+      - name: Install pinned Python build and check tools
+        run: python -m pip install -r backend/requirements-ci.txt
+      - name: Check Python formatting and code
+        run: |
+          ruff check backend
+          ruff format --check backend
+      - name: Build and install the service package
+        run: |
+          python -m build --no-isolation backend
+          python -m pip install --no-deps backend/dist/*.whl
+      - name: Test the installed CLI and Unix socket protocol
+        run: python -m unittest discover -s backend/tests -v
+      - uses: actions/upload-artifact@v7
+        if: matrix.python == '3.13'
+        with:
+          name: betterlinuxcnc-python
+          path: backend/dist/
+          if-no-files-found: error
+
+  tauri-build:
+    name: Tauri Debian 13 build and service bridge
+    runs-on: ubuntu-24.04
+    container: debian:13
+    timeout-minutes: 45
+    env:
+      CARGO_TERM_COLOR: always
+    steps:
+      - name: Install Debian desktop build dependencies
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            ca-certificates curl git build-essential pkg-config libssl-dev \
+            libwebkit2gtk-4.1-dev libxdo-dev libayatana-appindicator3-dev \
+            librsvg2-dev patchelf file python3
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.97.1"
+          components: rustfmt, clippy
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            frontend/src-tauri/target
+          key: tauri-debian13-x64-rust1971-${{ hashFiles('frontend/src-tauri/Cargo.lock') }}
+          restore-keys: tauri-debian13-x64-rust1971-
+      - name: Install locked frontend dependencies and prepare assets
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+      - name: Check Rust formatting and lint
+        working-directory: frontend
+        run: npm run desktop:check
+      - name: Test Rust against the real Python service
+        working-directory: frontend
+        run: npm run desktop:test
+      - name: Build the desktop Debian package
+        working-directory: frontend
+        run: npm run desktop:build -- --bundles deb -- --locked
+      - name: Inspect the desktop package
+        run: |
+          for package in frontend/src-tauri/target/release/bundle/deb/*.deb; do
+            dpkg-deb --info "$package"
+            dpkg-deb --contents "$package"
+          done
+      - uses: actions/upload-artifact@v7
+        with:
+          name: betterlinuxcnc-desktop-debian13
+          path: frontend/src-tauri/target/release/bundle/deb/*.deb
+          if-no-files-found: error
 
   ci-gate:
+    # Preserve this exact check name for existing branch protection.
     name: CI Gate
     runs-on: [self-hosted, Linux, X64, betterlinuxcnc]
     timeout-minutes: 5
-    # A failed dependency must fail the required check, not skip it.
     if: ${{ always() }}
-    needs:
-      - package-arch
-      - source-checks
-      - axis-assets
-      - interpreter-regressions
+    needs: [source-checks, web-build, browser-tests, python-checks, tauri-build]
     steps:
-    - name: Require all build and test jobs to pass
-      env:
-        NEEDS_JSON: ${{ toJSON(needs) }}
-      run: |
-        python3 - <<'PY'
-        import json
-        import os
-        import sys
-
-        results = json.loads(os.environ["NEEDS_JSON"])
-        for name, job in results.items():
-            print(f"{name}: {job['result']}")
-        sys.exit(0 if results and all(
-            job["result"] == "success" for job in results.values()
-        ) else 1)
-        PY
-
-  source-checks:
-    name: Workflow and source checks
-    if: >-
-      github.event_name != 'pull_request' ||
-      github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: [self-hosted, Linux, X64, betterlinuxcnc]
-    timeout-minutes: 5
-    steps:
-    - uses: actions/checkout@v6
-      with:
-        fetch-depth: 0
-        persist-credentials: false
-    - name: Check workflows, maintained shell scripts, Python and renderer syntax
-      env:
-        BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
-      run: .github/ci/check-source.sh
-
-  axis-assets:
-    name: AXIS GIF and Tk checks
-    if: >-
-      github.event_name != 'pull_request' ||
-      github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: [self-hosted, Linux, X64, betterlinuxcnc]
-    timeout-minutes: 5
-    steps:
-    - uses: actions/checkout@v6
-      with:
-        persist-credentials: false
-    - name: Check all toolbar images with the actual Tk image loader
-      run: xvfb-run -a python3 .github/ci/check-icons.py
-
-  interpreter-regressions:
-    name: G-code interpreter regressions
-    needs: package-arch
-    runs-on: [self-hosted, Linux, X64, betterlinuxcnc]
-    timeout-minutes: 5
-    steps:
-    - uses: actions/checkout@v6
-      with:
-        persist-credentials: false
-    - uses: actions/download-artifact@v8
-      with:
-        name: linuxcnc-trixie-amd64
-        path: checked-artifact
-    - name: Extract and check the same-run artifact without installing it
-      run: |
-        .github/ci/prepare-image.sh
-        container="betterlinuxcnc-regressions-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
-        trap 'docker rm -f "$container" >/dev/null 2>&1 || true' EXIT
-        docker run --rm --init --name "$container" --network=none \
-          --cpus=4 --memory=2g --memory-swap=2g \
-          --tmpfs /work:rw,exec,size=512m --workdir /work \
-          --mount "type=bind,src=$PWD,dst=/source,readonly" \
-          --mount "type=bind,src=$PWD/checked-artifact,dst=/artifact,readonly" \
-          betterlinuxcnc-ci:trixie bash /source/.github/ci/check-interpreter.sh
-
-  package-arch:
-    name: Debian 13 x86 build
-    # Only trusted same-repository PRs may execute on our persistent runner.
-    if: >-
-      github.event_name != 'pull_request' ||
-      github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: [self-hosted, Linux, X64, betterlinuxcnc]
-    timeout-minutes: 35
-    steps:
-    - name: Checkout repository
-      uses: actions/checkout@v6
-      with:
-        submodules: false
-        fetch-depth: 0
-        persist-credentials: false
-    - name: Build Debian 13 packages in a clean cached container
-      env:
-        RUN_ACCEPTANCE: >-
-          ${{ github.ref == 'refs/heads/staging测试环境' &&
-              (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
-      run: |
-        mode=build
-        if [ "$RUN_ACCEPTANCE" = true ]; then mode=test; fi
-        .github/ci/run.sh "$mode"
-    - name: Upload Debian 13 packages
-      uses: actions/upload-artifact@v7
-      with:
-        name: linuxcnc-trixie-amd64
-        path: artifacts/
-        if-no-files-found: error
+      - name: Require Web, Python and Tauri verification jobs to pass
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import sys
+          results = json.loads(os.environ["NEEDS_JSON"])
+          for name, job in results.items():
+              print(f"{name}: {job['result']}")
+          sys.exit(0 if results and all(
+              job["result"] == "success" for job in results.values()
+          ) else 1)
+          PY
 
   deploy-staging:
-    name: Deploy and test staging
+    name: Deploy Web to test machine
     needs: ci-gate
     if: >-
       github.repository == 'Xamber-Software/BetterLinuxCNC' &&
-      github.ref == 'refs/heads/staging测试环境' &&
-      (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+      startsWith(github.ref, 'refs/heads/') &&
+      ((github.ref == 'refs/heads/staging测试环境' &&
+        (github.event_name == 'push' || github.event_name == 'workflow_dispatch')) ||
+       (github.event_name == 'workflow_dispatch' && inputs.deploy_staging))
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     environment: staging
@@ -152,18 +253,25 @@ jobs:
       group: betterlinuxcnc-staging-deploy
       cancel-in-progress: false
     steps:
-    - uses: actions/checkout@v6
-      with:
-        persist-credentials: false
-    - uses: actions/download-artifact@v8
-      with:
-        name: linuxcnc-trixie-amd64
-        path: staging-artifact
-    - name: Deploy the tested Debian 13 package through FRP
-      env:
-        STAGING_SSH_KEY: ${{ secrets.STAGING_SSH_KEY }}
-        STAGING_KNOWN_HOSTS: ${{ secrets.STAGING_KNOWN_HOSTS }}
-        STAGING_HOST: ${{ vars.STAGING_HOST || '45.192.97.209' }}
-        STAGING_PORT: ${{ vars.STAGING_PORT || '39011' }}
-        STAGING_USER: deploy
-      run: .github/staging/deploy.sh staging-artifact
+      - name: Record the selected branch and exact commit
+        env:
+          DEPLOY_REF: ${{ github.ref_name }}
+          DEPLOY_SHA: ${{ github.sha }}
+        run: |
+          printf 'Web test environment request: branch `%s`, commit `%s`.\n' \
+            "$DEPLOY_REF" "$DEPLOY_SHA" >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v8
+        with:
+          name: betterlinuxcnc-web
+          path: staging-artifact
+      - name: Deploy the checked static Web release through FRP
+        env:
+          STAGING_SSH_KEY: ${{ secrets.STAGING_SSH_KEY }}
+          STAGING_KNOWN_HOSTS: ${{ secrets.STAGING_KNOWN_HOSTS }}
+          STAGING_HOST: ${{ vars.STAGING_HOST || '45.192.97.209' }}
+          STAGING_PORT: ${{ vars.STAGING_PORT || '39011' }}
+          STAGING_USER: deploy
+        run: .github/staging/deploy.sh staging-artifact

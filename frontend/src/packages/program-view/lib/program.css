@@ -1,0 +1,43 @@
+.program-pane {
+  background: #fff;
+  overflow: scroll;
+  min-height: 0;
+  font:
+    13px/19px 'DejaVu Sans Mono',
+    'Courier New',
+    monospace;
+  outline: none;
+}
+.program-lines {
+  min-width: max-content;
+  padding: 1px 0;
+}
+.program-line {
+  display: flex;
+  min-height: 19px;
+  cursor: text;
+  white-space: pre;
+}
+.line-number {
+  display: inline-block;
+  min-width: 47px;
+  width: 47px;
+  padding: 0 9px 0 3px;
+  text-align: right;
+  background: #eee;
+  color: #333;
+  flex-shrink: 0;
+  user-select: none;
+}
+.line-code {
+  padding: 0 9px;
+}
+.program-line.comment {
+  color: #555;
+}
+.program-line.selected {
+  background: #dde5ee;
+}
+.program-line.selected .line-number {
+  background: #b9c7d7;
+}

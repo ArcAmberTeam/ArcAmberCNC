@@ -178,7 +178,8 @@ SUBDIRS := \
     hal/user_comps/huanyang-vfd \
 	hal/user_comps/xhc-whb04b-6 \
     \
-    emc/usr_intf/axis emc/usr_intf/touchy emc/usr_intf/stepconf emc/usr_intf/pncconf \
+    emc/usr_intf/python-interface emc/usr_intf/python-tools emc/usr_intf/tk-support \
+    emc/usr_intf/touchy emc/usr_intf/stepconf emc/usr_intf/pncconf \
     emc/usr_intf/gremlin emc/usr_intf/gscreen emc/usr_intf/pyui emc/usr_intf/qtvcp \
     emc/usr_intf/gmoccapy emc/usr_intf/qtplasmac emc/usr_intf/mdro\
     emc/usr_intf emc/nml_intf emc/task emc/iotask emc/kinematics emc/tp emc/canterp \
@@ -663,8 +664,6 @@ install-docs:
 	$(DIR) $(DESTDIR)$(docsdir)
 	$(FILE) $(addprefix ../docs/,$(DOCS)) $(DESTDIR)$(docsdir)
 	$(FILE) $(DOCS_HELP) $(DESTDIR)$(docsdir)
-	$(FILE) emc/usr_intf/axis/etc/axis_light_background $(DESTDIR)$(docsdir)
-	$(FILE) emc/usr_intf/axis/README $(DESTDIR)$(docsdir)/README.axis
 
 install-dirs:
 	$(DIR) $(DESTDIR)$(EMC2_RTLIB_DIR) \
@@ -678,8 +677,8 @@ install-dirs:
 		$(DESTDIR)$(mandir)/man9 \
 		$(DESTDIR)$(tcldir)/msgs \
 		$(DESTDIR)$(localedir)/de/LC_MESSAGES \
-		$(DESTDIR)$(datadir)/axis/images \
-		$(DESTDIR)$(datadir)/axis/tcl \
+		$(DESTDIR)$(datadir)/linuxcnc/tk-support/images \
+		$(DESTDIR)$(datadir)/linuxcnc/tk-support/tcl \
 		$(DESTDIR)$(datadir)/gscreen/images \
 		$(DESTDIR)$(datadir)/gscreen/skins \
 		$(DESTDIR)$(datadir)/qtvcp/images \
@@ -820,8 +819,6 @@ install-python: install-dirs
 	$(EXE) ../bin/sim-torch $(DESTDIR)$(bindir)
 	$(EXE) ../bin/pyvcp $(DESTDIR)$(bindir)
 	$(EXE) ../bin/gladevcp $(DESTDIR)$(bindir)
-	$(EXE) ../bin/axis $(DESTDIR)$(bindir)
-	$(EXE) ../bin/axis-remote $(DESTDIR)$(bindir)
 	$(EXE) ../bin/debuglevel $(DESTDIR)$(bindir)
 	$(EXE) ../bin/linuxcnctop $(DESTDIR)$(bindir)
 	$(EXE) ../bin/mdi $(DESTDIR)$(bindir)
@@ -837,8 +834,8 @@ install-python: install-dirs
 	$(EXE) $(patsubst %.py,../bin/%,$(VISMACH_PY)) $(DESTDIR)$(bindir)
 	$(EXE) $(patsubst %.py,../bin/%,$(QTPLASMAC_PY)) $(DESTDIR)$(bindir)
 	$(FILE) ../share/linuxcnc/linuxcnc-wizard.gif $(DESTDIR)$(prefix)/share/linuxcnc
-	$(FILE) ../share/axis/images/*.{png,gif,xbm,ngc} $(DESTDIR)$(datadir)/axis/images
-	$(FILE) ../share/axis/tcl/*.tcl $(DESTDIR)$(datadir)/axis/tcl
+	$(FILE) ../share/linuxcnc/tk-support/images/*.gif $(DESTDIR)$(datadir)/linuxcnc/tk-support/images
+	$(FILE) ../share/linuxcnc/tk-support/tcl/*.tcl $(DESTDIR)$(datadir)/linuxcnc/tk-support/tcl
 	$(FILE) ../share/gscreen/images/*.gif $(DESTDIR)$(datadir)/gscreen/images
 	$(TREE) ../share/gscreen/skins/* $(DESTDIR)$(datadir)/gscreen/skins
 	$(TREE) ../share/qtvcp/images/* $(DESTDIR)$(datadir)/qtvcp/images
@@ -1393,7 +1390,7 @@ tags:
 		-I EXPORT_SYMBOL+,RTAPI_MP_INT+,RTAPI_MP_LONG+,RTAPI_MP_STRING+ \
 		-I RTAPI_MP_ARRAY_INT+,RTAPI_MP_ARRAY_LONG+,RTAPI_MP_ARRAY_STRING+ \
 		-I MODULE_AUTHOR+,MODULE_DESCRIPTION+,MODULE_LICENSE+ \
-		-R . ../tcl ../scripts ../share/axis/tcl
+		-R . ../tcl ../scripts ../share/linuxcnc/tk-support/tcl
 	rm -f TAGS
 	find . -type f -name '*.[ch]' -printf '%P\0' |xargs -0 etags -l c --append
 	find . -type f -name '*.cc' -printf '%P\0' |xargs -0 etags -l c++ --append
@@ -1406,7 +1403,7 @@ etags:
 		-I EXPORT_SYMBOL+,RTAPI_MP_INT+,RTAPI_MP_LONG+,RTAPI_MP_STRING+ \
 		-I RTAPI_MP_ARRAY_INT+,RTAPI_MP_ARRAY_LONG+,RTAPI_MP_ARRAY_STRING+ \
 		-I MODULE_AUTHOR+,MODULE_DESCRIPTION+,MODULE_LICENSE+ \
-		-R . ../tcl ../scripts ../share/axis/tcl
+		-R . ../tcl ../scripts ../share/linuxcnc/tk-support/tcl
 	find . -type f -name '*.[ch]' |xargs etags --language-force=C --append
 	find . -type f -name '*.cc' |xargs etags --language-force=C++ --append
 	find . -type f -name '*.hh' |xargs etags --language-force=C++ --append
@@ -1415,7 +1412,6 @@ etags:
 swish:
 	swish-e -c .swish_config -v 0 -i $(BASEPWD) \
 		$(dir $(BASEPWD))tcl \
-		$(dir $(BASEPWD))share/axis/tcl \
 		$(dir $(BASEPWD))lib/python \
 		$(dir $(BASEPWD))scripts \
 		$(dir $(BASEPWD))configs \

@@ -1,8 +1,6 @@
 etc
 
 usr/bin/5axisgui
-usr/bin/axis
-usr/bin/axis-remote
 usr/bin/classicladder
 usr/bin/debuglevel
 usr/bin/elbpcom
@@ -116,7 +114,6 @@ usr/lib/linuxcnc
 usr/lib/python3
 usr/lib/tcltk
 
-usr/share/axis
 usr/share/glade
 usr/share/gmoccapy
 usr/share/gscreen
@@ -141,14 +138,13 @@ usr/share/linuxcnc/ncfiles/
 usr/share/linuxcnc/pncconf/
 usr/share/linuxcnc/popupkeyboard.ui
 usr/share/linuxcnc/stepconf/
+usr/share/linuxcnc/tk-support/
 usr/share/linuxcnc/touchy.glade
 
 usr/share/locale
 
 usr/share/qtvcp
 
-src/emc/usr_intf/axis/etc    usr/share/doc/@MAIN_PACKAGE_NAME@/axis
-src/emc/usr_intf/axis/README usr/share/doc/@MAIN_PACKAGE_NAME@/axis
 
 debian/linuxcnc-uspace.metainfo.xml usr/share/metainfo
 

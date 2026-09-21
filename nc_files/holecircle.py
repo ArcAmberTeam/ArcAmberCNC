@@ -15,7 +15,7 @@ def ui():
 
     app = tkinter.Tk()
     rs274.options.install(app)
-    app.tk.call("source", os.path.join(BASE, "share", "axis", "tcl", "combobox.tcl"))
+    nf.source_lib_tcl(app, "combobox.tcl")
 
     app.wm_title(_("Circular Holes"))
     app.wm_iconname(_("Circular Holes"))

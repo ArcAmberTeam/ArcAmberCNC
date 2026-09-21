@@ -1,3 +1,9 @@
+BetterLinuxCNC: native AXIS has been removed.
+These upstream INI/HAL examples are retained as configuration references,
+not runnable AXIS demos. The launcher rejects DISPLAY=axis before starting
+controller processes. The current Web prototype cannot serve as DISPLAY.
+See docs/native-axis-removal.md in the repository.
+
 Axis is a modern, GL-based interface coded in python
 
 The principal Axis gui sim ini files:

@@ -1,3 +1,10 @@
+# BetterLinuxCNC Web
+
+当前维护的界面在 [`frontend/`](frontend/README.md)，采用 Vue 3 + TypeScript，按业务模块划分边界。原生 AXIS GUI 已完整移除，控制核心和共享 Python API 保留；现有 Web 原型独立保留，尚未接入机床控制。
+
+删除范围、保留的共享工具及旧配置的处理见 [原生 AXIS 移除记录](docs/native-axis-removal.md)。
+
+入口：[架构规范](AGENT.md) · [Web 开发说明](frontend/README.md) · [Web CI](.github/ci/README.md) · [测试环境部署与迁移](.github/staging/README.md)。CI/CD 只检查、构建和部署静态 Web；下面保留 LinuxCNC 上游说明，供后续控制引擎开发参考。
 
 [![Badge GPL2]][License]
 [![Badge LGPL]][License]

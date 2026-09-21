@@ -1,0 +1,140 @@
+.axis-menubar {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  height: 26px;
+  padding-left: 4px;
+  border-bottom: 1px solid #a4a4a4;
+  flex-shrink: 0;
+}
+.menu-trigger {
+  height: 23px;
+  padding: 1px 9px;
+  border: 1px solid transparent;
+  outline: none;
+}
+.menu-trigger[data-state='open'],
+.menu-trigger:hover {
+  border-color: #fff #888 #888 #fff;
+  background: #e5e5e5;
+}
+.axis-toolbar {
+  display: flex;
+  align-items: center;
+  min-height: 39px;
+  padding: 4px 5px 5px;
+  border-top: 1px solid #fff;
+  border-bottom: 1px solid #9c9c9c;
+  flex-shrink: 0;
+  overflow-x: auto;
+}
+.axis-toolbar .toolbar-button {
+  width: 29px;
+  min-width: 29px;
+  height: 29px;
+  padding: 1px;
+  border-color: transparent;
+  box-shadow: none;
+}
+.axis-toolbar .toolbar-button:hover {
+  border-color: #fff #777 #777 #fff;
+}
+.axis-toolbar .toolbar-button.is-pressed,
+.axis-toolbar .toolbar-button:active {
+  border-color: #777 #fff #fff #777;
+}
+.toolbar-button img {
+  max-width: 24px;
+  max-height: 24px;
+  display: block;
+}
+.toolbar-separator {
+  width: 2px;
+  height: 27px;
+  border-left: 1px solid #aaa;
+  border-right: 1px solid #fff;
+  margin: 0 5px;
+  flex-shrink: 0;
+}
+.about-dialog {
+  display: flex;
+  align-items: flex-start;
+  gap: 17px;
+}
+.about-dialog strong {
+  font-size: 18px;
+}
+.about-dialog p {
+  margin-top: 7px;
+}
+.shortcut-list,
+.property-list {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 7px 22px;
+}
+.shortcut-list dt {
+  font-family: monospace;
+}
+.property-list dt {
+  font-weight: bold;
+}
+.file-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 360px;
+}
+.file-dialog label {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.file-dialog input,
+.file-dialog select {
+  flex: 1;
+}
+.file-list {
+  height: 160px;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  padding: 4px;
+}
+.file-list > span {
+  padding: 3px;
+}
+.selected-file {
+  background: #486c95;
+  color: #fff;
+}
+.touch-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+}
+.touch-dialog label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.touch-dialog input {
+  width: 130px;
+}
+.tool-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.tool-table th,
+.tool-table td {
+  padding: 7px;
+  border: 1px solid #999;
+  text-align: left;
+}
+.tool-table td {
+  background: white;
+}
+.placeholder-detail {
+  max-width: 390px;
+  line-height: 1.5;
+}

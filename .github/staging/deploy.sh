@@ -36,10 +36,22 @@ done
 printf '%s\n' "$GITHUB_SHA" > "$work/bundle/COMMIT"
 (cd "$work/bundle" && sha256sum COMMIT linuxcnc-uspace.deb > SHA256SUMS)
 target="$STAGING_USER@$STAGING_HOST"
-ssh "${ssh_options[@]}" -p "$STAGING_PORT" "$target" \
-  "mkdir -m 700 /srv/betterlinuxcnc/incoming/$release"
-scp "${ssh_options[@]}" -P "$STAGING_PORT" "$work/bundle/"* \
+# Retry only idempotent transport operations, never the root installer.
+transfer() {
+  local attempt
+  for attempt in 1 2 3; do
+    if timeout --kill-after=10s 180s "$@"; then return 0; fi
+    printf 'FRP transfer attempt %s/3 failed.\n' "$attempt" >&2
+    if [[ $attempt -lt 3 ]]; then sleep 5; fi
+  done
+  return 1
+}
+transfer ssh "${ssh_options[@]}" -p "$STAGING_PORT" "$target" \
+  "mkdir -p -m 700 /srv/betterlinuxcnc/incoming/$release"
+echo 'Uploading the runtime package through FRP...'
+transfer scp "${ssh_options[@]}" -P "$STAGING_PORT" "$work/bundle/"* \
   "$target:/srv/betterlinuxcnc/incoming/$release/"
+echo 'Upload complete; installing and verifying the package...'
 ssh "${ssh_options[@]}" -p "$STAGING_PORT" "$target" \
   "sudo /usr/local/sbin/betterlinuxcnc-deploy $release"
 if [[ -n ${GITHUB_STEP_SUMMARY:-} ]]; then

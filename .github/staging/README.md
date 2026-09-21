@@ -107,6 +107,10 @@ by GitHub Actions.
 `linuxcnc-trixie-amd64` artifact's checksums, selects exactly one amd64
 `linuxcnc-uspace` package, and uploads it with a commit identifier and checksum
 manifest. It uses strict SSH host-key verification.
+Directory creation and upload have three bounded attempts for transient FRP
+disconnects. A retry overwrites the same pending upload; installation starts
+only after upload succeeds, and checksum verification rejects partial files.
+The root installer is not automatically retried.
 
 `install.sh` is provisioned once as root-owned
 `/usr/local/sbin/betterlinuxcnc-deploy`. The `deploy` account may sudo only this

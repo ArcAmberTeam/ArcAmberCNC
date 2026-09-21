@@ -11,8 +11,9 @@ public CI port is required.
 
 Run `.github/ci/run.sh build` from a checkout to compile and produce Debian
 packages in `artifacts/`, with `SHA256SUMS.txt`. The `test` mode also installs
-the packages and runs the upstream runtime suite, and is selected only after
-a push or manual run on `staging测试环境`. PRs do not install packages or run
+the packages and runs the upstream runtime suite, and is selected after
+a push or manual run on `staging测试环境`, or when a collaborator selects their
+own branch in **Run workflow** and enables `deploy_staging`. PRs do not install packages or run
 the full runtime suite.
 
 ## Required checks

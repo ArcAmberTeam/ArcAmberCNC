@@ -1,23 +1,41 @@
 # BetterLinuxCNC staging
 
-`kihon` is the development branch, `staging测试环境` is the acceptance branch, and
-`main` is the stable branch. Open development PRs from `kihon` into
-`staging测试环境`; after acceptance, open a PR from `staging测试环境` into `main`.
-Pushes (including merged PRs) to `staging测试环境` run
-the Debian 13 amd64 package build and test suite. Only a successful `CI Gate`
-permits deployment of the artifact from that same run. PRs,
-other branches, and releases never trigger this deployment job. Manual
-`Build CI` runs on `staging测试环境` also build, test, and deploy.
+Any collaborator with repository write access can deploy their own repository
+branch to the shared test VM without merging into `staging测试环境` first:
+
+1. Push the branch, including the current `.github/workflows/ci.yml`.
+2. Open **Actions → Build CI → Run workflow**.
+3. Select your branch in **Use workflow from**, enable **Deploy this branch to
+   the shared test VM after all checks pass**, and click **Run workflow**.
+4. Wait for `CI Gate` and `Deploy and test staging` to pass. The deployment
+   summary records the selected branch and immutable commit SHA.
+
+The selected commit is built and tested in the same run; moving the branch
+after dispatch does not change the code being deployed. A PR is not required.
+An unchecked manual run on a development branch only performs CI. Tags and
+fork repositories do not enter this deployment path. "Any collaborator" means
+users with permission to run this repository's Actions, not anonymous visitors.
+
+`main` remains the stable branch. The existing `kihon` → `staging测试环境` →
+`main` PR flow remains available but is not a prerequisite for testing a branch.
+Pushes (including merged PRs) and manual runs on `staging测试环境` still build,
+test and deploy automatically. Only a successful `CI Gate` permits deployment
+of the artifact from that same run. PR events and releases never deploy.
 Development branches are checked through PRs; pushes to `main` and
 `staging测试环境` are also checked. This avoids duplicate push/PR builds for
-`kihon`. Superseded CI runs are cancelled, while test-branch deployments remain
-serialized and are not interrupted by a newer commit.
+`kihon`. Superseded ordinary CI runs are cancelled; manual deployment runs use
+a separate concurrency group. Every branch shares one deployment lock, so two
+deployments cannot install simultaneously. The VM is shared: the last successful
+deployment becomes its active version. This does not create a VM per developer.
+GitHub may replace a pending run when newer runs enter the same concurrency
+group; this is not a durable FIFO queue. Running deployments are not cancelled.
 
 PR checks compile and package the architecture-specific Debian 13 build,
 check workflows/scripts and toolbar images, and run eight quick interpreter
 regressions against the extracted same-run artifact. They do not install the
 resulting packages, run the full runtime suite, or connect to the staging VM.
-Pushes to `main` use the same checks. After a merge into `staging测试环境`, CI installs the newly built packages
+Pushes to `main` use the same checks. For a requested branch deployment or a
+merge into `staging测试环境`, CI installs the newly built packages
 in an isolated container and runs the upstream tests as an unprivileged user.
 Only after those pass does CD install the same-run artifact on the VM and
 perform XYZ simulation acceptance. The RT kernel is validated on the VM, not
@@ -64,8 +82,11 @@ certificate, and the independent relay instance permits only 39011–39012.
 
 ## GitHub configuration
 
-Create a GitHub Environment named `staging`, with a deployment branch policy
-that permits only the `staging测试环境` branch. The environment name remains
+Create a GitHub Environment named `staging`, with deployment branches and tags
+set to **No restriction** so repository development branches can use it.
+The workflow itself requires a branch ref and an explicit manual deployment
+request, except for the existing automatic `staging测试环境` path.
+The environment name remains
 `staging`, so its existing secrets and deployment history stay in place.
 No reviewer is required. A private
 organization repository needs GitHub Team (or higher) for this environment.

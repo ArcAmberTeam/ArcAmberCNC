@@ -8,14 +8,20 @@ on:
   pull_request:
   merge_group:
   workflow_dispatch:
+    inputs:
+      deploy_staging:
+        description: 'Deploy this branch to the shared test VM after all checks pass'
+        type: boolean
+        required: true
+        default: false
 
 permissions:
   contents: read #  to fetch code (actions/checkout)
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name == 'workflow_dispatch' && inputs.deploy_staging && 'deploy' || 'ci' }}
   # Replace obsolete CI runs, but never interrupt a test-machine deployment.
-  cancel-in-progress: ${{ github.ref != 'refs/heads/staging测试环境' }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/staging测试环境' && !(github.event_name == 'workflow_dispatch' && inputs.deploy_staging) }}
 
 env:
   DEBIAN_FRONTEND: noninteractive
@@ -125,8 +131,10 @@ jobs:
     - name: Build Debian 13 packages in a clean cached container
       env:
         RUN_ACCEPTANCE: >-
-          ${{ github.ref == 'refs/heads/staging测试环境' &&
-              (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
+          ${{ (github.ref == 'refs/heads/staging测试环境' &&
+               (github.event_name == 'push' || github.event_name == 'workflow_dispatch')) ||
+              (github.event_name == 'workflow_dispatch' && inputs.deploy_staging &&
+               startsWith(github.ref, 'refs/heads/')) }}
       run: |
         mode=build
         if [ "$RUN_ACCEPTANCE" = true ]; then mode=test; fi
@@ -143,8 +151,10 @@ jobs:
     needs: ci-gate
     if: >-
       github.repository == 'Xamber-Software/BetterLinuxCNC' &&
-      github.ref == 'refs/heads/staging测试环境' &&
-      (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+      startsWith(github.ref, 'refs/heads/') &&
+      ((github.ref == 'refs/heads/staging测试环境' &&
+        (github.event_name == 'push' || github.event_name == 'workflow_dispatch')) ||
+       (github.event_name == 'workflow_dispatch' && inputs.deploy_staging))
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     environment: staging
@@ -152,6 +162,13 @@ jobs:
       group: betterlinuxcnc-staging-deploy
       cancel-in-progress: false
     steps:
+    - name: Record the selected branch and exact commit
+      env:
+        DEPLOY_REF: ${{ github.ref_name }}
+        DEPLOY_SHA: ${{ github.sha }}
+      run: |
+        printf 'Test environment request: branch `%s`, commit `%s`.\n' \
+          "$DEPLOY_REF" "$DEPLOY_SHA" >> "$GITHUB_STEP_SUMMARY"
     - uses: actions/checkout@v6
       with:
         persist-credentials: false

@@ -1,66 +1,8 @@
 #!/bin/bash
-# Provision this root-owned helper on the disposable staging VM, never production.
+# Root-owned entry point; never replace it from an uploaded release artifact.
 set -euo pipefail
+umask 022
 [[ $EUID == 0 && $# == 1 && $1 =~ ^[0-9]+-[0-9]+-[0-9a-f]{40}$ ]] || exit 2
-release=$1
-base=/srv/betterlinuxcnc
-exec 9>/run/lock/betterlinuxcnc-deploy.lock
-flock -w 600 9
-# shellcheck disable=SC1091 # Provided by the target Debian system.
-[[ $(. /etc/os-release; printf '%s' "$VERSION_ID") == 13 ]]
-[[ $(dpkg --print-architecture) == amd64 ]]
-[[ $(cat /sys/kernel/realtime) == 1 ]]
-if pgrep -u linuxcnc -x milltask >/dev/null; then
-  echo 'Close the interactive LinuxCNC session before deploying.' >&2
-  exit 1
-fi
-destination="$base/releases/$release"
-incoming="$base/incoming/$release"
-[[ -d $incoming && ! -e $destination ]]
-install -d -m 755 "$destination"
-for file in COMMIT linuxcnc-uspace.deb SHA256SUMS; do
-  [[ -f $incoming/$file && ! -L $incoming/$file ]]
-  install -m 644 "$incoming/$file" "$destination/$file"
-done
-cd "$destination"
-sha256sum --check SHA256SUMS
-[[ $(cat COMMIT) == "${release##*-}" ]]
-[[ $(dpkg-deb -f linuxcnc-uspace.deb Package) == linuxcnc-uspace ]]
-[[ $(dpkg-deb -f linuxcnc-uspace.deb Architecture) == amd64 ]]
-previous=$(readlink -f "$base/current" || true)
-export DEBIAN_FRONTEND=noninteractive
-
-verify_installed() {
-  local location=$1
-  local expected actual status
-  expected=$(dpkg-deb -f "$location/linuxcnc-uspace.deb" Version) || return 1
-  actual=$(dpkg-query -W -f='${Version}' linuxcnc-uspace) || return 1
-  status=$(dpkg-query -W -f='${Status}' linuxcnc-uspace) || return 1
-  [[ $status == 'install ok installed' && $actual == "$expected" ]]
-}
-
-rollback() {
-  local result=$?
-  trap - ERR
-  printf 'Deployment failed: %s\n' "$release" >&2
-  if [[ -n $previous && -f $previous/linuxcnc-uspace.deb ]]; then
-    if apt-get -y --no-install-recommends --allow-downgrades install \
-        "$previous/linuxcnc-uspace.deb" && verify_installed "$previous"; then
-      echo "Restored previous LinuxCNC package: $previous" >&2
-    else
-      echo 'ROLLBACK FAILED: inspect package state and deployment logs' >&2
-    fi
-  else
-    echo 'First deployment failed; no previous accepted package exists.' >&2
-  fi
-  exit "$result"
-}
-trap rollback ERR
-apt-get update -o APT::Update::Error-Mode=any
-apt-get -y --no-install-recommends --allow-downgrades install "$destination/linuxcnc-uspace.deb"
-verify_installed "$destination"
-ln -s "$destination" "$base/.current-$release"
-mv -Tf "$base/.current-$release" "$base/current"
-trap - ERR
-printf 'Accepted commit %s, package %s, kernel %s\n' \
-  "$(cat COMMIT)" "$(dpkg-query -W -f='${Version}' linuxcnc-uspace)" "$(uname -r)"
+# Python isolated mode ignores deploy-controlled environment and import paths.
+exec /usr/bin/python3 -I /usr/local/lib/betterlinuxcnc/web_release.py install "$1" \
+  --base /srv/betterlinuxcnc-web --health-url http://127.0.0.1:8080

@@ -1,5 +1,5 @@
 #!/bin/bash
-# CI-side transport only; the VM owns installation and rollback.
+# CI transports data only; the provisioned VM owns validation and activation.
 set -euo pipefail
 : "${STAGING_SSH_KEY:?Set the staging environment SSH key}"
 : "${STAGING_KNOWN_HOSTS:?Set the pinned VM SSH host key}"
@@ -10,6 +10,8 @@ set -euo pipefail
 [[ $STAGING_HOST =~ ^[a-zA-Z0-9.-]+$ && $STAGING_PORT =~ ^[0-9]+$ ]]
 [[ $STAGING_USER == deploy ]]
 artifact=$(realpath "${1:?artifact directory}")
+script_directory=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+python3 -I "$script_directory/web_release.py" verify-bundle "$artifact" "$GITHUB_SHA"
 release="$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT-$GITHUB_SHA"
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
@@ -21,20 +23,6 @@ unset STAGING_SSH_KEY STAGING_KNOWN_HOSTS
 ssh_options=(-i "$work/key" -o IdentitiesOnly=yes -o BatchMode=yes
   -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$work/known_hosts"
   -o ConnectTimeout=15 -o ServerAliveInterval=15 -o ServerAliveCountMax=4)
-# Verify the same-run artifact before selecting the runtime package.
-(cd "$artifact" && sha256sum --check SHA256SUMS.txt)
-mkdir "$work/bundle"
-count=0
-for package in "$artifact"/*.deb; do
-  if [[ $(dpkg-deb -f "$package" Package) == linuxcnc-uspace ]]; then
-    [[ $(dpkg-deb -f "$package" Architecture) == amd64 ]]
-    cp "$package" "$work/bundle/linuxcnc-uspace.deb"
-    count=$((count + 1))
-  fi
-done
-[[ $count == 1 ]]
-printf '%s\n' "$GITHUB_SHA" > "$work/bundle/COMMIT"
-(cd "$work/bundle" && sha256sum COMMIT linuxcnc-uspace.deb > SHA256SUMS)
 target="$STAGING_USER@$STAGING_HOST"
 # Retry only idempotent transport operations, never the root installer.
 transfer() {
@@ -47,15 +35,16 @@ transfer() {
   return 1
 }
 transfer ssh "${ssh_options[@]}" -p "$STAGING_PORT" "$target" \
-  "mkdir -p -m 700 /srv/betterlinuxcnc/incoming/$release"
-echo 'Uploading the runtime package through FRP...'
-transfer scp "${ssh_options[@]}" -P "$STAGING_PORT" "$work/bundle/"* \
-  "$target:/srv/betterlinuxcnc/incoming/$release/"
-echo 'Upload complete; installing and verifying the package...'
+  "test -x /usr/local/sbin/betterlinuxcnc-deploy-web || { echo 'Staging VM needs the Web provisioning upgrade before deployment.' >&2; exit 78; }; mkdir -p -m 700 /srv/betterlinuxcnc-web/incoming/$release"
+echo 'Uploading the static Web artifact through FRP...'
+transfer scp "${ssh_options[@]}" -P "$STAGING_PORT" \
+  "$artifact/web.tar.gz" "$artifact/COMMIT" "$artifact/SHA256SUMS" \
+  "$target:/srv/betterlinuxcnc-web/incoming/$release/"
+echo 'Upload complete; validating, activating, and checking the Web release...'
 ssh "${ssh_options[@]}" -p "$STAGING_PORT" "$target" \
-  "sudo /usr/local/sbin/betterlinuxcnc-deploy $release"
+  "sudo /usr/local/sbin/betterlinuxcnc-deploy-web $release"
 if [[ -n ${GITHUB_STEP_SUMMARY:-} ]]; then
   # shellcheck disable=SC2016 # Backticks format Markdown, not command substitution.
-  printf 'Installed `%s` on Debian 13 PREEMPT_RT through FRP; package version verified. No simulation was run.\n' \
+  printf 'Published Web commit `%s` through FRP; local HTTP index and build-info verified.\n' \
     "$GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
 fi

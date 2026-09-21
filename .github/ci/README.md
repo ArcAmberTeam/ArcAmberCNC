@@ -1,85 +1,83 @@
-# Dedicated Debian 13 CI
+# Web CI
 
-The `package-arch` job runs on repository runner `linuxcnc-ci-101`, with labels
-`self-hosted`, `Linux`, `X64`, `betterlinuxcnc`. PVE VM 101 has 4 vCPUs, 8 GiB RAM
-and a 64 GiB disk on the 500 GB HDD storage `hdd500`. The runner service runs as
-`runner`, belongs to the Docker group, and starts on boot. It needs outbound
-HTTPS access to GitHub, Actions endpoints, and Debian mirrors; no inbound
-public CI port is required.
+The only active workflow is **Web CI** (`.github/workflows/ci.yml`). It checks,
+builds and deploys `frontend/`. Native AXIS artwork generation/Tk validation,
+Debian package builds and the full compatibility workflow have been removed
+from the active pipeline. LinuxCNC engine source remains in this repository;
+changes to that source require separately selected engine checks.
 
-## Interface and isolation
+## Required checks and ownership
 
-Run `.github/ci/run.sh build` from a checkout to compile and produce Debian
-packages in `artifacts/`, with `SHA256SUMS.txt`. All branches use build-only
-containers, including requested deployments. Automatic CI/CD does not install
-the packages in CI or run the full runtime/simulation suite. Deployment installs
-the checked artifact directly on the test VM and verifies package status/version.
+- **Workflow and deployment checks**: actionlint, ShellCheck, shell/Python syntax,
+  diff checks, release-packaging tests and offline installer/rollback tests.
+- **Web types, boundaries and build**: Node 24, `npm ci`, `npm run check`,
+  `npm run build`, then the release-packaging CLI below.
+- **Web browser tests**: downloads that exact build, verifies its checksums and
+  commit, and exercises it with Playwright Chromium using Vite preview. It does
+  not build again. The release metadata test must match the selected commit.
+- **CI Gate**: requires all three jobs to succeed. This exact name remains for
+  existing branch protection. Failed/skipped dependencies fail the gate.
 
-## Required checks
+The first two jobs and gate retain the dedicated `betterlinuxcnc` self-hosted
+runner (PVE CI VM 101). It needs Git, Python 3, ShellCheck, actionlint and access
+to GitHub/npm; `actions/setup-node` supplies Node 24. Its runner version must
+support Node 24 Actions (v2.327.1 or newer). The existing loopback proxy and npm
+download cache may be reused. The Web build does not need Docker, ccache,
+Tk, Xvfb, or a LinuxCNC installation.
 
-All four checks and their final `CI Gate` run on the self-hosted runner:
+Browser tests use a disposable Ubuntu 24.04 runner, where Playwright installs
+its browser and OS dependencies. Deployment uses another disposable hosted
+runner with the staging environment secrets. Neither the self-hosted build
+nor the browser tests receive deployment credentials. Fork PR code cannot run
+on the persistent runner; same-repository collaborators remain trusted.
 
-- **Debian 13 x86 build**: compile and package, using dependency and compiler caches.
-- **Workflow and source checks**: actionlint, ShellCheck and shell syntax for
-  maintained CI/deployment scripts, renderer syntax, changed Python syntax,
-  diff whitespace/conflict markers, and four package-version regressions.
-- **AXIS GIF and Tk checks**: validate all 21 manifest entries, SVG sources,
-  dimensions, transparency and static frames; load each GIF with actual Tk
-  under Xvfb and reject PNG files that would shadow the GIF.
-- **G-code interpreter regressions**: download and checksum the same-run
-  artifact, extract it without installing packages, and run eight upstream
-  interpreter fixtures with exact expected-output comparisons and timeouts.
-  This container has no network and does not start realtime motion.
+There are no path filters that could leave a required gate absent. Ordinary
+superseded checks are cancelled. Existing branch policy remains: push to main
+checks only; push/manual run on staging测试环境 deploys after checks; collaborators
+may explicitly request deployment of another branch through workflow_dispatch.
+One shared deployment lock prevents overlapping staging installations.
 
-Host tools are provisioned once: `shellcheck`, `python3-pil`, `python3-tk`,
-`xvfb`, `xauth`, `nodejs`, and checksum-verified actionlint 1.7.7.
-LinuxCNC and its package dependencies remain inside build/test containers.
+## Static artifact contract
 
-`run.sh` is the host entry point. `build-in-container.sh` is its private
-container implementation and calls the existing `.github/scripts` packaging
-and verification commands. Deployment remains owned by `.github/staging`.
+From the repository root:
 
-Every build copies a read-only checkout into a fresh disposable container.
-Build dependencies are cached as image layers; only ccache compiler results
-persist in the `betterlinuxcnc-ccache` Docker volume (maximum 5 GiB, compiler
-content checked). No previous build directory is reused. Containers are
-limited to 4 CPUs and 6 GiB RAM. The disposable build directory uses a 3 GiB
-tmpfs within that memory budget to avoid HDD small-file writes; the VM disk,
-dependency images, compiler cache and exported packages remain on `hdd500`.
-Cancellation removes the build container.
-Checkout does not retain GitHub credentials. Only same-repository PRs are
-eligible for this persistent runner; a fork PR fails the gate without running
-its build here. Repository writers and Docker access are trusted with this VM.
+```sh
+npm --prefix frontend ci
+npm --prefix frontend run check
+npm --prefix frontend run build
+python3 .github/ci/package-web.py --dist frontend/dist --output web-artifact --commit "$(git rev-parse HEAD)"
+```
 
-`bootstrap-base.sh` imports the official Debian Docker amd64 rootfs from
-`debuerreotype/docker-debian-artifacts`, pinned by commit and SHA256. This
-avoids the runner network's unavailable Docker Hub registry. Provenance is
-the `trixie/oci/index.json` manifest at the pinned revision; the base image is
-stored locally as `betterlinuxcnc-base:trixie-20260918`. Update the revision,
-checksum and dated image name together when refreshing the base.
+The output directory must not already exist. The artifact `betterlinuxcnc-web`
+contains exactly `web.tar.gz`, `COMMIT`, and `SHA256SUMS`. The archive contains
+only static build files plus `build-info.json` with the full commit and
+`interface: web`; no Node runtime, LinuxCNC source, `.deb`, deploy script or
+secret is included. Symbolic links, stale release metadata and invalid commit
+identifiers are rejected. `package-web.py` owns this CLI; tests use its public
+command rather than importing its implementation.
 
-The dependency image is rebuilt when the Dockerfile or Debian packaging
-inputs change. Dependency installation uses `eatmydata` only inside the
-disposable image build layer to reduce HDD flushes. A failed layer is discarded.
-For an OS dependency refresh without a packaging change,
-rebuild it with `--no-cache` during runner maintenance. Do not prune the
-ccache volume unless intentionally discarding compiler cache.
+The browser job unpacks the downloaded archive into `frontend/dist`, sets
+`PLAYWRIGHT_TEST_DIST=1` and `EXPECTED_COMMIT`, and runs `npm run test:e2e` against
+port 4173. Ordinary local tests still use the development server on port 5173.
+Screenshots and traces are uploaded if browser checks fail.
 
-Only the deployment job stays on a short-lived GitHub-hosted runner.
-Deployment environment credentials are not passed to the persistent CI
-runner. The manual `Full compatibility CI` matrix also uses the self-hosted
-runner, with one disposable container per GCC/Clang/RTAI/HTML or Debian package
-combination. `compatibility.sh` owns this host interface and delegates to
-`compatibility-in-container.sh`; package installation never modifies the host.
-The Docker daemon uses the loopback proxy to pull official Debian images.
-Manual containers use host networking to reach that proxy, with CPU/RAM limits.
-The runner executes one job at a time; additional parallel jobs need another
-runner instance and sufficient CPU/RAM. The manual matrix is serialized and
-can occupy this runner for a long time; run it outside active PR iteration.
+Deployment transport, checksum verification, atomic activation, HTTP health
+checks and rollback belong to [`.github/staging`](../staging/README.md). Existing
+VMs require its one-time Web installer/nginx migration before their first Web
+release. A repository edit or successful local test does not migrate a server.
 
-This runner uses a loopback Mihomo HTTP proxy at `127.0.0.1:7897` through its
-systemd service environment to reach GitHub reliably. The subscription is
-stored privately on the CI VM, outside the repository. The proxy starts on
-boot and exposes no LAN or public listener. It currently uses the imported
-node snapshot; automatic subscription refresh is deferred until a working
-replacement subscription URL is supplied.
+## Local verification
+
+```sh
+.github/ci/check-source.sh
+python3 -m unittest discover -s .github/ci -p 'test_*.py'
+python3 -m unittest discover -s .github/staging -p 'test_*.py'
+```
+
+The old `run.sh`, container packaging helpers and `.github/scripts/` remain
+available as manual LinuxCNC source-build tools. No active workflow invokes
+them; they do not publish the Web or reinstall AXIS on staging.
+
+References: [setup-node](https://github.com/actions/setup-node) and
+[Playwright CI](https://playwright.dev/docs/ci-intro). Browser tests on Ubuntu or
+macOS do not replace Debian 13/Intel graphics and future Tauri acceptance.

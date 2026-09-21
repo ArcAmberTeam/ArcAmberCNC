@@ -1,141 +1,167 @@
-# BetterLinuxCNC staging
+# BetterLinuxCNC Web staging
 
-Any collaborator with repository write access can deploy their own repository
-branch to the shared test VM without merging into `staging测试环境` first:
+The staging pipeline publishes the browser application built from `frontend/`.
+Its artifact is `betterlinuxcnc-web`; CI/CD no longer builds or installs an AXIS
+Debian package, starts LinuxCNC, requires an RT kernel, or executes motion tests.
+The deployed application is a static Web interface with no machine connection.
 
-1. Push the branch, including the current `.github/workflows/ci.yml`.
-2. Open **Actions → Build CI → Run workflow**.
-3. Select your branch in **Use workflow from**, enable **Deploy this branch to
-   the shared test VM after all checks pass**, and click **Run workflow**.
-4. Wait for `CI Gate` and `Deploy to test machine` to pass. The deployment
-   summary records the selected branch and immutable commit SHA.
+## Deploy a repository branch
 
-The selected commit is built and checked in the same run; moving the branch
-after dispatch does not change the code being deployed. A PR is not required.
-An unchecked manual run on a development branch only performs CI. Tags and
-fork repositories do not enter this deployment path. "Any collaborator" means
-users with permission to run this repository's Actions, not anonymous visitors.
+1. Push the branch with the current `.github/workflows/ci.yml`.
+2. Open **Actions → Web CI → Run workflow** and select the branch.
+3. Enable deployment to the shared test VM and run the workflow.
+4. Wait for **CI Gate** and **Deploy Web to test machine**. Open the existing noVNC
+   desktop and launch **BetterLinuxCNC Web**, or refresh its Chromium window.
 
-`main` remains the stable branch. The existing `kihon` → `staging测试环境` →
-`main` PR flow remains available but is not a prerequisite for testing a branch.
-Pushes (including merged PRs) and manual runs on `staging测试环境` still build,
-check and deploy automatically. Only a successful `CI Gate` permits deployment
-of the artifact from that same run. PR events and releases never deploy.
-Development branches are checked through PRs; pushes to `main` and
-`staging测试环境` are also checked. This avoids duplicate push/PR builds for
-`kihon`. Superseded ordinary CI runs are cancelled; manual deployment runs use
-a separate concurrency group. Every branch shares one deployment lock, so two
-deployments cannot install simultaneously. The VM is shared: the last successful
-deployment becomes its active version. This does not create a VM per developer.
-GitHub may replace a pending run when newer runs enter the same concurrency
-group; this is not a durable FIFO queue. Running deployments are not cancelled.
+The artifact is built from the immutable commit selected by that workflow run.
+`staging测试环境` keeps automatic deployment after its checks pass; explicitly
+requested branch deployments use the same gate. Pull requests and releases do
+not deploy. Repository collaborators need permission to run Actions. The
+existing GitHub `staging` environment, pinned SSH credentials, and concurrency
+policy remain in use; the last successful deployment becomes the shared VM's
+active Web version. The pipeline does not merge branches or deploy production.
+See [CI operations](../ci/README.md) for the build runner and checks.
 
-PR checks compile and package the architecture-specific Debian 13 build,
-check workflows/scripts and toolbar images, and run eight quick interpreter
-regressions against the extracted same-run artifact. They do not install the
-resulting packages, run the full runtime suite, or connect to the staging VM.
-All branches use these same lightweight checks. Once the gate passes, a requested
-deployment installs the same-run artifact directly on the VM and verifies the
-installed package status and version. Automatic CI/CD does not run the full
-runtime suite or XYZ homing/motion simulation. The RT kernel is still validated
-on the VM. Installing build dependencies in CI is necessary for compilation.
+## Artifact contract
 
-The Debian 13 build runs on the dedicated PVE CI VM with reusable dependency
-layers and compiler cache; see [CI operations](../ci/README.md). All required
-checks and the gate run on that CI VM; deployment runs on a GitHub-hosted runner.
-The CI VM and the realtime
-staging VM are separate machines with separate administration credentials.
+The downloaded artifact directory contains exactly:
 
-The slower GCC/Clang/RTAI, translated-documentation, and Debian 11/12/13/Sid
-matrix is retained in `Full compatibility CI`, triggered manually from the
-Actions page. It is not a PR gate and does not deploy or publish releases.
+```text
+web.tar.gz
+COMMIT
+SHA256SUMS
+```
 
-## Environment
+- `COMMIT` is the selected 40-character lowercase commit SHA followed by one
+  newline. The CI-side transport requires it to equal `GITHUB_SHA`.
+- `SHA256SUMS` contains exactly the SHA-256 entries for `web.tar.gz` and `COMMIT`
+  in standard `sha256sum` format. Either entry order is accepted.
+- `web.tar.gz` has the Web build at its root: nonempty `index.html`, `assets/`,
+  and `build-info.json` containing `{"commit":"<same SHA>","interface":"web"}`.
+  There is no enclosing `dist/` directory, installer, or executable server.
 
-- PVE VM: `100`, `linuxcnc-staging`, orange `xamber` tag.
-- Debian 13 amd64, 1 vCPU, 4096 MiB RAM, 32 GiB disk, PREEMPT_RT kernel.
-- FRP relay: `45.192.97.209:39010` (dedicated instance).
-- SSH: `deploy@45.192.97.209`, port `39011`, key authentication only.
-- noVNC: `https://45.192.97.209:39012/vnc.html`, separate VNC password.
-  The HTTPS certificate is initially self-signed; verify its fingerprint
-  using the provisioning records before trusting it.
-- This VM is for simulation only. A VM test is not a hardware latency or
-  machine safety acceptance test.
+The archive is bounded to 64 MiB compressed and 256 MiB expanded, with at most
+10,000 entries and 64 MiB per file. Only directories and regular files are
+accepted. Absolute paths, parent traversal, backslash paths, duplicate paths,
+symlinks, hard links, devices, FIFOs, and sparse entries are rejected. Ownership
+and executable permission bits in the archive are ignored; published files are
+0644 and directories 0755. Uploaded JavaScript is served as browser content;
+no uploaded code is run by the privileged installer.
 
-`provision-vm.sh` installs the RT kernel, a minimal XFCE/TigerVNC desktop,
-HTTPS noVNC, and the FRP client service. It expects the cloud-init users
-(`root`, `deploy`, `linuxcnc`), pinned FRP certificate/configuration, and a
-checksum-verified `frpc` binary to already exist. Upload `install.sh` as
-root-owned `/usr/local/sbin/betterlinuxcnc-deploy` with mode 0755 first.
-The distribution's LinuxCNC package is installed as a bootstrap version;
-it is replaced by the repository's package only after CI passes.
+## Deployment boundary
 
-The generated VNC password is saved only in
-`/root/staging-credentials/novnc-password` on the VM. The TLS certificate is
-`/etc/novnc/server.crt`; its fingerprint can be checked with
-`openssl x509 -in /etc/novnc/server.crt -noout -fingerprint -sha256`.
-Both the VNC server (5901) and noVNC (6080) bind to loopback. Only the HTTPS
-noVNC endpoint is forwarded publicly. FRP verifies the relay's pinned TLS
-certificate, and the independent relay instance permits only 39011–39012.
+`deploy.sh` runs on the GitHub runner. `web_release.py verify-bundle` checks the
+artifact's exact file set, commit, and checksums before transport. Strict SSH
+host-key verification uses the pinned environment secret. Directory creation
+and upload each have three attempts bounded to 180 seconds plus a 10-second
+termination grace period, with a five-second delay between attempts. Only
+idempotent transport is retried; the privileged deployment call runs once.
 
-## GitHub configuration
+The remote entry point is **`/usr/local/sbin/betterlinuxcnc-deploy-web`**. An old
+VM with only `betterlinuxcnc-deploy` fails with an explicit provisioning-upgrade
+message. The transport never falls back to that obsolete package installer.
 
-Create a GitHub Environment named `staging`, with deployment branches and tags
-set to **No restriction** so repository development branches can use it.
-The workflow itself requires a branch ref and an explicit manual deployment
-request, except for the existing automatic `staging测试环境` path.
-The environment name remains
-`staging`, so its existing secrets and deployment history stay in place.
-No reviewer is required. A private
-organization repository needs GitHub Team (or higher) for this environment.
+`install.sh` is provisioned as this root-owned entry point and calls the
+root-owned `/usr/local/lib/betterlinuxcnc/web_release.py` in Python isolated
+mode. The `deploy` user may sudo only the new entry point, whose only accepted
+argument is `<run-id>-<attempt>-<commit>`. Neither file comes from the artifact.
 
-Set these **environment secrets**, never commit their values:
+```text
+/srv/betterlinuxcnc-web/
+  incoming/<run-id>-<attempt>-<commit>/   # deploy-owned upload staging
+  releases/<run-id>-<attempt>-<commit>/   # root-owned static document roots
+  current -> releases/<accepted-release>
+```
 
-- `STAGING_SSH_KEY`: the dedicated deployment private key.
-- `STAGING_KNOWN_HOSTS`: the VM's public SSH host key, recorded as
-  `[45.192.97.209]:39011 ssh-ed25519 ...`. Obtain it through the authenticated
-  PVE/VM administration connection; do not blindly trust a runtime key scan.
+The helper locks deployments, snapshots uploaded files without following
+symlinks, validates their checksums and archive contents, and extracts into a
+private temporary directory. It then atomically switches `current` and fetches
+`build-info.json` and `index.html` through local HTTP. Acceptance requires the
+served commit to match the release and the served index bytes to match the
+artifact. HTTP failures or stale content restore the previous pointer and
+report deployment failure. A failed first deployment removes `current` again.
+Accepted releases remain available for inspection; this does not change the
+operating system, installed LinuxCNC package, or kernel. Disk retention can be
+managed separately by an administrator; ordinary deployment deletes no older
+accepted releases.
 
-Optional environment variables: `STAGING_HOST` and `STAGING_PORT` override the
-relay address and port above. Changing the destination also requires changing
-the pinned host key. The relay's root credentials and FRP token are not needed
-by GitHub Actions.
+## VM environment and one-time migration
 
-## Deployment boundaries
+The dedicated VM retains its existing administration interfaces:
 
-`deploy.sh` runs on the GitHub runner. It checks the same-run
-`linuxcnc-trixie-amd64` artifact's checksums, selects exactly one amd64
-`linuxcnc-uspace` package, and uploads it with a commit identifier and checksum
-manifest. It uses strict SSH host-key verification.
-Directory creation and upload have three bounded attempts for transient FRP
-disconnects. A retry overwrites the same pending upload; installation starts
-only after upload succeeds, and checksum verification rejects partial files.
-The root installer is not automatically retried.
+- PVE VM `100`, `linuxcnc-staging`, tag `xamber`.
+- Debian 13 amd64; existing RT kernels may remain installed but are not required.
+- FRP relay `45.192.97.209:39010`.
+- SSH `deploy@45.192.97.209:39011`, dedicated key authentication.
+- HTTPS noVNC `https://45.192.97.209:39012/vnc.html`, separate VNC password.
+- Web server **`http://127.0.0.1:8080/`**, accessible inside the VM's Chromium.
 
-`install.sh` is provisioned once as root-owned
-`/usr/local/sbin/betterlinuxcnc-deploy`. The `deploy` account may sudo only this
-helper. Installing a Debian package executes its maintainer scripts as root;
-the deployment credential therefore grants control of this disposable VM.
-Never reuse the account, key, or helper on production.
+**Existing machines need one administrator-run provisioning upgrade before
+these workflow changes can deploy.** From a trusted, reviewed checkout of this
+revision, copy the complete `.github/staging/` directory to the VM using the
+existing authenticated administration connection. On the dedicated VM, run:
 
-The helper serializes deployments, requires Debian 13 amd64 and an active
-realtime kernel, checks the uploaded package, installs it, and requires dpkg
-status `install ok installed` with the exact artifact version. It does not
-launch LinuxCNC or run simulation. Success means the package was installed;
-runtime and motion behavior are not covered by deployment verification.
+```sh
+sudo bash /path/to/reviewed-checkout/.github/staging/provision-vm.sh
+```
 
-Accepted packages and logs remain in `/srv/betterlinuxcnc/releases/`.
-`/srv/betterlinuxcnc/current` changes only after successful package verification. On
-installation/verification failure, the helper attempts to reinstall and verify the
-previous accepted LinuxCNC package and still reports the deployment as failed.
-This rollback does not roll back OS dependencies or kernel updates. On the
-first deployment there is no previous accepted package to restore.
+The script expects cloud-init users `deploy` and `linuxcnc`, the already pinned
+`/etc/frp/frpc.toml` and `server.crt`, and a checksum-verified `frpc` binary.
+It provisions both root-owned helper files, revokes the old package-helper
+sudo rule, removes its obsolete helper and desktop shortcut, installs Chromium
+and nginx, and adds the **BetterLinuxCNC Web** shortcut. It does not uninstall
+existing LinuxCNC packages, terminate a machining process, or modify FRP ports.
+The old `/srv/betterlinuxcnc/` package history is left in place and is no longer
+used by this pipeline.
 
-Close interactive LinuxCNC sessions before deployment. The desktop itself can
-stay open. A busy simulation causes deployment to fail without interrupting it.
-Changes to the root-owned installer require reprovisioning that helper;
-ordinary deployments do not replace it with an uploaded script.
+Provisioning manages the dedicated VM's nginx configuration. It stops and
+runtime-masks nginx during package installation to prevent the distribution's
+default configuration from briefly listening on public port 80, then installs a
+configuration with only `127.0.0.1:8080` and starts the service. A provisioning
+failure before configuration validation leaves nginx stopped/masked; fix that
+failure and rerun provisioning. The first page appears after the first accepted
+Web deployment. Refresh an existing browser tab after a successful deployment.
 
-The pipeline does not merge into `main`, change `main` protection, or deploy
-production. Enable the existing required `CI Gate` rule after upgrading the
-organization plan.
+TigerVNC still binds `127.0.0.1:5901`; HTTPS noVNC binds `127.0.0.1:6080`. Only
+the existing noVNC HTTPS tunnel is publicly forwarded. No Web listener or new
+FRP port is exposed. The self-signed noVNC certificate fingerprint should be
+verified against provisioning records before trusting it. Its password remains
+in `/root/staging-credentials/novnc-password`, and its certificate is
+`/etc/novnc/server.crt`. The desktop user/service names retain `linuxcnc` for
+compatibility with the existing VM account, not to launch the native UI.
+
+## GitHub environment
+
+Keep the environment named `staging` and its existing deployment history. To
+permit explicitly requested repository branch deployments, configure its branch
+policy accordingly; the workflow still enforces a branch ref and CI Gate.
+
+Required environment secrets:
+
+- `STAGING_SSH_KEY`: dedicated deployment private key.
+- `STAGING_KNOWN_HOSTS`: pinned VM SSH public host key, recorded as
+  `[45.192.97.209]:39011 ssh-ed25519 ...`. Obtain it through authenticated VM
+  administration, not an unverified runtime key scan.
+
+Optional environment variables `STAGING_HOST` and `STAGING_PORT` override the
+relay destination; changing it also requires the corresponding pinned host key.
+The workflow's deployment user remains `deploy`. No FRP token or relay root
+credential is required by CI.
+
+## Local verification
+
+Only offline code validation was performed for this migration; editing these
+files does not upgrade the VM or publish an artifact. The release tests run the
+public Python CLI in temporary directories against a loopback HTTP server and
+cover accepted releases, checksums/commit mismatches, unsafe archives, stale
+HTTP content, and rollback. They never invoke SSH, apt, or LinuxCNC.
+
+```sh
+bash -n .github/staging/deploy.sh .github/staging/install.sh .github/staging/provision-vm.sh
+shellcheck .github/staging/deploy.sh .github/staging/install.sh .github/staging/provision-vm.sh
+python3 -m unittest discover -s .github/staging -p 'test_*.py'
+```
+
+The nginx/systemd provisioning must still be exercised by the administrator on
+the dedicated Debian VM during the one-time upgrade. This local macOS checkout
+cannot substantiate that the VM was upgraded or that a remote deployment passed.

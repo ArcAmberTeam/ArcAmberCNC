@@ -1,0 +1,38 @@
+{
+  "name": "linuxcnc-axis-web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "GPL-2.0-or-later",
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "vue-tsc --noEmit && vite build",
+    "preview": "vite preview --host 127.0.0.1",
+    "typecheck": "vue-tsc --noEmit",
+    "lint:boundaries": "depcruise src tests --config .dependency-cruiser.cjs",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "check": "npm run typecheck && npm run lint:boundaries && npm run format:check",
+    "test:e2e": "playwright test"
+  },
+  "dependencies": {
+    "pinia": "4.0.3",
+    "reka-ui": "2.10.4",
+    "vue": "3.5.43"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "@tailwindcss/vite": "4.3.3",
+    "@vitejs/plugin-vue": "6.0.9",
+    "@vue/compiler-sfc": "3.5.43",
+    "dependency-cruiser": "18.4.0",
+    "prettier": "3.9.8",
+    "tailwindcss": "4.3.3",
+    "typescript": "~5.9.3",
+    "vite": "8.3.0",
+    "vue-tsc": "3.3.11"
+  }
+}

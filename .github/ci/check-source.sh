@@ -4,8 +4,8 @@ cd "$(git rev-parse --show-toplevel)"
 actionlint -shellcheck= -pyflakes=
 shellcheck .github/ci/*.sh .github/staging/*.sh
 for script in .github/ci/*.sh .github/staging/*.sh; do bash -n "$script"; done
-node --check share/axis/images/toolbar-source/render.cjs
-python3 .github/scripts/test-package-version.py
+python3 -m unittest discover -s .github/ci -p 'test_*.py'
+python3 -m unittest discover -s .github/staging -p 'test_*.py'
 python3 - <<'PY'
 import ast
 import os

@@ -63,3 +63,8 @@ docs/help/vi/*
 docs/help/zh_CN/*
 configs/**/*.tbl.bak
 configs/**/halshow.preferences
+
+# Web CI artifacts
+/web-artifact/
+/checked-artifact/
+/staging-artifact/

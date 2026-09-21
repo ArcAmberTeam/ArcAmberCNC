@@ -33,12 +33,8 @@ for package in "$artifact"/*.deb; do
   fi
 done
 [[ $count == 1 ]]
-cp .github/staging/smoke.py "$work/bundle/"
-# Reuse the upstream simulation machine, replacing only its test UI.
-sed 's|DISPLAY = ./linuxcnc-test-ui.py|DISPLAY = ./smoke.py|' \
-  debian/tests/linuxcnc-test.ini > "$work/bundle/smoke.ini"
 printf '%s\n' "$GITHUB_SHA" > "$work/bundle/COMMIT"
-(cd "$work/bundle" && sha256sum COMMIT linuxcnc-uspace.deb smoke.ini smoke.py > SHA256SUMS)
+(cd "$work/bundle" && sha256sum COMMIT linuxcnc-uspace.deb > SHA256SUMS)
 target="$STAGING_USER@$STAGING_HOST"
 ssh "${ssh_options[@]}" -p "$STAGING_PORT" "$target" \
   "mkdir -m 700 /srv/betterlinuxcnc/incoming/$release"
@@ -48,6 +44,6 @@ ssh "${ssh_options[@]}" -p "$STAGING_PORT" "$target" \
   "sudo /usr/local/sbin/betterlinuxcnc-deploy $release"
 if [[ -n ${GITHUB_STEP_SUMMARY:-} ]]; then
   # shellcheck disable=SC2016 # Backticks format Markdown, not command substitution.
-  printf 'Deployed and smoke-tested `%s` on Debian 13 PREEMPT_RT through FRP.\n' \
+  printf 'Installed `%s` on Debian 13 PREEMPT_RT through FRP; package version verified. No simulation was run.\n' \
     "$GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
 fi

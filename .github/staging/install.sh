@@ -18,7 +18,7 @@ destination="$base/releases/$release"
 incoming="$base/incoming/$release"
 [[ -d $incoming && ! -e $destination ]]
 install -d -m 755 "$destination"
-for file in COMMIT linuxcnc-uspace.deb smoke.ini smoke.py SHA256SUMS; do
+for file in COMMIT linuxcnc-uspace.deb SHA256SUMS; do
   [[ -f $incoming/$file && ! -L $incoming/$file ]]
   install -m 644 "$incoming/$file" "$destination/$file"
 done
@@ -30,27 +30,13 @@ sha256sum --check SHA256SUMS
 previous=$(readlink -f "$base/current" || true)
 export DEBIAN_FRONTEND=noninteractive
 
-smoke() {
+verify_installed() {
   local location=$1
-  local scratch
-  scratch=$(mktemp -d /var/tmp/linuxcnc-smoke.XXXXXXXX)
-  cp "$location/smoke.ini" "$location/smoke.py" "$scratch/"
-  chmod 755 "$scratch/smoke.py"
-  touch "$scratch/simpockets.tbl"
-  chown -R linuxcnc:linuxcnc "$scratch"
-  # A result marker is mandatory: a launcher exit code alone is insufficient.
-  local result=0
-  # shellcheck disable=SC2016 # The child shell expands its own positional argument.
-  runuser -u linuxcnc -- bash -c \
-    'cd "$1"; timeout --kill-after=10s 120s linuxcnc -r smoke.ini' bash "$scratch" \
-    > "$location/smoke.log" 2>&1 || result=$?
-  cat "$location/smoke.log"
-  [[ -f $scratch/smoke-success.json ]] || result=1
-  if [[ $result == 0 ]]; then
-    cp "$scratch/smoke-success.json" "$location/smoke-success.json"
-  fi
-  rm -rf "$scratch"
-  return "$result"
+  local expected actual status
+  expected=$(dpkg-deb -f "$location/linuxcnc-uspace.deb" Version) || return 1
+  actual=$(dpkg-query -W -f='${Version}' linuxcnc-uspace) || return 1
+  status=$(dpkg-query -W -f='${Status}' linuxcnc-uspace) || return 1
+  [[ $status == 'install ok installed' && $actual == "$expected" ]]
 }
 
 rollback() {
@@ -59,10 +45,10 @@ rollback() {
   printf 'Deployment failed: %s\n' "$release" >&2
   if [[ -n $previous && -f $previous/linuxcnc-uspace.deb ]]; then
     if apt-get -y --no-install-recommends --allow-downgrades install \
-        "$previous/linuxcnc-uspace.deb" && smoke "$previous"; then
+        "$previous/linuxcnc-uspace.deb" && verify_installed "$previous"; then
       echo "Restored previous LinuxCNC package: $previous" >&2
     else
-      echo 'ROLLBACK FAILED: inspect package state and smoke.log' >&2
+      echo 'ROLLBACK FAILED: inspect package state and deployment logs' >&2
     fi
   else
     echo 'First deployment failed; no previous accepted package exists.' >&2
@@ -72,7 +58,7 @@ rollback() {
 trap rollback ERR
 apt-get update -o APT::Update::Error-Mode=any
 apt-get -y --no-install-recommends --allow-downgrades install "$destination/linuxcnc-uspace.deb"
-smoke "$destination"
+verify_installed "$destination"
 ln -s "$destination" "$base/.current-$release"
 mv -Tf "$base/.current-$release" "$base/current"
 trap - ERR

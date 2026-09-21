@@ -10,11 +10,10 @@ public CI port is required.
 ## Interface and isolation
 
 Run `.github/ci/run.sh build` from a checkout to compile and produce Debian
-packages in `artifacts/`, with `SHA256SUMS.txt`. The `test` mode also installs
-the packages and runs the upstream runtime suite, and is selected after
-a push or manual run on `staging测试环境`, or when a collaborator selects their
-own branch in **Run workflow** and enables `deploy_staging`. PRs do not install packages or run
-the full runtime suite.
+packages in `artifacts/`, with `SHA256SUMS.txt`. All branches use build-only
+containers, including requested deployments. Automatic CI/CD does not install
+the packages in CI or run the full runtime/simulation suite. Deployment installs
+the checked artifact directly on the test VM and verifies package status/version.
 
 ## Required checks
 

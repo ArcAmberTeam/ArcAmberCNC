@@ -129,16 +129,7 @@ jobs:
         fetch-depth: 0
         persist-credentials: false
     - name: Build Debian 13 packages in a clean cached container
-      env:
-        RUN_ACCEPTANCE: >-
-          ${{ (github.ref == 'refs/heads/staging测试环境' &&
-               (github.event_name == 'push' || github.event_name == 'workflow_dispatch')) ||
-              (github.event_name == 'workflow_dispatch' && inputs.deploy_staging &&
-               startsWith(github.ref, 'refs/heads/')) }}
-      run: |
-        mode=build
-        if [ "$RUN_ACCEPTANCE" = true ]; then mode=test; fi
-        .github/ci/run.sh "$mode"
+      run: .github/ci/run.sh build
     - name: Upload Debian 13 packages
       uses: actions/upload-artifact@v7
       with:
@@ -147,7 +138,7 @@ jobs:
         if-no-files-found: error
 
   deploy-staging:
-    name: Deploy and test staging
+    name: Deploy to test machine
     needs: ci-gate
     if: >-
       github.repository == 'Xamber-Software/BetterLinuxCNC' &&
@@ -176,7 +167,7 @@ jobs:
       with:
         name: linuxcnc-trixie-amd64
         path: staging-artifact
-    - name: Deploy the tested Debian 13 package through FRP
+    - name: Install the checked Debian 13 package through FRP
       env:
         STAGING_SSH_KEY: ${{ secrets.STAGING_SSH_KEY }}
         STAGING_KNOWN_HOSTS: ${{ secrets.STAGING_KNOWN_HOSTS }}

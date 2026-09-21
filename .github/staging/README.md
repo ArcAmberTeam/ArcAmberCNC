@@ -7,10 +7,10 @@ branch to the shared test VM without merging into `staging测试环境` first:
 2. Open **Actions → Build CI → Run workflow**.
 3. Select your branch in **Use workflow from**, enable **Deploy this branch to
    the shared test VM after all checks pass**, and click **Run workflow**.
-4. Wait for `CI Gate` and `Deploy and test staging` to pass. The deployment
+4. Wait for `CI Gate` and `Deploy to test machine` to pass. The deployment
    summary records the selected branch and immutable commit SHA.
 
-The selected commit is built and tested in the same run; moving the branch
+The selected commit is built and checked in the same run; moving the branch
 after dispatch does not change the code being deployed. A PR is not required.
 An unchecked manual run on a development branch only performs CI. Tags and
 fork repositories do not enter this deployment path. "Any collaborator" means
@@ -19,7 +19,7 @@ users with permission to run this repository's Actions, not anonymous visitors.
 `main` remains the stable branch. The existing `kihon` → `staging测试环境` →
 `main` PR flow remains available but is not a prerequisite for testing a branch.
 Pushes (including merged PRs) and manual runs on `staging测试环境` still build,
-test and deploy automatically. Only a successful `CI Gate` permits deployment
+check and deploy automatically. Only a successful `CI Gate` permits deployment
 of the artifact from that same run. PR events and releases never deploy.
 Development branches are checked through PRs; pushes to `main` and
 `staging测试环境` are also checked. This avoids duplicate push/PR builds for
@@ -34,13 +34,11 @@ PR checks compile and package the architecture-specific Debian 13 build,
 check workflows/scripts and toolbar images, and run eight quick interpreter
 regressions against the extracted same-run artifact. They do not install the
 resulting packages, run the full runtime suite, or connect to the staging VM.
-Pushes to `main` use the same checks. For a requested branch deployment or a
-merge into `staging测试环境`, CI installs the newly built packages
-in an isolated container and runs the upstream tests as an unprivileged user.
-Only after those pass does CD install the same-run artifact on the VM and
-perform XYZ simulation acceptance. The RT kernel is validated on the VM, not
-in the GitHub runner container. Installing build dependencies in CI is still
-necessary for compilation.
+All branches use these same lightweight checks. Once the gate passes, a requested
+deployment installs the same-run artifact directly on the VM and verifies the
+installed package status and version. Automatic CI/CD does not run the full
+runtime suite or XYZ homing/motion simulation. The RT kernel is still validated
+on the VM. Installing build dependencies in CI is necessary for compilation.
 
 The Debian 13 build runs on the dedicated PVE CI VM with reusable dependency
 layers and compiler cache; see [CI operations](../ci/README.md). All required
@@ -107,8 +105,8 @@ by GitHub Actions.
 
 `deploy.sh` runs on the GitHub runner. It checks the same-run
 `linuxcnc-trixie-amd64` artifact's checksums, selects exactly one amd64
-`linuxcnc-uspace` package, and uploads it with a commit identifier and smoke
-fixture. It uses strict SSH host-key verification.
+`linuxcnc-uspace` package, and uploads it with a commit identifier and checksum
+manifest. It uses strict SSH host-key verification.
 
 `install.sh` is provisioned once as root-owned
 `/usr/local/sbin/betterlinuxcnc-deploy`. The `deploy` account may sudo only this
@@ -117,14 +115,14 @@ the deployment credential therefore grants control of this disposable VM.
 Never reuse the account, key, or helper on production.
 
 The helper serializes deployments, requires Debian 13 amd64 and an active
-realtime kernel, checks the uploaded package, installs it, and runs `smoke.py`
-as the unprivileged `linuxcnc` user against the upstream simulation INI. The
-test must produce an explicit success marker after XYZ homing, MDI motion,
-position verification, and return to origin. There are no attached devices.
+realtime kernel, checks the uploaded package, installs it, and requires dpkg
+status `install ok installed` with the exact artifact version. It does not
+launch LinuxCNC or run simulation. Success means the package was installed;
+runtime and motion behavior are not covered by deployment verification.
 
 Accepted packages and logs remain in `/srv/betterlinuxcnc/releases/`.
-`/srv/betterlinuxcnc/current` changes only after successful acceptance. On
-installation/test failure, the helper attempts to reinstall and test the
+`/srv/betterlinuxcnc/current` changes only after successful package verification. On
+installation/verification failure, the helper attempts to reinstall and verify the
 previous accepted LinuxCNC package and still reports the deployment as failed.
 This rollback does not roll back OS dependencies or kernel updates. On the
 first deployment there is no previous accepted package to restore.

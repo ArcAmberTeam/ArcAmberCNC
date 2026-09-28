@@ -40,6 +40,8 @@
 
 当前唯一自动工作流为 `.github/workflows/ci.yml` 的 Desktop and Web CI：保留 Web 构建、浏览器测试和预览发布，新增 Python 3.11/3.13 安装包测试，以及 Debian 13 容器内的 Rust 格式/lint、Rust→Python 集成测试和 Tauri `.deb` 构建。所有任务纳入原有 `CI Gate`，保留分支部署策略。新增产物只上传 CI，不自动安装到机床；不构建或部署原生 LinuxCNC/AXIS `.deb`，不运行运动仿真。构建成功不代表机床控制或目标机图形已验收。
 
+桌面 CI 的系统依赖与 Node/Rust 工具链由 `.github/ci/desktop/Dockerfile` 管理，使用 BuildKit 的 GitHub Actions 镜像层缓存；每次仍在新容器中运行 `.github/ci/desktop-in-container.sh` 检查当前源码。镜像不含应用源码，Rust 编译缓存随环境镜像 ID 隔离；缓存刷新和本地复现方式见 `.github/ci/README.md`。
+
 `.github/ci/package-web.py` 拥有构建打包；`.github/staging/` 拥有传输、目标机安装和回滚。部署只能使用同一次 CI 已测试的产物。目标机新安装器和本机 Web 服务须按 staging README 一次性配置；修改仓库配置不代表已更新真实服务器。敏感凭据只进入部署 job。
 
 架构研究背景：[docs/linuxcnc-ui-architecture-research-2026-09-21.md](docs/linuxcnc-ui-architecture-research-2026-09-21.md)。

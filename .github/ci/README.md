@@ -23,7 +23,8 @@ do not replace a Linux native build. See [removal boundaries](../../docs/native-
   and source builds, then public CLI/socket tests against the installed wheel.
   Python 3.13 uploads `betterlinuxcnc-python` with the wheel and source archive.
 - **Tauri desktop / Debian 13**: disposable Debian 13 container on an Ubuntu
-  runner, Node 24 and Rust 1.97.1; formatting, Clippy, Rust-to-Python integration
+  runner, with system dependencies, Node 24 and the project's pinned Rust
+  toolchain restored from a BuildKit image-layer cache; formatting, Clippy, Rust-to-Python integration
   tests, then a locked release build. It checks the generated `.deb` metadata
   and contents and uploads `betterlinuxcnc-desktop-debian13`. This is the desktop
   host package, not the LinuxCNC engine or Python service. It does not install
@@ -40,7 +41,7 @@ Tk, Xvfb, or a LinuxCNC installation.
 
 Browser tests use a disposable Ubuntu 24.04 runner, where Playwright installs
 its browser and OS dependencies. Deployment uses another disposable hosted
-runner with the staging environment secrets. Neither the self-hosted build
+  runner with the staging environment secrets. Neither the self-hosted build
 nor the browser tests receive deployment credentials. Fork PR code cannot run
 on the persistent runner; same-repository collaborators remain trusted.
 
@@ -49,6 +50,56 @@ superseded checks are cancelled. Existing branch policy remains: push to main
 checks only; push/manual run on staging测试环境 deploys after checks; collaborators
 may explicitly request deployment of another branch through workflow_dispatch.
 One shared deployment lock prevents overlapping staging installations.
+
+## Desktop environment cache
+
+`.github/ci/desktop/Dockerfile` owns only the Debian 13 system dependencies and
+build tools. Its build context contains no application source. The desktop job
+reads the Rust version from `frontend/src-tauri/rust-toolchain.toml`, builds or
+restores the image using BuildKit's GitHub Actions cache
+(`desktop-debian13-amd64`), and loads it into the hosted runner's Docker engine.
+No registry publication, new credentials, or persistent runner is required.
+Provenance attestations are disabled for this local dependency image so build
+timestamps cannot change its identity and invalidate the Cargo cache.
+
+Ordinary source changes reuse the installed apt packages and Rust components.
+The first build, an evicted/inaccessible cache, a changed Dockerfile or Rust
+version, or an updated parent image can cause dependency installation again.
+Parent image tags are checked on each build (`pull: true`). To deliberately
+refresh apt packages without a parent-image change, increment `SYSTEM_DEPS_REV`
+in the Dockerfile. Cache hits still incur image download/load time on a fresh
+hosted runner; they remove repeated package installation, not all setup time.
+
+Each run starts a new container with the current checkout mounted at
+`/workspace` and executes `.github/ci/desktop-in-container.sh` as the runner's
+UID/GID. The script preserves the formatting, lint, integration tests, Debian
+package build and package inspection. Application code and `node_modules` are
+not stored in the environment image; `npm ci` still installs the locked
+dependencies. Separate caches retain npm downloads, Cargo downloads and Rust
+compiler outputs. Cargo cache keys include the actual environment image ID,
+lockfile and source commit, so a changed environment cannot restore compiler
+outputs built against an older image. Old `.deb` bundles are removed before
+packaging so a restored cache cannot supply the uploaded release.
+
+For local Linux/amd64 reproduction (Docker is required):
+
+```sh
+rust_version=$(python3 -c 'import pathlib,tomllib; print(tomllib.loads(pathlib.Path("frontend/src-tauri/rust-toolchain.toml").read_text())["toolchain"]["channel"])')
+docker build --platform linux/amd64 --provenance=false --build-arg "RUST_VERSION=$rust_version" \
+  -t betterlinuxcnc-desktop-ci:current .github/ci/desktop
+desktop_cache=$(mktemp -d)
+mkdir -p "$desktop_cache/npm" "$desktop_cache/cargo"
+docker run --rm --init --platform linux/amd64 --user "$(id -u):$(id -g)" \
+  --env CI=true --env HOME=/tmp/desktop-home --env CARGO_HOME=/cache/cargo \
+  --env CARGO_TERM_COLOR=always --env npm_config_cache=/cache/npm \
+  --mount "type=bind,src=$PWD,dst=/workspace" \
+  --mount "type=bind,src=$desktop_cache,dst=/cache" \
+  betterlinuxcnc-desktop-ci:current bash .github/ci/desktop-in-container.sh
+```
+
+The GitHub cache service is used only in Actions; local Docker builds reuse
+local layers. Testing the remote cache hit rate and measuring CI time saved
+requires two successful workflow runs with access to the same cache scope.
 
 ## Static artifact contract
 

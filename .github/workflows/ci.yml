@@ -23,16 +23,15 @@ concurrency:
 jobs:
   source-checks:
     name: Workflow and deployment checks
-    if: >-
-      github.event_name != 'pull_request' ||
-      github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: [self-hosted, Linux, X64, betterlinuxcnc]
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
           persist-credentials: false
+      - name: Prepare source-check tools on the hosted runner
+        run: bash .github/ci/setup-source-tools.sh
       - name: Check workflows, scripts, release packaging and rollback behavior
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
@@ -40,10 +39,7 @@ jobs:
 
   web-build:
     name: Web types, boundaries and build
-    if: >-
-      github.event_name != 'pull_request' ||
-      github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: [self-hosted, Linux, X64, betterlinuxcnc]
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v6
@@ -155,58 +151,70 @@ jobs:
   tauri-build:
     name: Tauri Debian 13 build and service bridge
     runs-on: ubuntu-24.04
-    container: debian:13
     timeout-minutes: 45
-    env:
-      CARGO_TERM_COLOR: always
     steps:
-      - name: Install Debian desktop build dependencies
-        run: |
-          apt-get update
-          apt-get install -y --no-install-recommends \
-            ca-certificates curl git build-essential pkg-config libssl-dev \
-            libwebkit2gtk-4.1-dev libxdo-dev libayatana-appindicator3-dev \
-            librsvg2-dev patchelf file python3
       - uses: actions/checkout@v6
         with:
           persist-credentials: false
-      - uses: actions/setup-node@v7
+      - name: Read the project's pinned Rust version
+        id: toolchain
+        run: |
+          python3 - <<'PY'
+          import os
+          import tomllib
+          from pathlib import Path
+          config = tomllib.loads(Path("frontend/src-tauri/rust-toolchain.toml").read_text())
+          with open(os.environ["GITHUB_OUTPUT"], "a") as output:
+              print(f"rust={config['toolchain']['channel']}", file=output)
+          PY
+      - uses: docker/setup-buildx-action@v4
+      - name: Restore or build the Debian desktop environment
+        id: desktop-image
+        uses: docker/build-push-action@v7
         with:
-          node-version: "24"
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
-      - uses: dtolnay/rust-toolchain@stable
+          context: .github/ci/desktop
+          platforms: linux/amd64
+          build-args: RUST_VERSION=${{ steps.toolchain.outputs.rust }}
+          tags: betterlinuxcnc-desktop-ci:current
+          load: true
+          pull: true
+          # Keep the dependency image ID stable for Cargo cache reuse.
+          provenance: false
+          cache-from: type=gha,scope=desktop-debian13-amd64
+          cache-to: type=gha,scope=desktop-debian13-amd64,mode=max
+      - name: Restore npm downloads
+        uses: actions/cache@v4
         with:
-          toolchain: "1.97.1"
-          components: rustfmt, clippy
-      - uses: actions/cache@v4
+          path: ${{ runner.temp }}/desktop-cache/npm
+          key: desktop-npm-node24-${{ hashFiles('frontend/package-lock.json') }}
+          restore-keys: desktop-npm-node24-
+      - name: Restore Cargo downloads and compiler outputs
+        uses: actions/cache@v4
         with:
           path: |
-            ~/.cargo/registry
-            ~/.cargo/git
+            ${{ runner.temp }}/desktop-cache/cargo/registry
+            ${{ runner.temp }}/desktop-cache/cargo/git
             frontend/src-tauri/target
-          key: tauri-debian13-x64-rust1971-${{ hashFiles('frontend/src-tauri/Cargo.lock') }}
-          restore-keys: tauri-debian13-x64-rust1971-
-      - name: Install locked frontend dependencies and prepare assets
-        working-directory: frontend
+          key: desktop-cargo-${{ steps.desktop-image.outputs.imageid }}-${{ hashFiles('frontend/src-tauri/Cargo.lock') }}-${{ github.sha }}
+          restore-keys: |
+            desktop-cargo-${{ steps.desktop-image.outputs.imageid }}-${{ hashFiles('frontend/src-tauri/Cargo.lock') }}-
+            desktop-cargo-${{ steps.desktop-image.outputs.imageid }}-
+      - name: Check, test and package in a fresh Debian 13 container
+        env:
+          DESKTOP_CACHE: ${{ runner.temp }}/desktop-cache
         run: |
-          npm ci
-          npm run build
-      - name: Check Rust formatting and lint
-        working-directory: frontend
-        run: npm run desktop:check
-      - name: Test Rust against the real Python service
-        working-directory: frontend
-        run: npm run desktop:test
-      - name: Build the desktop Debian package
-        working-directory: frontend
-        run: npm run desktop:build -- --bundles deb -- --locked
-      - name: Inspect the desktop package
-        run: |
-          for package in frontend/src-tauri/target/release/bundle/deb/*.deb; do
-            dpkg-deb --info "$package"
-            dpkg-deb --contents "$package"
-          done
+          mkdir -p "$DESKTOP_CACHE/npm" "$DESKTOP_CACHE/cargo"
+          docker run --rm --init --platform linux/amd64 \
+            --user "$(id -u):$(id -g)" \
+            --env CI=true \
+            --env HOME=/tmp/desktop-home \
+            --env CARGO_HOME=/cache/cargo \
+            --env CARGO_TERM_COLOR=always \
+            --env npm_config_cache=/cache/npm \
+            --mount "type=bind,src=$GITHUB_WORKSPACE,dst=/workspace" \
+            --mount "type=bind,src=$DESKTOP_CACHE,dst=/cache" \
+            betterlinuxcnc-desktop-ci:current \
+            bash .github/ci/desktop-in-container.sh
       - uses: actions/upload-artifact@v7
         with:
           name: betterlinuxcnc-desktop-debian13
@@ -216,7 +224,7 @@ jobs:
   ci-gate:
     # Preserve this exact check name for existing branch protection.
     name: CI Gate
-    runs-on: [self-hosted, Linux, X64, betterlinuxcnc]
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     if: ${{ always() }}
     needs: [source-checks, web-build, browser-tests, python-checks, tauri-build]

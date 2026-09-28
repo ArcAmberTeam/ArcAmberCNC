@@ -33,6 +33,8 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+      - name: Ensure make is available for Makefile dry-run tests
+        run: bash .github/ci/ensure-make.sh
       - name: Check workflows, scripts, release packaging and rollback behavior
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}

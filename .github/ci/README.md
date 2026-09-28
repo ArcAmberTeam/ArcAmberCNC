@@ -33,11 +33,18 @@ do not replace a Linux native build. See [removal boundaries](../../docs/native-
   existing branch protection. Failed/skipped dependencies fail the gate.
 
 The first two jobs and gate retain the dedicated `betterlinuxcnc` self-hosted
-runner (PVE CI VM 101). It needs Git, Python 3, ShellCheck, actionlint and access
+runner (PVE CI VM 101). It needs Git, Python 3, GNU Make, ShellCheck, actionlint and access
 to GitHub/npm; `actions/setup-node` supplies Node 24. Its runner version must
 support Node 24 Actions (v2.327.1 or newer). The existing loopback proxy and npm
 download cache may be reused. The Web build does not need Docker, ccache,
 Tk, Xvfb, or a LinuxCNC installation.
+
+Before source checks, `ensure-make.sh` installs the `make` package only if the
+command is missing. This bootstrap requires root or passwordless sudo on the
+Debian/Ubuntu runner; subsequent runs use the installed tool without invoking
+apt. Make is needed for the AXIS-removal Makefile dry-run tests, even though
+this job does not compile LinuxCNC. Desktop-container dependencies do not
+provide tools to the separate source-checks runner.
 
 Browser tests use a disposable Ubuntu 24.04 runner, where Playwright installs
 its browser and OS dependencies. Deployment uses another disposable hosted

@@ -32,25 +32,24 @@ do not replace a Linux native build. See [removal boundaries](../../docs/native-
 - **CI Gate**: requires all five jobs to succeed. This exact name remains for
   existing branch protection. Failed/skipped dependencies fail the gate.
 
-The first two jobs and gate retain the dedicated `betterlinuxcnc` self-hosted
-runner (PVE CI VM 101). It needs Git, Python 3, GNU Make, ShellCheck, actionlint and access
-to GitHub/npm; `actions/setup-node` supplies Node 24. Its runner version must
-support Node 24 Actions (v2.327.1 or newer). The existing loopback proxy and npm
-download cache may be reused. The Web build does not need Docker, ccache,
-Tk, Xvfb, or a LinuxCNC installation.
+All jobs use GitHub-hosted `ubuntu-24.04` x64 runners, including source checks,
+Web builds, and CI Gate. No job requires the former PVE CI VM or its runner
+labels, proxy, local tools, or sudo configuration. Node 24 is supplied by
+`actions/setup-node`; npm downloads use the GitHub Actions cache.
 
-Before source checks, `ensure-make.sh` installs the `make` package only if the
-command is missing. This bootstrap requires root or passwordless sudo on the
-Debian/Ubuntu runner; subsequent runs use the installed tool without invoking
-apt. Make is needed for the AXIS-removal Makefile dry-run tests, even though
-this job does not compile LinuxCNC. Desktop-container dependencies do not
-provide tools to the separate source-checks runner.
+For source checks, `setup-source-tools.sh` verifies the runner's preinstalled
+Git, Python 3, GNU Make, ShellCheck and download/extraction tools, then installs
+actionlint 1.7.12 under `RUNNER_TEMP` after checking a pinned SHA-256 digest.
+It adds actionlint to subsequent steps through `GITHUB_PATH` and does not run
+apt or sudo. GNU Make is needed for the AXIS-removal Makefile dry-run tests,
+even though this job does not compile LinuxCNC. The hosted image's package
+inventory is documented [upstream](https://github.com/actions/runner-images/blob/main/images/ubuntu/Ubuntu2404-Readme.md).
 
-Browser tests use a disposable Ubuntu 24.04 runner, where Playwright installs
-its browser and OS dependencies. Deployment uses another disposable hosted
-  runner with the staging environment secrets. Neither the self-hosted build
-nor the browser tests receive deployment credentials. Fork PR code cannot run
-on the persistent runner; same-repository collaborators remain trusted.
+Browser tests install Playwright's browser and OS dependencies on their hosted
+runner. Deployment uses a separate hosted runner with staging environment
+secrets and connects to the existing Web test VM through FRP. Only deployment
+receives those credentials. Fork PRs can run all verification jobs on disposable
+hosted runners; the deployment branch/event restrictions below still apply.
 
 There are no path filters that could leave a required gate absent. Ordinary
 superseded checks are cancelled. Existing branch policy remains: push to main

@@ -23,18 +23,15 @@ concurrency:
 jobs:
   source-checks:
     name: Workflow and deployment checks
-    if: >-
-      github.event_name != 'pull_request' ||
-      github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: [self-hosted, Linux, X64, betterlinuxcnc]
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
           persist-credentials: false
-      - name: Ensure make is available for Makefile dry-run tests
-        run: bash .github/ci/ensure-make.sh
+      - name: Prepare source-check tools on the hosted runner
+        run: bash .github/ci/setup-source-tools.sh
       - name: Check workflows, scripts, release packaging and rollback behavior
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
@@ -42,10 +39,7 @@ jobs:
 
   web-build:
     name: Web types, boundaries and build
-    if: >-
-      github.event_name != 'pull_request' ||
-      github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: [self-hosted, Linux, X64, betterlinuxcnc]
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v6
@@ -230,7 +224,7 @@ jobs:
   ci-gate:
     # Preserve this exact check name for existing branch protection.
     name: CI Gate
-    runs-on: [self-hosted, Linux, X64, betterlinuxcnc]
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     if: ${{ always() }}
     needs: [source-checks, web-build, browser-tests, python-checks, tauri-build]

@@ -38,6 +38,8 @@
 
 ## CI/CD 边界
 
+所有活动 CI/CD job 均运行于 GitHub 托管的 `ubuntu-24.04` runner，不依赖 PVE 自托管 runner。源码检查通过 `.github/ci/setup-source-tools.sh` 验证预装工具并下载固定版本、校验 SHA-256 的 actionlint，不调用 apt/sudo。部署 job 仍通过 FRP 连接 Web 测试服务器。
+
 当前唯一自动工作流为 `.github/workflows/ci.yml` 的 Desktop and Web CI：保留 Web 构建、浏览器测试和预览发布，新增 Python 3.11/3.13 安装包测试，以及 Debian 13 容器内的 Rust 格式/lint、Rust→Python 集成测试和 Tauri `.deb` 构建。所有任务纳入原有 `CI Gate`，保留分支部署策略。新增产物只上传 CI，不自动安装到机床；不构建或部署原生 LinuxCNC/AXIS `.deb`，不运行运动仿真。构建成功不代表机床控制或目标机图形已验收。
 
 桌面 CI 的系统依赖与 Node/Rust 工具链由 `.github/ci/desktop/Dockerfile` 管理，使用 BuildKit 的 GitHub Actions 镜像层缓存；每次仍在新容器中运行 `.github/ci/desktop-in-container.sh` 检查当前源码。镜像不含应用源码，Rust 编译缓存随环境镜像 ID 隔离；缓存刷新和本地复现方式见 `.github/ci/README.md`。

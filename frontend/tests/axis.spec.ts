@@ -10,7 +10,7 @@ test('release metadata matches the exact commit selected for deployment', async 
   });
 });
 
-test('AXIS shell renders its native layout and local artwork without errors', async ({
+test('Linear-style workspace renders Chinese controls and local artwork without errors', async ({
   page,
 }, info) => {
   const errors: string[] = [];
@@ -28,7 +28,6 @@ test('AXIS shell renders its native layout and local artwork without errors', as
   await expect(page.getByRole('region', { name: '加工程序', exact: true })).toContainText(
     'AXIS 标识演示程序',
   );
-  await expect(page.getByLabel('机床状态示例')).toHaveText(/急停未装刀位置： 工件坐标 实际位置/);
   const broken = await page
     .locator('img')
     .evaluateAll(
@@ -94,7 +93,6 @@ test('machine buttons and MDI cannot dispatch control requests or mutate sample 
     await page.getByRole('button', { name: label, exact: true }).click();
     await expect(page.getByRole('dialog')).toContainText('尚未连接控制器');
     await page.getByRole('button', { name: '关闭', exact: true }).click();
-    await expect(page.getByLabel('机床状态示例')).toContainText('急停');
   }
   await page.getByRole('tab', { name: '手动输入 [F5]', exact: true }).click();
   await page.getByLabel('手动输入指令：', { exact: true }).fill('G0 X100');
@@ -122,7 +120,6 @@ test('manual selection stays in its feature and editable fields do not trigger s
   await expect(page.getByRole('radio', { name: 'Y', exact: true })).toBeChecked();
   await page.getByRole('slider', { name: '进给倍率', exact: true }).fill('75');
   await expect(page.getByRole('slider', { name: '进给倍率', exact: true })).toHaveValue('75');
-  await expect(page.getByLabel('机床状态示例')).toContainText('急停');
 });
 
 test('program selection and panel resizing work at the compact desktop size', async ({
@@ -170,9 +167,44 @@ test('Chinese dialogs distinguish work coordinates, tool offsets and signal cont
   await expect(page.getByRole('checkbox', { name: '切削液冷却', exact: true })).not.toBeChecked();
   await page.getByRole('menuitem', { name: '视图', exact: true }).click();
   await page.getByRole('menuitemradio', { name: '显示机床坐标', exact: true }).click();
-  await expect(page.getByLabel('机床状态示例')).toContainText('机床坐标');
+  await page.getByRole('menuitem', { name: '视图', exact: true }).click();
+  await expect(
+    page.getByRole('menuitemradio', { name: '显示机床坐标', exact: true }),
+  ).toHaveAttribute('aria-checked', 'true');
+  await page.keyboard.press('Escape');
   await page.getByRole('menuitem', { name: '文件', exact: true }).click();
   await page.getByRole('menuitem', { name: '打开程序…', exact: true }).click();
   await expect(page.getByLabel('文件类型', { exact: true })).toContainText('加工程序（*.ngc）');
   await expect(page.getByLabel('文件名：', { exact: true })).toHaveValue('axis.ngc');
+});
+
+test('workspace panels stay usable at minimum size after enlarging the program', async ({
+  page,
+}, info) => {
+  await page.goto('/');
+  const sash = page.getByRole('separator', { name: '调整程序区高度' });
+  await sash.focus();
+  for (let i = 0; i < 20; i++) await page.keyboard.press('ArrowUp');
+  await page.setViewportSize({ width: 760, height: 640 });
+  const program = page.getByRole('region', { name: '加工程序', exact: true });
+  await expect
+    .poll(async () => {
+      const bounds = await program.boundingBox();
+      return bounds!.y + bounds!.height <= 640;
+    })
+    .toBe(true);
+  await expect(page.getByRole('img', { name: /LinuxCNC 标识刀路示意图/ })).toBeInViewport();
+  const canvas = await page.getByRole('img', { name: /LinuxCNC 标识刀路示意图/ }).boundingBox();
+  expect(canvas!.height).toBeGreaterThan(60);
+  const speed = page.getByRole('slider', { name: '最大速度', exact: true });
+  await speed.scrollIntoViewIfNeeded();
+  await expect(speed).toBeInViewport();
+  await page.getByRole('toolbar').getByRole('button').last().focus();
+  await expect(page.getByRole('toolbar').getByRole('button').last()).toBeInViewport();
+  await page.getByRole('toolbar').getByRole('button').first().focus();
+  await expect(page.getByRole('toolbar').getByRole('button').first()).toBeInViewport();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
+    true,
+  );
+  await page.screenshot({ path: info.outputPath('linear-minimum.png'), fullPage: true });
 });

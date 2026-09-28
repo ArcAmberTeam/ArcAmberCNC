@@ -14,7 +14,7 @@ src/
     controller-session/        桌面服务连接提示；Tauri 诊断调用私有
     axis-catalog/             源码核对后的菜单、工具栏、固定演示数据
     axis-presentation/        跨区域展示对话框宿主和入口元数据查找
-    ui-system/                Tk 风格控件及无业务的 Reka UI 组合
+    ui-system/                Linear 风格视觉规范、通用控件与 Reka UI 组合
     axis-chrome/              AXIS 菜单、工具栏、展示对话框
     manual-control/           Manual / MDI 面板及倍率控件
     toolpath-view/            静态 SVG 刀路示意、Preview / DRO
@@ -51,13 +51,13 @@ public/axis/                  Web 独立持有的历史图标快照与许可证
 
 ## 视觉与性能
 
-界面统一使用简体中文及国内数控常用术语，保留灰色布局和静态预览。文案跟随各业务模块维护，不建立全局翻译杂物目录；操作 ID、轴名、G/M 代码、文件名、参数名及快捷键键名不翻译。只翻译内置演示程序的说明性注释，不改动程序指令。术语及设计交付见 [UI 设计交接](docs/ui-design/README.md)。前端资源由 Web 独立持有，不再依赖原生 AXIS 图标生成器、Tk 运行时或源码目录。Tailwind 提供布局工具，设计 token 与通用控件 CSS 由 ui-system 管理，各业务模块拥有自己的布局样式。后续视觉调整只在 Web 内进行。
+界面统一使用简体中文及国内数控常用术语，采用 Linear 风格的深石墨工作台、细分隔线、紧凑排版与低饱和紫色强调，保留静态预览。主界面不显示品牌图标、底部状态栏、连接提示、演示标签或示例回零标记；坐标读数与操作按钮保留。视觉规范见 [前端视觉说明](docs/linear-visual-style.md)。文案跟随各业务模块维护，不建立全局翻译杂物目录；操作 ID、轴名、G/M 代码、文件名、参数名及快捷键键名不翻译。只翻译内置演示程序的说明性注释，不改动程序指令。术语及设计交付见 [UI 设计交接](docs/ui-design/README.md)。前端资源由 Web 独立持有，不再依赖原生 AXIS 图标生成器、Tk 运行时或源码目录。Tailwind 提供布局工具，设计 token 与通用控件 CSS 由 ui-system 管理，各业务模块拥有自己的布局样式。后续视觉调整只在 Web 内进行。`ui-system/lib/theme.css` 统一维护颜色与基础样式；`UiIcon` 是公开的无业务 SVG 图标组件，各业务模块负责动作与图标的映射。现有 `TkButton/TkRange/TkDialog` 名称作为兼容入口保留，不代表继续采用 Tk 外观。
 
 当前静态预览使用 SVG，不安装 Three.js。后续真实刀路渲染独立于 Vue 高频响应式树；大几何数据使用不可变/浅引用，按需绘制，并在 Debian 13 Intel 核显目标机验证 WebGL 与 WebKitGTK。不能用 macOS 浏览器结果代替目标机验收。
 
 ## 控制接入与未来扩展
 
-- `controller-session`：当前公开桌面服务状态组件，仅检查 `health`，浏览器模式不发起调用。未来承担控制会话、只读快照和命令生命周期；Tauri 调用保持私有。服务可达不等于机床已连接，机床操作继续不可执行。
+- `controller-session`：保留桌面服务诊断组件与 `health` 桥接；按当前视觉要求，主界面不挂载该组件，不显示连接状态或发起定时查询。未来承担控制会话、只读快照和命令生命周期；Tauri 调用保持私有。服务可达不等于机床已连接，机床操作继续不可执行。
 - `protocol`：本地消息结构、版本、生成类型与校验规则，不能承载 UI；不为此新增 OpenAPI 或 HTTP 网关。
 - `desktop-platform`：隔离窗口、文件对话框等通用桌面能力，不拥有机床命令或控制会话。Tauri 控制桥接归 `controller-session`，避免两处重复管理连接。
 - Rust 当前仅暴露 `service_health`，socket 路径由宿主决定；Python 位于根目录 `backend/`，仅接受健康查询。当前不构造状态 Channel 或机床控制入口；将来接入时 Python 独占机床校验和 LinuxCNC 通道，预览计算独立运行。

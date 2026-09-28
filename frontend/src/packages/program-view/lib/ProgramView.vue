@@ -9,7 +9,8 @@ import {
   ContextMenuItem,
   ContextMenuSeparator,
 } from 'reka-ui';
-import { sampleProgram } from '../../axis-catalog';
+import { sampleProgram, fixture } from '../../axis-catalog';
+import { UiIcon } from '../../ui-system';
 import { useAxisPresentation } from '../../axis-presentation';
 const dialogs = useAxisPresentation();
 const selectedLine = ref(0);
@@ -25,6 +26,13 @@ const selectedLine = ref(0);
         @keydown.down.prevent="selectedLine = Math.min(sampleProgram.length - 1, selectedLine + 1)"
         @keydown.up.prevent="selectedLine = Math.max(0, selectedLine - 1)"
       >
+        <div class="program-heading">
+          <span
+            ><UiIcon name="file" />加工程序<span class="program-filename">{{
+              fixture.fileName
+            }}</span></span
+          ><span class="program-meta">{{ sampleProgram.length }} 行</span>
+        </div>
         <div class="program-lines">
           <div
             v-for="(line, index) in sampleProgram"

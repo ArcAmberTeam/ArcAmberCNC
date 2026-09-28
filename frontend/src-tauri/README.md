@@ -1,4 +1,4 @@
-# Rust 桌面宿主与本地通信桥接
+# Rust 桌面环境与本地通信桥接
 
 [全项目模块地图](../../docs/module-map.md) · [控制架构](../../docs/tauri-local-control-architecture.md) · [Python 服务](../../backend/README.md)
 

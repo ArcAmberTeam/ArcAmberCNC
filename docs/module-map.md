@@ -38,7 +38,7 @@ Vue 功能界面
 | [应用启动](../frontend/src/app/README.md)                              | TypeScript、Vue      | 创建应用并接入样式                   |
 | [页面组合](../frontend/src/pages/README.md)                            | Vue、TypeScript、CSS | 页面布局、分隔条、快捷键组合         |
 | [八个前端功能模块](../frontend/src/packages/README.md)                 | Vue、TypeScript、CSS | 各自的业务展示状态与公开接口         |
-| [Rust 桌面宿主](../frontend/src-tauri/README.md)                       | Rust                 | 桌面命令边界和 socket 桥接           |
+| [Rust 桌面环境](../frontend/src-tauri/README.md)                       | Rust                 | 桌面命令边界和 socket 桥接           |
 | [Python 服务](../backend/src/betterlinuxcnc_service/README.md)         | Python               | 当前诊断服务；未来机床操作与状态采集 |
 | [LinuxCNC Python 接口](../src/emc/usr_intf/python-interface/README.md) | C++                  | 向 Python 提供 LinuxCNC 通道         |
 | [Task](../src/emc/task/README.md)                                      | C++                  | 任务和程序执行协调                   |

@@ -19,7 +19,7 @@ Python 3.11+，使用标准库。当前只做本机服务健康查询，不导�
 
 ## 上下游与边界
 
-上游是 Rust 桌面宿主；当前没有连接 LinuxCNC 的下游。`health` 始终返回诊断模式和 `machine_connected: false`，不接受其他方法。
+上游是 Rust 桌面环境；当前没有连接 LinuxCNC 的下游。`health` 始终返回诊断模式和 `machine_connected: false`，不接受其他方法。
 
 传输处理器只处理连接和报文，协议解析器只处理消息契约。后续增加控制时，应明确独立的机床接入与操作规则所有者；不能把运行、回零、点动逻辑直接堆进 `_server.py`。
 

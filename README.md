@@ -8,7 +8,7 @@
 <p align="center">
   <a href="docs/module-map.md">模块地图</a> ·
   <a href="frontend/README.md">前端开发</a> ·
-  <a href="frontend/src-tauri/README.md">桌面宿主</a> ·
+  <a href="frontend/src-tauri/README.md">桌面环境</a> ·
   <a href="backend/README.md">Python 服务</a> ·
   <a href="src/README.md">控制核心</a>
 </p>
@@ -46,7 +46,7 @@
 | -------------- | -------------------------------------------------------------------------------------------------------------- |
 | 操作界面       | Vue 3、TypeScript、Pinia、Reka UI、Tailwind CSS、HTML/CSS、SVG                                                 |
 | 前端工具       | Vite、Node.js、npm；JavaScript 用于工具配置与脚本                                                              |
-| 桌面宿主       | Tauri 2、Rust、Tokio、Serde；Linux 上使用 WebKitGTK                                                            |
+| 桌面环境       | Tauri 2、Rust、Tokio、Serde；Linux 上使用 WebKitGTK                                                            |
 | 本地服务       | Python 3.11+、asyncio、Unix socket、JSON；setuptools 构建安装包                                                |
 | 控制核心       | C、C++、LinuxCNC Task、RS274NGC 解释器、轨迹规划、运动学、HAL、RTAPI、NML                                      |
 | 系统与原生构建 | Linux、Debian 13、PREEMPT_RT；GNU Make、Autotools、Meson、Cargo                                                |
@@ -63,7 +63,7 @@ frontend/
 ├── src/app/                  应用启动
 ├── src/pages/                页面布局与功能组合
 ├── src/packages/             按业务划分的八个前端模块
-├── src-tauri/                Rust 桌面宿主与本地通信桥接
+├── src-tauri/                Rust 桌面环境与本地通信桥接
 └── tests/                    浏览器交互测试
 backend/
 ├── src/betterlinuxcnc_service/ Python 本地服务
@@ -79,7 +79,7 @@ docs/                         架构、模块导航和迁移说明
 
 控制链路规划为：**Vue → Tauri IPC → Rust → Unix socket → Python → LinuxCNC → HAL → 设备**。界面负责展示和操作意图，Rust 负责桌面通信边界，Python 负责未来的机床操作流程，LinuxCNC 核心负责轨迹规划和实时运动。
 
-**当前进度：** 中文界面与 Tauri 宿主已建立，Rust 与 Python 已实现健康查询；主页面未挂载诊断组件，Python 尚未接入 LinuxCNC。坐标、刀路和机床按钮仍是展示原型。原生 AXIS 已删除，LinuxCNC 核心、共享 Python 接口及其他上游工具保留。
+**当前进度：** 中文界面与 Tauri 桌面环境已建立，Rust 与 Python 已实现健康查询；主页面未挂载诊断组件，Python 尚未接入 LinuxCNC。坐标、刀路和机床按钮仍是展示原型。原生 AXIS 已删除，LinuxCNC 核心、共享 Python 接口及其他上游工具保留。
 
 ## 开发与实现入口
 
@@ -121,7 +121,7 @@ docs/                         架构、模块导航和迁移说明
 
 | 模块            | 中文说明                                                               | 实现入口                                                      |
 | --------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------- |
-| Rust 桌面宿主   | [Tauri 权限与 socket 桥接](frontend/src-tauri/README.md)               | [src-tauri](frontend/src-tauri/)                              |
+| Rust 桌面环境   | [Tauri 权限与 socket 桥接](frontend/src-tauri/README.md)               | [src-tauri](frontend/src-tauri/)                              |
 | Python 本地服务 | [协议解析与连接生命周期](backend/src/betterlinuxcnc_service/README.md) | [betterlinuxcnc_service](backend/src/betterlinuxcnc_service/) |
 
 ### LinuxCNC 控制核心

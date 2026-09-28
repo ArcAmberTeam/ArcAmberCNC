@@ -1,6 +1,6 @@
 **LinuxCNC 现代操作界面：架构调研与建议**
 
-> 2026-09-22 决策更新：用户确定正式产品只通过 Tauri 操作。[Tauri 专用控制架构](tauri-local-control-architecture.md) 已取代本文关于浏览器直连、HTTP/WebSocket 控制网关、FastAPI 和可替换桌面宿主的建议。本文保留为当时的调研记录；当前实施以根目录规范和新的架构决策为准。
+> 2026-09-22 决策更新：用户确定正式产品只通过 Tauri 操作。[Tauri 专用控制架构](tauri-local-control-architecture.md) 已取代本文关于浏览器直连、HTTP/WebSocket 控制网关、FastAPI 和可替换桌面环境的建议。本文保留为当时的调研记录；当前实施以根目录规范和新的架构决策为准。
 
 调研日期：2026-09-21。目标环境：用户指定 Debian 13、Intel 核显；LinuxCNC 小版本、CPU/核显代际、屏幕规格、驱动板及具体五轴结构尚未确定。
 

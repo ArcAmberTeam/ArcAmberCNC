@@ -1,6 +1,6 @@
 # 前端架构规范
 
-本文件补充 [根目录规范](../AGENT.md)。`frontend/` 是当前唯一维护的界面，`src-tauri/` 提供桌面宿主。原生 AXIS 应用已删除。当前仅通过 Tauri 查询 Python 本地诊断服务，不接 LinuxCNC、HAL 或真实加工文件。
+本文件补充 [根目录规范](../AGENT.md)。`frontend/` 是当前唯一维护的界面，`src-tauri/` 提供桌面环境。原生 AXIS 应用已删除。当前仅通过 Tauri 查询 Python 本地诊断服务，不接 LinuxCNC、HAL 或真实加工文件。
 
 正式产品已确定只通过 Tauri 桌面程序操作。后续控制链路为 Vue → Tauri IPC → Rust → Unix socket → Python → LinuxCNC；浏览器仅保留界面预览和展示测试能力，不提供直接连接 Python 的 HTTP/WebSocket 路径。当前决策见 [Tauri 专用控制架构](../docs/tauri-local-control-architecture.md)。
 
@@ -70,3 +70,7 @@ public/axis/                  Web 独立持有的历史图标快照与许可证
 静态资源全部本地提供；不得加载外部字体、CDN 或遥测。按原仓库和图标各自许可证保存出处。Vite 预览使用 5173，Tauri 开发使用 1420；桌面打包嵌入本地 `dist`。CI 的 Web 产物继续只供预览；新增 Tauri `.deb` 和 Python 包作为独立产物上传，不自动部署。浏览器测试不能代替目标 Debian 机器上的 WebKitGTK、窗口生命周期和实际控制验收。
 
 桌面修改运行 `npm run desktop:check`、`npm run desktop:test` 和对应平台打包。Rust 工具链固定于 `src-tauri/rust-toolchain.toml`，依赖固定于 `Cargo.lock`；CLI/API 依赖也使用 npm 锁文件。Rust 集成测试需要 Python 3.11+，可用 `SERVICE_TEST_PYTHON` 指定解释器。Python 检查见 `backend/README.md`。
+
+## README 维护
+
+遵循根目录 `AGENT.md` 的 README 人工维护规则：包括本目录和各模块在内的 README 仅由人工修改，AI 不得自动更新，也不得通过全目录格式化顺带改写。

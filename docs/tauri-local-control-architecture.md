@@ -2,7 +2,7 @@
 
 决策日期：2026-09-22。用户确定正式产品只通过 Tauri 桌面程序操作，目标环境为 Debian 13、Intel 核显。
 
-当前已搭建 Tauri 宿主和 Python 本地诊断服务，完成经 Rust/Unix socket 的 `health` 查询；界面可区分本地服务可达与机床未接入。只有此诊断链路已实现，下文的运动控制、状态 Channel、持续会话、操作权和故障停止策略仍是后续接入规范。诊断使用短连接查询，服务显式启动，不自动启动 LinuxCNC。运行方式见 [Python 服务说明](../backend/README.md)。
+当前已搭建 Tauri 桌面环境和 Python 本地诊断服务，完成经 Rust/Unix socket 的 `health` 查询；界面可区分本地服务可达与机床未接入。只有此诊断链路已实现，下文的运动控制、状态 Channel、持续会话、操作权和故障停止策略仍是后续接入规范。诊断使用短连接查询，服务显式启动，不自动启动 LinuxCNC。运行方式见 [Python 服务说明](../backend/README.md)。
 
 ## 控制链路
 
@@ -12,7 +12,7 @@ Vue 业务界面
     ▼
 Tauri IPC：命令调用 / 状态 Channel
     ▼
-Rust 桌面宿主与通信桥接
+Rust 桌面环境与通信桥接
     │ Unix domain socket（同一台电脑）
     ▼
 Python 控制服务

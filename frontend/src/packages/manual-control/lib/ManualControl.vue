@@ -5,7 +5,7 @@ import { useManualPresentation } from './presentation';
 import { TabsRoot, TabsList, TabsTrigger, TabsContent } from 'reka-ui';
 import { axes, fixture } from '../../axis-catalog';
 import { useAxisPresentation } from '../../axis-presentation';
-import { TkButton, TkRange } from '../../ui-system';
+import { TkButton, TkRange, UiIcon } from '../../ui-system';
 const dialogs = useAxisPresentation();
 const ui = useManualPresentation();
 const increment = ref('Continuous');
@@ -84,19 +84,16 @@ const maxVelocity = ref(3000);
                 aria-label="主轴反转"
                 title="主轴反转"
                 @click="dialogs.openDialog('spindle.ccw', '主轴反转')"
-                ><img src="/axis/spindle_ccw.gif" alt=""
+                ><UiIcon name="left"
               /></TkButton>
-              <TkButton
-                class="spindle-stop"
-                :pressed="true"
-                @click="dialogs.openDialog('spindle.stop', '主轴停止')"
+              <TkButton class="spindle-stop" @click="dialogs.openDialog('spindle.stop', '主轴停止')"
                 >停止</TkButton
               >
               <TkButton
                 aria-label="主轴正转"
                 title="主轴正转"
                 @click="dialogs.openDialog('spindle.cw', '主轴正转')"
-                ><img src="/axis/spindle_cw.gif" alt=""
+                ><UiIcon name="right"
               /></TkButton>
             </div>
             <div class="flex">
@@ -160,6 +157,7 @@ const maxVelocity = ref(3000);
       </TabsContent>
     </TabsRoot>
     <div class="override-controls">
+      <h2 class="controls-heading">速度与倍率</h2>
       <TkRange v-model="feed" label="进给倍率" :max="120" />
       <TkRange v-model="rapid" label="快移倍率" :max="100" />
       <TkRange v-model="spindle" label="主轴倍率" :max="120" />

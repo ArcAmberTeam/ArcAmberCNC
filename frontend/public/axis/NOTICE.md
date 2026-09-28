@@ -23,7 +23,7 @@ tool_rotate.gif     tool_clear.gif       resume_inhibit.gif
 - Copyright (c) 2026 Lucide Icons and Contributors — ISC。
 - 部分图标源于 Feather：Copyright (c) 2013-present Cole Bemis — MIT。
 
-完整通知已原样保存为本目录的 [TOOLBAR-LICENSE](TOOLBAR-LICENSE)，来源是 [历史 LICENSE](https://github.com/Xamber-Software/BetterLinuxCNC/blob/607f246518b0f41bb7240ba8777751ce25889ff7/share/axis/images/toolbar-source/LICENSE)。适用 ISC and MIT，撤回原生资源不会改变 Web 副本的授权。GIF 透明边缘按 AXIS `#d9d9d9` 控件背景处理，前端保留这一背景。
+完整通知已原样保存为本目录的 [TOOLBAR-LICENSE](TOOLBAR-LICENSE)，来源是 [历史 LICENSE](https://github.com/Xamber-Software/BetterLinuxCNC/blob/607f246518b0f41bb7240ba8777751ce25889ff7/share/axis/images/toolbar-source/LICENSE)。适用 ISC and MIT，撤回原生资源不会改变 Web 副本的授权。GIF 透明边缘按 AXIS `#d9d9d9` 控件背景处理，这些 GIF 作为历史快照保留。当前深色工具栏使用 ui-system 的原创 SVG 线性图标，不再加载这些 GIF。
 
 ## 其他 AXIS 图像
 

@@ -56,12 +56,18 @@ onUnmounted(() => {
 <style scoped>
 .service-status {
   font-size: 11px;
-  color: inherit;
-  padding: 1px 4px;
-  border: 1px solid #ffffff45;
+  color: var(--text-secondary);
+  background: var(--surface-raised);
+  padding: 2px 7px;
+  border: 1px solid var(--border-control);
+  border-radius: 5px;
   white-space: nowrap;
 }
+.service-status:hover {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+}
 .service-status:focus-visible {
-  outline: 1px solid white;
+  outline: 2px solid var(--accent);
 }
 </style>

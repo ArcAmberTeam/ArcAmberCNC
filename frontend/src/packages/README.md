@@ -40,3 +40,16 @@ manual-control/
 模块测试从公开入口验证行为，只允许使用本模块 `tests/` 中的私有夹具；生产代码不能依赖测试目录。外部浏览器测试从公开 UI 验证，不导入私有组件或 store。边界调整必须用临时非法深层导入验证检查失败，删除临时文件后再确认通过。
 
 完整规范见 [`frontend/agent.md`](../../agent.md) 与 [根目录 `AGENT.md`](../../../AGENT.md)。
+
+## 各模块就近说明
+
+- [通用控件与视觉规范（`ui-system`）](ui-system/README.md)
+- [功能目录与演示数据（`axis-catalog`）](axis-catalog/README.md)
+- [跨区域展示对话框（`axis-presentation`）](axis-presentation/README.md)
+- [桌面服务会话入口（`controller-session`）](controller-session/README.md)
+- [手动操作与倍率面板（`manual-control`）](manual-control/README.md)
+- [加工程序列表（`program-view`）](program-view/README.md)
+- [刀路预览与坐标数显（`toolpath-view`）](toolpath-view/README.md)
+- [菜单、工具栏与对话框组合（`axis-chrome`）](axis-chrome/README.md)
+
+上层为 [应用启动](../app/README.md) 和 [页面组合](../pages/README.md)；桌面边界见 [Rust 宿主](../../src-tauri/README.md)。完整链路见 [全项目模块地图](../../../docs/module-map.md)。

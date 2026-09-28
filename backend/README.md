@@ -1,5 +1,7 @@
 # Python 本地服务
 
+[内部文件职责](src/betterlinuxcnc_service/README.md) · [全项目模块地图](../docs/module-map.md)
+
 当前提供可运行的 Unix socket 服务，仅接受 `health` 查询。它能报告服务是否可达，始终明确返回 `machine_connected: false`；没有 LinuxCNC 导入、运动命令或 HTTP 监听。
 
 ## 开发启动

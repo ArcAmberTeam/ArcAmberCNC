@@ -7,6 +7,11 @@ QtObject {
     property string previewTab: "preview"
     property real zoom: 1
     property bool rotate: false
+    property int liveResetRevision: 0
+
+    function clearLive(): void {
+        liveResetRevision++;
+    }
     property var choices: ({
         "view": "p", "units": "mm", "grid": "off",
         "position": "actual", "coordinates": "relative"

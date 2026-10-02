@@ -4,31 +4,69 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import BetterCnc.Ui 1.0
-import BetterCnc.Catalog 1.0
 
 Rectangle {
     id: root
 
     required property ManualState presentation
     property bool compact: false
+    property var machine: ({})
+    property var history: []
+    readonly property bool connected: !!machine.connected
+    // Records a held UI gesture, never inferred machine motion.
+    property bool jogHeld: false
+    readonly property bool jogSafe: connected && !!machine.powered && !machine.estop
+        && machine.mode === "manual" && machine.motionMode === presentation.mode
+    readonly property bool canOperate: connected && !!machine.powered && !machine.estop && !machine.busy
+    readonly property string axesKey: (machine.axes || []).join(",")
+    readonly property string jointsKey: (Array.isArray(machine.joints) ? machine.joints
+        : Array.from({length: Number(machine.jointCount || 0)}, (_, index) => index)).join(",")
+    readonly property var axes: axesKey ? axesKey.split(",") : []
+    readonly property var joints: jointsKey ? jointsKey.split(",").map(Number) : []
+    readonly property var selectionValues: presentation.mode === "joint" ? joints : axes
+    readonly property bool canJog: jogSafe && canOperate && (presentation.mode === "joint"
+        ? joints.indexOf(presentation.selectedJoint) >= 0 : axes.indexOf(presentation.selectedAxis) >= 0)
     signal dialogRequested(string actionId, string title, string axis)
+    signal commandRequested(string actionId, var payload)
+    signal jogStopRequested()
+
+    function permitted(id) {
+        return connected && (!machine.capabilities || machine.capabilities[id] !== false);
+    }
+    function startJog(direction) {
+        if (jogHeld || !canJog || !permitted("jog.start") || presentation.jogVelocity <= 0) return;
+        jogHeld = true;
+        commandRequested("jog.start", {axis: presentation.mode === "joint" ? presentation.selectedJoint : presentation.selectedAxis, direction: direction,
+            velocity: presentation.jogVelocity / 60, increment: presentation.jogIncrement,
+            mode: presentation.mode});
+    }
+    function releaseJog() {
+        jogHeld = false;
+        jogStopRequested();
+    }
+    function cancelJogGesture() { jogHeld = false; }
+    function executeMdi() {
+        const command = mdiCommand.text.trim();
+        if (canOperate && command) commandRequested("mdi.execute", {text: command});
+    }
+    onVisibleChanged: if (!visible) releaseJog()
+    onJogSafeChanged: if (!jogSafe) releaseJog()
+    Connections {
+        target: root.presentation
+        function onControlTabChanged() { root.releaseJog(); }
+        function onSelectedAxisChanged() { root.releaseJog(); }
+        function onSelectedJointChanged() { root.releaseJog(); }
+        function onModeChanged() { root.releaseJog(); }
+    }
 
     objectName: "manualPanel"
     implicitWidth: compact ? 264 : 296
     color: Theme.sidebar
     clip: true
 
-    QtObject {
-        id: values
-        property real feed: 100
-        property real rapid: 100
-        property real spindle: 100
-        property real jog: 600
-        property real maxVelocity: 3000
-    }
-
     Connections {
         target: root.Window.window
+        function onActiveChanged() { if (!root.Window.window.active) root.releaseJog(); }
         function onActiveFocusItemChanged() {
             const focused = root.Window.window.activeFocusItem;
             if (!focused) return;
@@ -157,22 +195,24 @@ Rectangle {
                             Layout.fillHeight: true
 
                             function selectAxis(index) {
-                                const next = (index + Catalog.axes.length) % Catalog.axes.length;
-                                root.presentation.selectedAxis = Catalog.axes[next];
+                                const next = (index + root.selectionValues.length) % root.selectionValues.length;
+                                if (root.presentation.mode === "joint") root.presentation.selectedJoint = Number(root.selectionValues[next]);
+                                else root.presentation.selectedAxis = String(root.selectionValues[next]);
                                 axisRepeater.itemAt(next).forceActiveFocus(Qt.TabFocusReason);
                             }
 
                             Repeater {
                                 id: axisRepeater
-                                model: Catalog.axes
+                                model: root.selectionValues
 
                                 RadioButton {
                                     id: axisButton
-                                    required property string modelData
+                                    required property var modelData
                                     required property int index
-                                    objectName: "axis" + modelData
-                                    text: root.presentation.mode === "joint" ? index.toString() : modelData
-                                    checked: root.presentation.selectedAxis === modelData
+                                    objectName: (root.presentation.mode === "joint" ? "joint" : "axis") + modelData
+                                    text: String(modelData)
+                                    checked: root.presentation.mode === "joint" ? root.presentation.selectedJoint === Number(modelData)
+                                             : root.presentation.selectedAxis === String(modelData)
                                     Layout.fillWidth: true
                                     Layout.preferredHeight: 30
                                     padding: 0
@@ -220,7 +260,10 @@ Rectangle {
                                         border.color: axisButton.visualFocus ? Theme.accent : axisButton.checked ? "#5c537e" : Theme.borderControl
                                     }
 
-                                    onClicked: root.presentation.selectedAxis = modelData
+                                    onClicked: {
+                                        if (root.presentation.mode === "joint") root.presentation.selectedJoint = Number(modelData);
+                                        else root.presentation.selectedAxis = String(modelData);
+                                    }
                                     Keys.onLeftPressed: axisSelector.selectAxis(index - 1)
                                     Keys.onRightPressed: axisSelector.selectAxis(index + 1)
                                     Keys.onUpPressed: axisSelector.selectAxis(index - 1)
@@ -247,7 +290,11 @@ Rectangle {
                             Layout.preferredWidth: 40
                             Layout.preferredHeight: 30
                             Accessible.name: "负向点动"
-                            onClicked: root.dialogRequested("machine.jog-minus", root.presentation.selectedAxis + " 轴负向点动", "")
+                            enabled: root.jogHeld ? root.jogSafe : root.canJog && root.permitted("jog.start")
+                            onPressed: root.startJog(-1)
+                            onReleased: root.releaseJog()
+                            onCanceled: root.releaseJog()
+                            onActiveFocusChanged: if (!activeFocus && down) root.releaseJog()
                         }
 
                         UiButton {
@@ -257,7 +304,11 @@ Rectangle {
                             Layout.preferredWidth: 40
                             Layout.preferredHeight: 30
                             Accessible.name: "正向点动"
-                            onClicked: root.dialogRequested("machine.jog-plus", root.presentation.selectedAxis + " 轴正向点动", "")
+                            enabled: root.jogHeld ? root.jogSafe : root.canJog && root.permitted("jog.start")
+                            onPressed: root.startJog(1)
+                            onReleased: root.releaseJog()
+                            onCanceled: root.releaseJog()
+                            onActiveFocusChanged: if (!activeFocus && down) root.releaseJog()
                         }
 
                         UiComboBox {
@@ -266,6 +317,10 @@ Rectangle {
                             Layout.fillWidth: true
                             Layout.preferredHeight: 30
                             Accessible.name: "点动方式与步距"
+                            onActivated: {
+                                root.releaseJog();
+                                root.presentation.jogIncrement = currentIndex === 0 ? 0 : Number(currentText);
+                            }
                         }
                     }
 
@@ -288,7 +343,8 @@ Rectangle {
                             Layout.fillWidth: true
                             Layout.preferredWidth: 1
                             Layout.preferredHeight: 30
-                            onClicked: root.dialogRequested("machine.home-all", "", "")
+                            enabled: root.canOperate && root.permitted("machine.home-all")
+                            onClicked: root.commandRequested("machine.home-all", {})
                         }
 
                         UiButton {
@@ -300,6 +356,7 @@ Rectangle {
                             Layout.fillWidth: true
                             Layout.preferredWidth: 1
                             Layout.preferredHeight: 30
+                            enabled: root.canOperate && root.presentation.mode === "world" && root.permitted("machine.touch-off")
                             onClicked: root.dialogRequested("machine.touch-off", "工件对刀", root.presentation.selectedAxis)
                         }
 
@@ -312,6 +369,7 @@ Rectangle {
                             Layout.fillWidth: true
                             Layout.preferredWidth: 1
                             Layout.preferredHeight: 30
+                            enabled: root.canOperate && root.presentation.mode === "world" && root.permitted("tool.touch-off")
                             onClicked: root.dialogRequested("tool.touch-off", "刀具对刀", root.presentation.selectedAxis)
                         }
                     }
@@ -326,9 +384,10 @@ Rectangle {
                         width: parent.width
                         height: 27
                         text: "临时解除硬限位"
-                        checked: false
+                        checked: !!root.machine.limitOverride
                         interactive: false
-                        onClicked: root.dialogRequested("machine.override-limits", "临时解除硬限位", "")
+                        enabled: root.canOperate && root.permitted("machine.override-limits")
+                        onClicked: root.commandRequested("machine.override-limits", {enabled: !checked})
                     }
 
                     Item {
@@ -373,7 +432,8 @@ Rectangle {
                                     Accessible.name: "主轴反转"
                                     ToolTip.visible: hovered
                                     ToolTip.text: "主轴反转"
-                                    onClicked: root.dialogRequested("spindle.ccw", "主轴反转", "")
+                                    enabled: root.canOperate && root.permitted("spindle.ccw")
+                                    onClicked: root.commandRequested("spindle.ccw", {})
                                 }
 
                                 UiButton {
@@ -385,7 +445,8 @@ Rectangle {
                                     Layout.preferredHeight: 28
                                     leftPadding: 6
                                     rightPadding: 6
-                                    onClicked: root.dialogRequested("spindle.stop", "主轴停止", "")
+                                    enabled: root.canOperate && root.permitted("spindle.stop")
+                                    onClicked: root.commandRequested("spindle.stop", {})
                                 }
 
                                 UiButton {
@@ -400,7 +461,8 @@ Rectangle {
                                     Accessible.name: "主轴正转"
                                     ToolTip.visible: hovered
                                     ToolTip.text: "主轴正转"
-                                    onClicked: root.dialogRequested("spindle.cw", "主轴正转", "")
+                                    enabled: root.canOperate && root.permitted("spindle.cw")
+                                    onClicked: root.commandRequested("spindle.cw", {})
                                 }
                             }
 
@@ -417,7 +479,8 @@ Rectangle {
                                     leftPadding: 6
                                     rightPadding: 6
                                     Accessible.name: "降低主轴转速"
-                                    onClicked: root.dialogRequested("spindle.decrease", "降低主轴转速", "")
+                                    enabled: root.canOperate && root.permitted("spindle.decrease")
+                                    onClicked: root.commandRequested("spindle.decrease", {})
                                 }
 
                                 UiButton {
@@ -428,7 +491,8 @@ Rectangle {
                                     leftPadding: 6
                                     rightPadding: 6
                                     Accessible.name: "提高主轴转速"
-                                    onClicked: root.dialogRequested("spindle.increase", "提高主轴转速", "")
+                                    enabled: root.canOperate && root.permitted("spindle.increase")
+                                    onClicked: root.commandRequested("spindle.increase", {})
                                 }
                             }
 
@@ -437,9 +501,10 @@ Rectangle {
                                 width: parent.width
                                 height: 27
                                 text: "主轴制动"
-                                checked: false
+                                checked: !!root.machine.spindleBrake
                                 interactive: false
-                                onClicked: root.dialogRequested("spindle.brake", "主轴制动", "")
+                                enabled: root.canOperate && root.permitted("spindle.brake")
+                                onClicked: root.commandRequested("spindle.brake", {enabled: !checked})
                             }
                         }
                     }
@@ -466,9 +531,10 @@ Rectangle {
                                 width: parent.width
                                 height: 27
                                 text: "喷雾冷却"
-                                checked: false
+                                checked: !!root.machine.mist
                                 interactive: false
-                                onClicked: root.dialogRequested("coolant.mist", "喷雾冷却", "")
+                                enabled: root.canOperate && root.permitted("coolant.mist")
+                                onClicked: root.commandRequested("coolant.mist", {enabled: !checked})
                             }
 
                             UiCheckBox {
@@ -476,9 +542,10 @@ Rectangle {
                                 width: parent.width
                                 height: 27
                                 text: "切削液冷却"
-                                checked: false
+                                checked: !!root.machine.flood
                                 interactive: false
-                                onClicked: root.dialogRequested("coolant.flood", "切削液冷却", "")
+                                enabled: root.canOperate && root.permitted("coolant.flood")
+                                onClicked: root.commandRequested("coolant.flood", {enabled: !checked})
                             }
                         }
                     }
@@ -521,7 +588,7 @@ Rectangle {
                             anchors.fill: parent
                             anchors.margins: 6
                             clip: true
-                            model: Catalog.fixture.history
+                            model: root.history
                             boundsBehavior: Flickable.StopAtBounds
                             ScrollBar.vertical: UiScrollBar {}
                             Accessible.name: "手动输入历史"
@@ -579,7 +646,7 @@ Rectangle {
                             font.family: Theme.mono
                             Accessible.name: "手动输入指令："
                             selectByMouse: true
-                            onAccepted: root.dialogRequested("mdi.go", "执行手动指令", "")
+                            onAccepted: root.executeMdi()
                         }
 
                         UiButton {
@@ -587,7 +654,8 @@ Rectangle {
                             text: "执行"
                             Layout.preferredWidth: 48
                             Layout.preferredHeight: 30
-                            onClicked: root.dialogRequested("mdi.go", "执行手动指令", "")
+                            enabled: root.canOperate && root.permitted("mdi.execute") && mdiCommand.text.trim().length > 0
+                            onClicked: root.executeMdi()
                         }
                     }
                 }
@@ -628,8 +696,10 @@ Rectangle {
                         height: 49
                         label: "进给倍率"
                         to: 120
-                        value: values.feed
-                        onMoved: value => values.feed = value
+                        value: Number(root.machine.feedOverride || 0) * 100
+                        valueKnown: root.connected && typeof root.machine.feedOverride === "number" && isFinite(root.machine.feedOverride)
+                        enabled: valueKnown && root.permitted("override.feed")
+                        onMoved: value => root.commandRequested("override.feed", {value: value / 100})
                     }
 
                     UiRange {
@@ -638,8 +708,10 @@ Rectangle {
                         height: 49
                         label: "快移倍率"
                         to: 100
-                        value: values.rapid
-                        onMoved: value => values.rapid = value
+                        value: Number(root.machine.rapidOverride || 0) * 100
+                        valueKnown: root.connected && typeof root.machine.rapidOverride === "number" && isFinite(root.machine.rapidOverride)
+                        enabled: valueKnown && root.permitted("override.rapid")
+                        onMoved: value => root.commandRequested("override.rapid", {value: value / 100})
                     }
 
                     UiRange {
@@ -648,8 +720,10 @@ Rectangle {
                         height: 49
                         label: "主轴倍率"
                         to: 120
-                        value: values.spindle
-                        onMoved: value => values.spindle = value
+                        value: Number(root.machine.spindleOverride || 0) * 100
+                        valueKnown: root.connected && typeof root.machine.spindleOverride === "number" && isFinite(root.machine.spindleOverride)
+                        enabled: valueKnown && root.permitted("override.spindle")
+                        onMoved: value => root.commandRequested("override.spindle", {value: value / 100})
                     }
 
                     UiRange {
@@ -657,10 +731,11 @@ Rectangle {
                         width: parent.width
                         height: 49
                         label: "点动速度"
-                        to: 3000
-                        value: values.jog
-                        unit: "毫米/分钟"
-                        onMoved: value => values.jog = value
+                        to: Number(root.machine.jogMaxVelocity || root.machine.maxVelocity || 0) * 60
+                        value: root.presentation.jogVelocity
+                        enabled: root.connected
+                        unit: root.machine.linearUnits === 1 ? "毫米/分钟" : "机床单位/分钟"
+                        onMoved: value => { root.releaseJog(); root.presentation.jogVelocity = value; }
                     }
 
                     UiRange {
@@ -668,10 +743,12 @@ Rectangle {
                         width: parent.width
                         height: 49
                         label: "最大速度"
-                        to: 6000
-                        value: values.maxVelocity
-                        unit: "毫米/分钟"
-                        onMoved: value => values.maxVelocity = value
+                        to: Number(root.machine.maxVelocityLimit || root.machine.maxVelocity || 0) * 60
+                        value: Number(root.machine.maxVelocity || 0) * 60
+                        valueKnown: root.connected && typeof root.machine.maxVelocity === "number" && isFinite(root.machine.maxVelocity)
+                        enabled: valueKnown && root.permitted("velocity.max")
+                        unit: root.machine.linearUnits === 1 ? "毫米/分钟" : "机床单位/分钟"
+                        onMoved: value => root.commandRequested("velocity.max", {value: value / 60})
                     }
                 }
             }
@@ -708,7 +785,7 @@ Rectangle {
                         x: 10
                         y: 10
                         width: parent.width - 20
-                        text: Catalog.fixture.activeCodes
+                        text: root.machine.activeCodes || "—"
                         color: Theme.secondary
                         font.family: Theme.mono
                         font.pixelSize: 11

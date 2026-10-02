@@ -1,96 +1,94 @@
-# Vue 到原生 Qt Quick/QML 的迁移
+# Vue 到 Qt Quick/QML 的迁移与控制接入
 
-决策日期：2026-10-02。将当前 Vue 页面按已有布局、资源、文案和交互迁移到原生 Qt Quick/QML，新增正式桌面入口 `qt/`。`frontend/` 继续提供迁移对照与 Web 预览，Tauri 桌面环境、Rust 诊断桥和 Python 本地服务保留，不在这次迁移中删除。原 Tauri 唯一入口决策由本文取代，历史设计保留在 [Tauri 架构记录](tauri-local-control-architecture.md)。
+2026-10-02：原生 QML 入口位于 `qt/`，保留 Vue 的布局、资源、中文文案、动作 ID、快捷键与面板交互。`frontend/` 继续用于 Web 预览和迁移对照，Tauri 桌面环境仍保留。用户随后要求接入完整操作，并明确先使用 Unix socket、不运行模拟器。
 
-本次迁移覆盖当前界面原型：菜单、工具栏、手动/MDI、坐标数显、静态刀路、程序列表、说明对话框、快捷键、倍率滑条与面板缩放。点动、回零、急停、主轴、运行和 MDI 执行仍只显示“尚未连接控制器”的说明。固定坐标与刀路不是硬件反馈，也不是解释器输出。Qt 入口不发送机床命令，不读取硬件，不自动启动 Python 或 LinuxCNC。
+当前链路为 **QML → PySide6 QObject → Unix socket → 独立 Python 服务 → LinuxCNC**。Qt 进程不导入 LinuxCNC，服务不依赖 Qt。初版 C++ 应用启动器已由 PySide6 替换，C++ 只保留 Qt Quick Test 启动器；页面仍是原生 QML，没有 WebView。G 代码解释、插补、运动规划和实时执行继续由 LinuxCNC 核心负责，Python 做控制适配和隔离预览调度。
 
-## 模块与数据边界
+## 模块边界
 
-工程使用 Qt 6.8+、C++17、CMake 和 Qt Quick Controls Basic。C++ 启动应用并加载嵌入资源的 QML；页面使用原生控件和绘制，不嵌入浏览器。QML 模块通过 `qmldir` 公开类型、命名导入和信号协作。
+| 公开入口 | 职责 |
+| --- | --- |
+| `bettercnc.desktop` | QML 引擎、只读快照、程序文档、桌面文件对话框、历史记录、显式工具启动 |
+| `bettercnc.session` | v2 Unix socket 客户端；连接恢复只读取状态，不重发命令 |
+| `betterlinuxcnc_service` | 私有 socket、会话唯一所有者、命令线程、点动租约、预览子进程 |
+| `bettercnc_controller.Controller` | LinuxCNC stat/command/error channel、配置、操作条件、命令确认、程序与刀具表写入 |
+| `bettercnc_preview` | 子进程调用 LinuxCNC `gcode.parse`，隔离参数副本，输出毫米制线段 |
+| `BetterCnc.Ui`、`BetterCnc.Catalog` | 通用样式、控件、菜单元数据和本地资源 |
+| `BetterCnc.Manual`、`Toolpath`、`Program` | 观察注入的公开数据，发出操作意图，保存各自展示状态 |
+| `BetterCnc.Chrome`、`Workspace.qml` | 菜单、对话框、快捷键与功能组合 |
 
-| 所有者                              | 职责                                            | 允许依赖                                |
-| ----------------------------------- | ----------------------------------------------- | --------------------------------------- |
-| `app/`、`Main.qml`、`Workspace.qml` | 启动、窗口、布局、快捷键与模块组合              | 功能模块的公开入口                      |
-| `BetterCnc.Ui`                      | Theme、字体、图标绘制、通用控件                 | Qt 模块                                 |
-| `BetterCnc.Catalog`                 | 菜单/工具栏元数据、中文文案、固定演示数据和资源 | Qt 模块                                 |
-| `BetterCnc.Manual`                  | 手动/MDI、选轴、倍率及 `ManualState`            | Ui、Catalog                             |
-| `BetterCnc.Toolpath`                | 静态刀路、DRO、缩放和 `ToolpathState`           | Ui、Catalog                             |
-| `BetterCnc.Program`                 | 只读程序、选中行、右键入口                      | Ui、Catalog                             |
-| `BetterCnc.Chrome`                  | 菜单、工具栏、说明对话框                        | Ui、Catalog、ManualState、ToolpathState |
+Python 跨模块只导入公开包入口，QML 跨模块只使用 `qmldir` 公开类型。`qt/scripts/check_boundaries.py` 同时检查两种边界。预览进程可使用**只读** `linuxcnc.stat().poll()` 初始化 LinuxCNC 2.9 的 tooldata 映射；命令和 error channel 仍仅由 Controller 持有。这是独立解释器所需的 vendor 初始化，不允许预览发送机床命令。
 
-Ui 与 Catalog 没有业务模块依赖。功能模块不得相互导入面板或私有实现，内部类型使用 `qmldir` 的 `internal` 声明。`scripts/check_boundaries.py` 检查模块入口和依赖；功能规则见 [Qt AGENTS](../qt/AGENTS.md)。
+## 已接入的行为
 
-后续控制链路规划为 `QML → 独立 C++ 会话/平台适配层 → Unix domain socket → Python 控制服务 → LinuxCNC`。Qt 适配层拥有通信、窗口和文件等外部接口，通过窄 QObject 接口提供只读状态和明确操作；QML 控件不直接访问 socket 或设备。Python 继续拥有机床规则、命令写入口与错误读取入口，LinuxCNC 继续负责实时控制。该适配层与真实控制当前尚未实现，不能把展示属性当成控制器状态。
+- 真实连接、急停、电源、模式、joint/axis、回零状态、实际/指令位置、偏置、倍率、主轴、冷却、活动 G/M 代码及错误反馈。
+- 急停、电源、回零/取消回零、joint/world 模式、连续/增量点动、MDI、主轴与抱闸、冷却、倍率、速度上限、工件与刀具对刀。
+- 程序打开、重载、编辑保存、启动、从选中行启动、单步、暂停、恢复、停止、可选停止与跳行。保存由服务检查最新空闲状态后执行；显示文件必须与控制器加载文件一致才可运行。
+- 刀具表显示、编辑保存与重载，保存路径取服务的实际 INI，格式在服务侧校验。编辑受单条 64 KiB 协议帧限制；大文件仍可从磁盘打开，不能截断保存。
+- 解释器线段、执行行、投影切换、缩放、实际轨迹、坐标系与单位展示。离线时显示未知状态，不载入演示坐标或示意刀路。
+- HAL 配置、仪表、示波器等菜单显式启动本机已安装的 LinuxCNC 工具；未安装或无配置的工具明确报错。
 
-## macOS 本机配置、构建与打包
+capability 用于界面可用性，服务在执行前重新检查条件。命令受理与 LinuxCNC 确认分别表示。协议、单位及连接生命周期见 [本地控制协议](local-control-protocol.md)。
 
-需要已安装的 Qt 6.8+，包含 Quick、QuickControls2、Svg 和 QuickTest，以及 CMake、Ninja 和 Python 3。以下命令从仓库根目录执行；`qt_prefix` 指向实际 Qt 安装，本次开发机使用 `~/Qt/current/macos`。
+## 启动
+
+目标环境为 Debian 13、Qt/PySide6 6.8+、Python 3.11+ 和已安装的 LinuxCNC 2.9。`.deb` 同时安装 GUI 与独立服务启动器，并声明运行依赖；不安装守护服务、不自动启动 LinuxCNC、不改 INI/HAL。
+
+在已经由用户启动的 LinuxCNC 会话旁，使用同一系统用户分别执行：
 
 ```sh
-qt_prefix="$HOME/Qt/current/macos"
-cmake -S qt -B qt/build -G Ninja \
-  -DCMAKE_PREFIX_PATH="$qt_prefix" -DCMAKE_BUILD_TYPE=Release
-cmake --build qt/build --parallel
-ctest --test-dir qt/build --output-on-failure
-open qt/build/betterlinuxcnc.app
+betterlinuxcnc-service --ini /absolute/path/machine.ini
+betterlinuxcnc --ini /absolute/path/machine.ini
 ```
 
-Qt 的 `macdeployqt` 可将依赖与 QML 导入部署进应用包；`-qmldir` 指向应用源码，以便扫描 QML 依赖。详见 [Qt 官方 macOS 部署文档](https://doc.qt.io/qt-6/macos-deployment.html)。
+默认端点为 `$XDG_RUNTIME_DIR/betterlinuxcnc/control.sock`；未设置运行目录时使用 `/tmp/betterlinuxcnc/control.sock`。可为两条命令传相同的 `--socket /private/directory/control.sock`。父目录必须由当前用户拥有且为 0700，socket 为 0600。Qt 的 `--ini`（兼容 LinuxCNC 传入的 `-ini`）要求服务配置匹配；不会借此启动服务或切换机床配置。
+
+Qt 关闭时请求停止本会话点动、取消未发送操作和预览；服务仍独立运行。不自动停止已经运行的加工程序。作为 LinuxCNC DISPLAY 使用时，其退出如何影响整套 LinuxCNC 生命周期以实际启动配置为准，不能假设后台永久运行。
+
+源码运行（LinuxCNC 扩展需来自目标机匹配的系统安装）：
 
 ```sh
-"$qt_prefix/bin/macdeployqt" qt/build/betterlinuxcnc.app \
-  -qmldir="$PWD/qt/qml" -always-overwrite
+PYTHONPATH=backend/src python3 -m betterlinuxcnc_service --ini /absolute/path/machine.ini
+python3 qt/app/main.py --ini /absolute/path/machine.ini
 ```
 
-发布给其他 Mac 前另行完成签名、公证与干净机器启动检查；当前命令只处理 Qt 依赖部署。需要镜像文件时可以按 `macdeployqt -help` 增加 `-dmg`。
+macOS 开发界面可使用 `python3.12 -m venv qt/.venv` 后安装 `PySide6==6.8.3`，再运行 `qt/.venv/bin/python qt/app/main.py`。LinuxCNC 不可用时保留离线界面，不模拟机床。
 
-## Debian 13 构建、运行与软件包
+## 构建、检查与打包
 
-Debian 13 trixie 的 [Qt Declarative 开发工具](https://packages.debian.org/trixie/qt6-declarative-dev-tools) 和 [Qt Quick Controls 模块](https://packages.debian.org/trixie/qml6-module-qtquick-controls) 提供 Qt 6.8.2，满足工程最低版本。开发依赖和所有运行/测试 QML 模块集中列在 [`qt/scripts/ci-check.sh`](../qt/scripts/ci-check.sh)，包含 CMake、Ninja、C++ 编译器、Qt Base/Declarative/Svg、QtTest QML 模块、Python、Noto CJK 和 Liberation 字体。等宽字体依照原 Web 的字体顺序选取 SFMono-Regular、Consolas、Liberation Mono，并以 Courier New 回退。
-
-在一次性 Debian 13 容器中复现 CI：
+在安装 Qt 开发工具和 PySide6 的环境中：
 
 ```sh
-docker run --rm --init --platform linux/amd64 \
-  --mount "type=bind,src=$PWD,dst=/workspace" \
-  --workdir /workspace \
-  debian:13-slim \
-  bash qt/scripts/ci-check.sh --install-deps
-```
-
-`--install-deps` 仅用于有 root 权限的一次性容器。已有依赖的 Debian 开发环境可执行 `bash qt/scripts/ci-check.sh`；该脚本构建、运行 CTest、生成 `.deb` 并检查包内容，再提取软件包、无屏启动其中的二进制 3 秒，确认嵌入 QML 正常加载。不要复用由 macOS 或其他 Qt 安装生成的同一个 `qt/build` CMake 缓存；不同平台使用各自的工作副本。
-
-等效构建和打包步骤为：
-
-```sh
-cmake -S qt -B qt/build -G Ninja \
-  -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr
+cmake -S qt -B qt/build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_INSTALL_LIBDIR=lib
 cmake --build qt/build --parallel
 ctest --test-dir qt/build --output-on-failure
 (cd qt/build && cpack -G DEB)
 ```
 
-在具有桌面会话的 Debian 13 机器安装已验证的软件包后，通过应用菜单或 `betterlinuxcnc` 启动。软件包依赖由 CPack 的共享库检测和显式 QML 运行模块共同声明；软件包不安装、启动或配置 LinuxCNC/Python 控制服务。CI 的 offscreen/software 设置只用于无屏测试，正常运行使用目标机器的图形环境。
+macOS 配置时增加 `-DCMAKE_PREFIX_PATH="$HOME/Qt/current/macos"` 与 `-DPython3_EXECUTABLE="$PWD/qt/.venv/bin/python"`。不同平台使用不同构建目录。
 
-## QML 源码验证与对照验收
-
-CMake 的 CTest 入口运行公共 UI Qt Quick Test、模块边界检查和零警告 qmllint。Qt Quick Test 从源码目录加载 QML，通过公开组件、可观察状态与 UI 操作验收，避免跨模块引用私有实现；测试无需构建后的真实控制服务。
-
-安装 Qt 工具后，也可从仓库根目录直接执行源码检查和 UI 测试：
+完整 Debian 13 CI 入口：
 
 ```sh
-python3 qt/scripts/check_boundaries.py
-find qt/qml -name '*.qml' -exec qmllint --max-warnings 0 -I qt/qml {} +
-QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software QT_QUICK_CONTROLS_STYLE=Basic \
-  qmltestrunner -import "$PWD/qt/qml" -input qt/tests
+docker run --rm --init --platform linux/amd64 \
+  --mount "type=bind,src=$PWD,dst=/workspace" --workdir /workspace \
+  -e QT_BUILD_DIR=/workspace/qt/build-debian \
+  debian:13-slim bash qt/scripts/ci-check.sh --install-deps
 ```
 
-若 Debian 的 Qt 工具未在 PATH 中，使用 `/usr/lib/qt6/bin/qmllint` 与 `/usr/lib/qt6/bin/qmltestrunner`；macOS 可使用 `$qt_prefix/bin/` 中的对应工具。
+脚本安装容器依赖、构建、执行 UI/Python/socket/解释器测试、生成 `.deb`，再解包检验两个启动器、Python 模块和 QML 资源。offscreen/software 仅用于 CI，正常运行使用目标桌面的图形环境。服务和 Qt 桌面也各自提供 wheel/sdist 构建入口；服务 wheel 不内置 LinuxCNC 本机扩展。
 
-视觉与交互对照至少包含：常规窗口、900px 紧凑断点、760×640 最小窗口、拖动/键盘调整程序区、整列滚动、菜单及子菜单、F3/F5 与视图快捷键、MDI 输入焦点、轴选择、Preview/DRO、显示开关、程序行与右键菜单、各说明对话框。两种渲染栈的字体、字距、抗锯齿与设备缩放需要在相同平台、字体和缩放下逐项对照，不能仅凭本机截图声称所有环境像素完全相同。
+GitHub 工作流仍是 `.github/workflows/ci.yml`，`qt-build` 生成 `betterlinuxcnc-qt-debian13`，Python 3.11/3.13 job 验证服务包，保留 Web/Tauri job 和原有触发策略。Qt 包只上传，不自动安装到机床。
 
-## CI 与验收状态
+## 验证界限
 
-既有 `.github/workflows/ci.yml` 增加 `qt-build`，在 GitHub 托管 `ubuntu-24.04` 上启动 Debian 13 容器，执行原生构建、CTest 和 CPack；成功后上传 `betterlinuxcnc-qt-debian13`，失败时保存 CTest 诊断。该 job 纳入原有 `CI Gate`，不新增独立工作流，不改变 Web 分支部署规则，Qt `.deb` 不自动安装到机床。
+本次按要求不启动模拟器或真实机床。控制测试通过公开 Controller 的 vendor 替身检查调用、条件与命令序列；socket 测试使用真实本地连接；几何测试调用 Debian LinuxCNC 的真实 `gcode` 扩展，所需状态初始化在无机床测试中使用替身。因此这些结果不能证明实际 NML、回零、换刀、硬件动作或目标 INI 已验收。
 
-本文描述实现边界和复现方法，不作为 Debian CI 已通过的证据。实际验证结果以对应提交的命令输出和 CI 记录为准。macOS 构建、无屏 UI 测试、Debian 容器打包分别不能替代 Debian 13 Intel 核显上的图形/字体/缩放验收，也不表示真实机床控制已经接入。
+预览不是完整加工仿真：当前展示 XYZ 刀尖线段，旋转轴参与坐标数据但没有机床实体运动学/碰撞模型。Python REMAP、探测和依赖实际执行的用户代码不生成误导性预览；含 `#INCLUDE` 的 INI 需提供展开版本。参数写入只发生于临时副本。默认限制 32 MiB 程序、200,000 线段、20 秒解释，服务还有进程总超时；超过限制或解释错误明确显示原因。
+
+M66 等外部输入由 LinuxCNC 预览解释器提供预览值，依赖输入的条件分支不能保证与实际执行一致。刀具对刀保存后，若已有非零刀长补偿，会显式从当前刀号重新加载 G43，替换动态 G43.1/G43.2 或其他 H 补偿；原为 G49 时不自动启用补偿。该语义在界面提交前提示。
+
+GUI 心跳和服务 600 ms 点动租约是软件失联防护。LinuxCNC 原生命令发送可能等待 NML 回执并持有 Python GIL，停止请求可能延迟到该调用返回；不能将租约作为硬实时停机保证。物理安全链仍由机床系统负责。
+
+Debian 13 Intel 核显上的中文字体、缩放、最小窗口、弹窗、释放/失焦行为与实际 INI/HAL 会话仍需现场验收。不同渲染栈不能仅凭本机截图宣称跨所有环境像素完全一致。README 继续由人工维护。

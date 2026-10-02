@@ -91,7 +91,7 @@ Item {
                 }
             }
             Instantiator {
-                model: Catalog.menus
+                model: root.actions.menus
                 delegate: MenuEntries {
                     required property var modelData
                     title: modelData.label
@@ -114,7 +114,7 @@ Item {
             x: 20
             anchors.verticalCenter: parent.verticalCenter
             spacing: 10
-            UiText { text: "三轴加工"; font.pixelSize: 12; font.weight: Font.Medium }
+            UiText { text: root.actions.machine.axes && root.actions.machine.axes.length ? (root.actions.machine.axes.length === 3 ? "三轴加工" : root.actions.machine.axes.length + " 轴加工") : "机床操作"; font.pixelSize: 12; font.weight: Font.Medium }
             Item {
                 width: 14
                 height: 18
@@ -124,7 +124,7 @@ Item {
                 spacing: 10
                 UiIcon { name: "file"; width: 14; height: 18; color: Theme.secondary }
                 UiText {
-                    text: Catalog.fixture.fileName
+                    text: root.actions.program && root.actions.program.fileName ? root.actions.program.fileName : "未打开程序"
                     font.family: Theme.mono
                     font.pixelSize: 11
                     color: Theme.secondary
@@ -185,6 +185,10 @@ Item {
                             font.pixelSize: 11
                             selected: toolbarEntry.modelData.id === "view." + root.preview.choices.view
                                       || (toolbarEntry.modelData.id === "view.rotate" && root.preview.rotate)
+                                      || (toolbarEntry.modelData.id === "machine.power" && !!root.actions.machine.powered)
+                                      || (toolbarEntry.modelData.id === "program.optional" && !!root.actions.machine.optionalStop)
+                                      || (toolbarEntry.modelData.id === "program.block-delete" && !!root.actions.machine.blockDelete)
+                            enabled: root.actions.canActivate(toolbarEntry.modelData.id)
                             tooltip: toolbarEntry.modelData.label
                             onActiveFocusChanged: {
                                 if (activeFocus) toolbarViewport.ensureVisible(toolbarButton);

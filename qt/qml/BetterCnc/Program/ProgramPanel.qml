@@ -3,14 +3,24 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Controls
 import BetterCnc.Ui 1.0
-import BetterCnc.Catalog 1.0
 
 FocusScope {
     id: root
     objectName: "programPanel"
-    property int selectedLine: 0
+    property var machine: null
+    property var program: null
+    readonly property var programLines: program && program.lines ? program.lines : []
+    readonly property int selectedLine: program ? program.selectedLine : 0
+    readonly property int executingLine: machine && machine.connected ? Number(machine.currentLine || 0) : 0
+    readonly property bool canRunLine: Boolean(machine && machine.connected && programLines.length > 0
+            && machine.capabilities && machine.capabilities["program.run-line"] === true)
+    onExecutingLineChanged: {
+        if (executingLine > 0 && executingLine <= programLines.length)
+            lines.positionViewAtIndex(executingLine - 1, ListView.Contain);
+    }
     property bool showFocusRing: false
     signal dialogRequested(string actionId, string title, string axis)
+    signal commandRequested(string actionId, var payload)
     clip: true
     activeFocusOnTab: true
     Accessible.role: Accessible.List
@@ -18,7 +28,8 @@ FocusScope {
     onActiveFocusChanged: showFocusRing = activeFocus
 
     function selectLine(line: int): void {
-        selectedLine = Math.max(0, Math.min(Catalog.sampleProgram.length - 1, line));
+        if (program && programLines.length)
+            program.selectedLine = Math.max(1, Math.min(programLines.length, line));
     }
 
     function openMenu(x: real, y: real): void {
@@ -36,7 +47,7 @@ FocusScope {
     }
     Keys.onPressed: event => {
         if (event.key === Qt.Key_Menu || (event.key === Qt.Key_F10 && (event.modifiers & Qt.ShiftModifier))) {
-            openMenu(65, Math.max(44, Math.min(height - 40, 44 + selectedLine * 24 - lines.contentY)));
+            openMenu(65, Math.max(44, Math.min(height - 40, 44 + (selectedLine - 1) * 24 - lines.contentY)));
             event.accepted = true;
         }
     }
@@ -48,8 +59,8 @@ FocusScope {
         anchors.top: heading.bottom
         anchors.bottom: parent.bottom
         width: parent.width
-        model: Catalog.sampleProgram
-        currentIndex: root.selectedLine
+        model: root.programLines
+        currentIndex: root.selectedLine - 1
         topMargin: 6
         bottomMargin: 6
         boundsBehavior: Flickable.StopAtBounds
@@ -63,7 +74,7 @@ FocusScope {
 
         TextMetrics {
             id: longestLine
-            text: Catalog.sampleProgram.reduce((longest, line) => line.length > longest.length ? line : longest, "")
+            text: root.programLines.reduce((longest, line) => line.length > longest.length ? line : longest, "")
             font.family: Theme.mono
             font.pixelSize: 12
         }
@@ -74,15 +85,15 @@ FocusScope {
             objectName: "programLine" + index
             width: lines.contentWidth
             height: 24
-            color: rowMouse.containsMouse ? "#202126" : (index === root.selectedLine ? "#22232c" : "transparent")
+            color: rowMouse.containsMouse ? "#202126" : (index + 1 === root.selectedLine ? "#22232c" : (index + 1 === root.executingLine ? "#173028" : "transparent"))
             Accessible.role: Accessible.ListItem
             Accessible.name: (index + 1) + " " + modelData
-            Accessible.selected: index === root.selectedLine
+            Accessible.selected: index + 1 === root.selectedLine
 
             Rectangle {
                 width: 2
                 height: parent.height
-                color: programLine.index === root.selectedLine ? Theme.accent : "transparent"
+                color: programLine.index + 1 === root.executingLine ? "#72d39d" : (programLine.index + 1 === root.selectedLine ? Theme.accent : "transparent")
             }
             UiText {
                 x: 5
@@ -91,7 +102,7 @@ FocusScope {
                 text: programLine.index + 1
                 horizontalAlignment: Text.AlignRight
                 verticalAlignment: Text.AlignVCenter
-                color: programLine.index === root.selectedLine ? "#c6c0ff" : Theme.muted
+                color: programLine.index + 1 === root.selectedLine ? "#c6c0ff" : Theme.muted
                 font.family: Theme.mono
                 font.pixelSize: 12
             }
@@ -114,7 +125,7 @@ FocusScope {
                 onPressed: mouse => {
                     root.forceActiveFocus();
                     root.showFocusRing = false;
-                    root.selectLine(programLine.index);
+                    root.selectLine(programLine.index + 1);
                     if (mouse.button === Qt.RightButton) {
                         const point = mapToItem(root, mouse.x, mouse.y);
                         root.openMenu(point.x, point.y);
@@ -124,6 +135,14 @@ FocusScope {
         }
     }
 
+    UiText {
+        objectName: "emptyProgramMessage"
+        anchors.centerIn: lines
+        visible: root.programLines.length === 0
+        text: "尚未加载加工程序"
+        color: Theme.muted
+        font.pixelSize: 12
+    }
     Rectangle {
         id: heading
         width: parent.width
@@ -143,7 +162,8 @@ FocusScope {
             UiText { text: "加工程序"; font.pixelSize: 11 }
             UiText {
                 leftPadding: 8
-                text: Catalog.fixture.fileName
+                objectName: "programFileName"
+                text: root.program && root.program.fileName ? root.program.fileName : "未加载"
                 color: Theme.muted
                 font.family: Theme.mono
                 font.pixelSize: 11
@@ -153,7 +173,7 @@ FocusScope {
             anchors.right: parent.right
             anchors.rightMargin: 18
             anchors.verticalCenter: parent.verticalCenter
-            text: Catalog.sampleProgram.length + " 行"
+            text: root.programLines.length + " 行"
             font.pixelSize: 10
             color: Theme.muted
         }
@@ -223,6 +243,7 @@ FocusScope {
             id: runLineItem
             objectName: "runFromLineAction"
             text: "从此行运行"
+            enabled: root.canRunLine
             height: 30
             leftPadding: 5
             contentItem: UiText {
@@ -234,7 +255,7 @@ FocusScope {
                 radius: 5
                 color: runLineItem.highlighted ? "#34353c" : "transparent"
             }
-            onTriggered: root.dialogRequested("program.run-line", "从此行运行", "")
+            onTriggered: root.commandRequested("program.run-line", {line: root.selectedLine})
         }
     }
 }

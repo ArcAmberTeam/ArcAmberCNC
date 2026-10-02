@@ -13,17 +13,35 @@ Popup {
     property string axis: "X"
     property string value: "0.0"
     property string coordinateSystem: "G54"
+    property var machine: ({})
+    property var program: null
+    property string toolTableText: ""
+    property string touchTarget: "workpiece"
+    property string editorText: ""
+    property string message: ""
+    property string validationError: ""
+    signal submitted(string actionId, var payload)
+    readonly property bool editable: ["machine.touch-off", "tool.touch-off", "view.grid-custom",
+                                      "file.edit", "tool.edit", "machine.debug"].indexOf(actionId) >= 0
+    readonly property bool submissionEnabled: actionId === "view.grid-custom"
+        || (actionId === "file.edit" && !machine.busy) || (!!machine.connected && !machine.busy)
     readonly property string description: {
         if (actionId === "help.about") return "基于 AXIS 的 LinuxCNC 中文操作界面";
-        if (actionId === "help.reference") return "快捷键说明：当前仅支持 F3、F5 和视图操作快捷键，机床控制快捷键尚未接入。";
-        if (actionId === "file.properties") return "当前内置演示程序的信息。";
-        return "尚未连接控制器。当前仅演示界面，此操作不会执行。";
+        if (actionId === "help.reference") return "机床快捷键在文本输入、菜单和对话框中隔离；点动在松键、失焦时停止。";
+        if (actionId === "file.properties") return "当前加工程序的信息。";
+        if (actionId === "file.edit") return "修改当前加工程序，保存后重新加载。";
+        if (actionId === "tool.edit") return "编辑 LinuxCNC 刀具表，保存后重新加载刀具数据。";
+        if (actionId === "tool.touch-off" || (actionId === "machine.touch-off" && touchTarget === "tool"))
+            return "保存当前刀具对刀值；已有刀长补偿将从当前刀号重新加载，替换动态补偿";
+        if (actionId === "machine.touch-off") return "输入当前刀具位置对应的工件坐标。";
+        if (actionId === "view.grid-custom") return "设置刀路视图的网格间距（毫米）。";
+        if (actionId === "machine.debug") return "设置控制器调试标志（非负整数）。";
+        return message;
     }
     parent: Overlay.overlay
     popupType: Popup.Item
-    width: Math.min(actionId === "help.reference" ? 516
-                    : ["file.open", "file.open-sample", "file.save"].indexOf(actionId) >= 0 ? 406
-                    : 370, parent ? parent.width * 0.92 : 516)
+    width: Math.min(["file.edit", "tool.edit"].indexOf(actionId) >= 0 ? 760
+                    : actionId === "help.reference" ? 516 : 370, parent ? parent.width * 0.92 : 760)
     height: Math.min(58 + body.implicitHeight + 44, parent ? parent.height * 0.85 : 680)
     x: parent ? (parent.width - width) / 2 : 0
     y: parent ? parent.height * 0.46 - height / 2 : 0
@@ -42,8 +60,34 @@ Popup {
         actionId = id;
         title = item ? item.label.replace("…", "") : (label || "操作说明");
         axis = selectedAxis || "X";
-        value = "0.0";
+        value = id === "machine.debug" && machine.debug !== null && machine.debug !== undefined ? String(machine.debug) : "0.0";
+        validationError = "";
+        message = "";
+        editorText = id === "tool.edit" ? toolTableText : program ? program.text : "";
         open();
+    }
+    function openMessage(heading, detailMessage) {
+        actionId = "controller.message";
+        title = heading;
+        message = detailMessage;
+        validationError = "";
+        open();
+    }
+    function submit() {
+        if (!submissionEnabled) return;
+        if (actionId === "file.edit" || actionId === "tool.edit") {
+            validationError = "";
+            submitted(actionId === "file.edit" ? "file.save-edits" : "tool.save", {text: editorText});
+            return;
+        }
+        const number = Number(value);
+        if (!value.trim() || !isFinite(number) || (actionId === "view.grid-custom" && number <= 0)
+                || (actionId === "machine.debug" && (number < 0 || Math.floor(number) !== number))) {
+            validationError = "请输入有效的数值。";
+            return;
+        }
+        submitted(actionId, {axis: axis, value: number, system: coordinateSystem, target: touchTarget});
+        close();
     }
     onOpened: closeButton.forceActiveFocus()
 
@@ -108,22 +152,40 @@ Popup {
                         if (root.actionId === "help.about") return aboutContent;
                         if (root.actionId === "help.reference") return referenceContent;
                         if (root.actionId === "file.properties") return propertiesContent;
-                        if (["file.open", "file.open-sample", "file.save"].indexOf(root.actionId) >= 0) return fileContent;
+                        if (root.actionId === "file.edit" || root.actionId === "tool.edit") return editorContent;
                         if (["machine.touch-off", "tool.touch-off"].indexOf(root.actionId) >= 0) return touchContent;
-                        if (root.actionId === "view.grid-custom") return gridContent;
-                        if (root.actionId === "tool.edit") return toolContent;
-                        if (root.actionId === "show.pyvcp") return panelContent;
+                        if (root.actionId === "view.grid-custom" || root.actionId === "machine.debug") return gridContent;
                         return null;
                     }
                 }
                 Item { width: 1; height: 24 }
-                UiButton {
-                    id: closeButton
-                    objectName: "dialog-close"
+                UiText {
+                    objectName: "dialog-validation-error"
+                    width: parent.width
+                    text: root.validationError
+                    color: Theme.danger
+                    visible: text.length > 0
+                    wrapMode: Text.WordWrap
+                }
+                Row {
                     anchors.right: parent.right
-                    width: 75
-                    text: "关闭"
-                    onClicked: root.close()
+                    spacing: 8
+                    UiButton {
+                        id: closeButton
+                        objectName: "dialog-close"
+                        width: 75
+                        text: root.editable ? "取消" : "关闭"
+                        onClicked: root.close()
+                    }
+                    UiButton {
+                        objectName: "dialog-submit"
+                        visible: root.editable
+                        enabled: root.submissionEnabled
+                        kind: "primary"
+                        width: 75
+                        text: root.actionId === "file.edit" || root.actionId === "tool.edit" ? "保存" : "应用"
+                        onClicked: root.submit()
+                    }
                 }
             }
         }
@@ -137,9 +199,9 @@ Popup {
             Column {
                 Layout.fillWidth: true
                 spacing: 7
-                UiText { text: "AXIS " + Catalog.fixture.version; font.pixelSize: 18; font.bold: true }
-                UiText { text: "示例配置：" + Catalog.fixture.machine; font.pixelSize: 13 }
-                UiText { text: "中文界面原型 · 仅作展示" }
+                UiText { text: "BetterLinuxCNC"; font.pixelSize: 18; font.bold: true }
+                UiText { text: root.machine.machineName || "LinuxCNC"; font.pixelSize: 13 }
+                UiText { text: "Qt Quick 中文操作界面" }
                 UiText { text: "功能与布局参考 AXIS 2.9.10。" }
             }
         }
@@ -168,59 +230,33 @@ Popup {
             columnSpacing: 22
             rowSpacing: 7
             UiText { text: "文件名"; font.bold: true }
-            UiText { text: Catalog.fixture.fileName; Layout.fillWidth: true }
+            UiText { text: root.program ? root.program.fileName : "未打开程序"; Layout.fillWidth: true }
             UiText { text: "程序行数"; font.bold: true }
-            UiText { text: Catalog.sampleProgram.length }
+            UiText { text: root.program ? root.program.lines.length : 0 }
             UiText { text: "程序来源"; font.bold: true }
-            UiText { text: "内置 AXIS 标识演示程序" }
+            UiText { text: root.program ? root.program.filePath : "—"; Layout.fillWidth: true; wrapMode: Text.WrapAnywhere }
             UiText { text: "刀路预览"; font.bold: true }
-            UiText { text: "静态示意图，尚未接入程序解释器"; Layout.fillWidth: true; wrapMode: Text.WordWrap }
+            UiText { text: root.program ? (root.program.previewBusy ? "正在解释程序" : root.program.previewError || "RS274 刀路") : "—"; Layout.fillWidth: true; wrapMode: Text.WordWrap }
         }
     }
     Component {
-        id: fileContent
-        ColumnLayout {
-            spacing: 10
-            RowLayout {
-                Layout.fillWidth: true
-                spacing: 10
-                UiText { text: "文件夹：" }
-                UiTextField { Layout.fillWidth: true; text: "/linuxcnc/nc_files"; readOnly: true; Accessible.name: "文件夹" }
-            }
-            Rectangle {
-                Layout.fillWidth: true
-                Layout.preferredHeight: 160
-                color: Theme.input
-                radius: 6
-                border.color: Theme.borderControl
-                Column {
-                    x: 4
-                    y: 4
-                    width: parent.width - 8
-                    Item {
-                        width: parent.width
-                        height: 24
-                        UiText { x: 3; anchors.verticalCenter: parent.verticalCenter; text: "📁  上级目录" }
-                    }
-                    Rectangle {
-                        width: parent.width
-                        height: 24
-                        color: Theme.accentSoft
-                        UiText { x: 3; anchors.verticalCenter: parent.verticalCenter; text: "▤  axis.ngc" }
-                    }
-                }
-            }
-            RowLayout {
-                Layout.fillWidth: true
-                spacing: 10
-                UiText { text: "文件名：" }
-                UiTextField { Layout.fillWidth: true; text: Catalog.fixture.fileName; readOnly: true; Accessible.name: "文件名" }
-            }
-            RowLayout {
-                Layout.fillWidth: true
-                spacing: 10
-                UiText { text: "文件类型：" }
-                UiComboBox { Layout.fillWidth: true; model: ["加工程序（*.ngc）", "所有文件（*）"]; Accessible.name: "文件类型" }
+        id: editorContent
+        ScrollView {
+            height: 340
+            clip: true
+            TextArea {
+                objectName: "dialog-editor"
+                text: root.editorText
+                font.family: Theme.mono
+                font.pixelSize: 12
+                color: Theme.text
+                selectionColor: Theme.accentSoft
+                selectedTextColor: Theme.text
+                wrapMode: TextEdit.NoWrap
+                selectByMouse: true
+                padding: 10
+                background: Rectangle { color: Theme.input; border.color: Theme.borderControl; radius: 6 }
+                onTextChanged: root.editorText = text
             }
         }
     }
@@ -258,7 +294,7 @@ Popup {
         id: gridContent
         RowLayout {
             spacing: 10
-            UiText { text: "网格间距" }
+            UiText { text: root.actionId === "machine.debug" ? "调试标志" : "网格间距" }
             UiTextField {
                 objectName: "grid-spacing"
                 Layout.preferredWidth: 130
@@ -267,44 +303,7 @@ Popup {
                 inputMethodHints: Qt.ImhFormattedNumbersOnly
                 onTextEdited: root.value = text
             }
-            UiText { text: "毫米"; Layout.fillWidth: true }
-        }
-    }
-    Component {
-        id: toolContent
-        Column {
-            height: 65
-            Row {
-                width: parent.width
-                Repeater {
-                    model: ["刀具号", "刀位号", "X", "Y", "Z", "直径", "备注"]
-                    delegate: Rectangle {
-                        id: toolHeading
-                        required property string modelData
-                        required property int index
-                        width: parent.width * (index < 2 ? 0.2 : index > 4 ? 0.15 : 0.1)
-                        height: 32
-                        color: "transparent"
-                        border.color: Theme.borderControl
-                        UiText { x: 7; anchors.verticalCenter: parent.verticalCenter; text: toolHeading.modelData; font.bold: true }
-                    }
-                }
-            }
-            Rectangle {
-                width: parent.width
-                height: 33
-                color: Theme.input
-                border.color: Theme.borderControl
-                UiText { x: 7; anchors.verticalCenter: parent.verticalCenter; text: "尚未加载刀具表" }
-            }
-        }
-    }
-    Component {
-        id: panelContent
-        UiText {
-            text: "自定义面板需根据具体机床配置。当前三轴演示界面未配置 PyVCP 面板。"
-            wrapMode: Text.WordWrap
-            lineHeight: 1.5
+            UiText { text: root.actionId === "machine.debug" ? "" : "毫米"; Layout.fillWidth: true }
         }
     }
 }

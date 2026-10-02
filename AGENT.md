@@ -6,25 +6,25 @@
 
 2026-10-02 用户决定将当前 Vue 页面迁移为原生 Qt Quick/QML。**`qt/` 是新增正式桌面入口**，`frontend/` 保留为迁移对照和 Web 预览，现有 Tauri 桌面环境保留，不在此次迁移中删除。原生 AXIS 应用已删除，包括 Python 主程序、Tcl 界面、axis-remote、专属资源和构建/安装入口。LinuxCNC 控制核心、共享 Python API 和其他上游工具保留，不属于当前界面发布产物。删除边界及遗留配置说明见 [迁移记录](docs/native-axis-removal.md)，当前桌面决策见 [Qt 迁移说明](docs/qt-qml-migration.md)。
 
-当前界面仍是机床操作原型。Qt 入口仅实现原生展示与本地交互；保留的 Tauri 桌面环境可经 Unix socket 查询独立 Python 诊断服务，但两者均未接入 LinuxCNC。机床动作只显示未接入说明；不得发送机床命令、读取硬件或声称完成了运动。服务启动由开发者显式执行，桌面不自动启动 LinuxCNC 或 Python。视觉设计不向原生 Tcl/Python 回写。
+用户随后要求全部接入，并明确先使用 Unix socket、不运行模拟。Qt 入口现通过独立 Python 控制服务接入 LinuxCNC 状态、命令及解释器预览；保留的 Tauri 桌面环境仍只查询 v1 诊断接口。服务由用户显式启动，桌面不自动启动 LinuxCNC 或 Python 服务。没有机床配置或实测依据时，不得声称完成了运动或目标机验收。视觉设计不向原生 Tcl/Python 回写。
 
 ## 技术与系统边界
 
 - 目标运行环境：Debian 13、Intel 核显。CPU 型号、LinuxCNC 安装版本、Qt 图形后端、字体与缩放仍须在目标机确认；保留 Tauri 入口的 WebKitGTK 能力单独验收。
-- 原生桌面：Qt 6.8+、Qt Quick/QML、C++17 和 CMake。Vue 3、TypeScript、Vite、Pinia、Reka UI、Tailwind CSS 保留在 `frontend/` 供对照和 Web 预览；浏览器不提供真实控制入口。
-- 后续原生控制链路为 QML → 独立 C++ 适配层 → Unix domain socket → Python 控制服务 → LinuxCNC，目前尚未接入。保留的 Vue → Tauri IPC → Rust 诊断实现及旧决策见 [Tauri 架构记录](docs/tauri-local-control-architecture.md)。不建设 HTTP/WebSocket 控制网关，不以 OpenAPI 作为本地消息协议；消息结构、版本与运行时校验仍须明确。
-- LinuxCNC 自身负责插补、运动规划、实时线程及 HAL。QML、C++ 界面适配、Vue、Rust 与 Python 控制服务均不得承担实时伺服职责。平台适配层拥有桌面权限和通信桥接；Python 拥有机床操作规则，不复制两套控制逻辑。
-- 未来控制器进程持有应用内唯一命令写入口和错误通道读取入口。其他 UI/HALUI 的写权限需显式协调。预览解释工作放在独立进程。
-- 不假设关闭 `DISPLAY` 后 LinuxCNC 仍运行；在接入前明确启动、关闭、重连及进程监管策略。
-- 本阶段原生 Qt 入口不访问控制服务；保留已有 `health` 服务查询与对应 Tauri 命令。不创建假 WebSocket、未实现的控制命令或伪控制状态机。
+- 原生桌面：Qt 6.8+、Qt Quick/QML、PySide6、Python 3.11+ 和 CMake；C++17 仅用于 Qt Quick Test 启动器。Vue 3、TypeScript、Vite、Pinia、Reka UI、Tailwind CSS 保留在 `frontend/` 供对照和 Web 预览；浏览器不提供真实控制入口。
+- 控制链路为 QML → PySide6 QObject → Unix domain socket → 独立 Python 控制服务 → LinuxCNC。桌面不得直接导入 LinuxCNC。保留的 Vue → Tauri IPC → Rust 诊断实现及旧决策见 [Tauri 架构记录](docs/tauri-local-control-architecture.md)。不建设 HTTP/WebSocket 控制网关；v2 协议见 [本地控制协议](docs/local-control-protocol.md)。
+- LinuxCNC 自身负责 G 代码解释、插补、运动规划、实时线程及 HAL。QML、PySide6、Vue、Rust 与 Python 控制服务均不得承担实时伺服职责。桌面适配层拥有窗口和通信桥接；服务拥有机床操作规则，不复制两套控制逻辑。
+- 控制服务持有应用内唯一命令写入口和错误通道读取入口。其他 UI/HALUI 的写权限仍需协调；检测到回执序号被其他写入者推进时取消后续命令步骤。预览在独立进程调用 LinuxCNC 的 `gcode` 扩展。
+- 服务和桌面均不监管或启动 LinuxCNC；不假设退出 `DISPLAY` 后 LinuxCNC 仍运行。断开时取消未发出的命令并停止本会话点动，不自动中止已经运行的程序，重连不重放命令。
+- v1 `health` 继续保持历史诊断格式，不能用于判断机床连接；真实状态只来自 v2 会话。离线坐标显示未知，测试夹具不得进入生产数据流。
 
 ## 模块边界
 
 Qt 目录及依赖见 [qt/AGENTS.md](qt/AGENTS.md)：按 `BetterCnc.<Capability>` 命名模块及 `qmldir` 公开类型组织，组件通过公开展示状态与信号组合。Web 目录及依赖见 [frontend/agent.md](frontend/agent.md)：功能模块采用扁平的 `src/packages/<name>/`，模块根文件为公开入口，子目录一律私有。跨模块和应用层只允许导入公开入口，包括 type-only 导入。禁止依赖环、反向依赖及生产代码引用测试夹具。
 
-外部网络、文件、进程和平台接口只能由明确适配层拥有。后续 Qt 控制会话适配层负责会话、只读状态快照和命令生命周期；保留 Web 的 `controller-session` 私有 Tauri 诊断边界。界面组件不得直接调用 LinuxCNC、HAL、socket、HTTP、WebSocket 或 Tauri。
+外部网络、文件、进程和平台接口只能由明确适配层拥有。Qt 的 `bettercnc.desktop` 向 QML 提供只读状态和操作，`bettercnc.session` 负责 socket；服务的 `bettercnc_controller` 拥有控制规则与机床文件写入，`bettercnc_preview` 拥有隔离解释。保留 Web 的 `controller-session` 私有 Tauri 诊断边界。界面组件不得直接调用 LinuxCNC、HAL、socket、HTTP、WebSocket 或 Tauri。
 
-后续协议必须区分 joint/axis、机床/工件坐标、指令/实际位置、角度/长度单位；命令“已接受、已发送、已完成、结果未知”不得混为一谈。重连不得自动重放运动、MDI 或主轴命令。软急停 UI 不替代物理安全回路。
+协议必须区分 joint/axis、机床/工件坐标、指令/实际位置、角度/长度单位；命令“已接受、已发送、已完成、结果未知”不得混为一谈。重连不得自动重放运动、MDI 或主轴命令。软急停 UI 不替代物理安全回路。测试不启动模拟器或机床；使用 vendor 接口替身、真实 Unix socket 和只解释文件的 LinuxCNC `gcode` 扩展。
 
 ## README 人工维护规则
 

@@ -5,6 +5,7 @@ Item {
     id: root
     property string label: ""
     property string unit: "%"
+    property bool valueKnown: true
     property real from: 0
     property real to: 100
     property alias value: slider.value
@@ -15,8 +16,8 @@ Item {
     Row {
         anchors.right: parent.right
         spacing: 5
-        UiText { text: Math.round(slider.value); font.family: Theme.mono; font.pixelSize: 12 }
-        UiText { text: root.unit; color: Theme.muted; font.pixelSize: 10; anchors.baseline: parent.children[0].baseline }
+        UiText { objectName: root.objectName + ".value"; text: root.valueKnown ? Math.round(slider.value) : "—"; font.family: Theme.mono; font.pixelSize: 12 }
+        UiText { visible: root.valueKnown; text: root.unit; color: Theme.muted; font.pixelSize: 10; anchors.baseline: parent.children[0].baseline }
     }
     Slider {
         id: slider

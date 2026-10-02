@@ -123,6 +123,7 @@ Menu {
             required property var entry
             objectName: "menu-" + entry.id
             text: entry.label
+            enabled: root.actions.canActivate(entry.id)
             implicitHeight: 30
             font: root.font
             padding: 0
@@ -152,6 +153,7 @@ Menu {
                     anchors.verticalCenter: parent.verticalCenter
                     text: actionItem.text
                     font: root.font
+                    color: actionItem.enabled ? Theme.text : Theme.muted
                 }
                 UiText {
                     anchors.right: parent.right

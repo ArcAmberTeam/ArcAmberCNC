@@ -27,5 +27,7 @@ with tempfile.TemporaryDirectory() as directory:
 assert callable(linuxcnc.stat)
 assert callable(linuxcnc.command)
 assert callable(gcode.parse)
-assert isinstance(gcode.strerror(0), str)
+# strerror requires an interpreter created by parse(); importing the extension
+# deliberately does not initialize one or open a machine's tool/status channels.
+assert callable(gcode.strerror)
 print("Native Python imports and INI API passed without opening control channels.")

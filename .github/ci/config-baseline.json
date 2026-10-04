@@ -1,0 +1,22 @@
+{
+  "configs/attic/demo_mazak/demo_mazak.ini:85: missing local reference: panel.hal": {
+    "reason": "Inherited archived machine example references an absent control panel; this CI change does not repair machine configurations.",
+    "sha256": "2bf01ddeb677c7565c5e8ab7bf3317695b43e5f531c8edcd27f5b6ebdda7e856"
+  },
+  "configs/by_machine/boss/boss.ini:105: invalid INI assignment: TOOL_CHANGE_POSITION    -18.0 -12.0 0.0": {
+    "reason": "Inherited TOOL_CHANGE_POSITION assignment is missing its equals sign; requires a separate machine configuration fix.",
+    "sha256": "d8ce5dbe8b5af2fbbf392052dd59edfe58ad00141e05be068d774fd8678e747b"
+  },
+  "configs/by_machine/boss/pid_test.ini:105: invalid INI assignment: TOOL_CHANGE_POSITION    -18.0 -12.0 0.0": {
+    "reason": "Inherited TOOL_CHANGE_POSITION assignment is missing its equals sign; requires a separate machine configuration fix.",
+    "sha256": "9fbe5fed7a984511629b83d637d30e8b5947c9d59e57dc633a13e1675f23fd6d"
+  },
+  "configs/sim/axis/ini_with_includes/includes_demo.ini:30: missing local reference: nosuchfile": {
+    "reason": "Deliberate missing-include example, documented immediately above this directive.",
+    "sha256": "64e0ecbb9fa8d17c54e71c1d59ada6cb79f61f1565f62d57cd2bece9c7237704"
+  },
+  "configs/sim/woodpecker/woodpecker.hal:16: No closing quotation": {
+    "reason": "Inherited commented driver line leaves an uncommented continuation with an unmatched quote; requires a separate example fix.",
+    "sha256": "99f2bffdef7d778039e1872fba77e8972be3c9096db686ee45c6af9a1129bbc4"
+  }
+}

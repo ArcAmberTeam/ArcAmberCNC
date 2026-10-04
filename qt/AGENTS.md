@@ -28,5 +28,5 @@
 - 新建或修改依赖规则时，临时加入非法导入，确认失败，删除反例，再确认正常代码通过。
 - 公共 UI 测试以 `objectName`、键盘和鼠标操作观察行为；Python 测试经公开接口与真实 Unix socket，使用受控服务替身。不得为测试暴露私有实现，不启动模拟器或机床。
 - macOS 构建和无屏测试不能替代 Debian 13、Intel 核显、中文字体、缩放与窗口生命周期验收。容器构建不表示目标机图形或机床已验证。
-- `.github/workflows/ci.yml` 的原生 Qt job 调用 `scripts/ci-check.sh`，运行测试并生成独立 `.deb`；产物只上传，不自动安装或部署到机床。
+- `.github/workflows/ci.yml` 分别显示“Python：Qt 界面后端”和“QML：Qt 桌面界面”。`scripts/ci-check.sh --suite desktop` 验证安装后的 Python 包，`--suite qml` 执行 QML 检查并生成、验证 `.deb`；不带 `--suite` 仍执行完整测试。产物只上传，不自动安装或部署到机床。
 - 构建、启动、打包及对照验收步骤见 [Qt 迁移说明](../docs/qt-qml-migration.md)。所有 README 仅由人工维护。

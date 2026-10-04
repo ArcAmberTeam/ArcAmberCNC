@@ -47,7 +47,15 @@ Qt 目录及依赖见 [qt/AGENTS.md](qt/AGENTS.md)：按 `BetterCnc.<Capability>
 
 所有活动 CI/CD job 均运行于 GitHub 托管的 `ubuntu-24.04` runner，不依赖 PVE 自托管 runner。源码检查通过 `.github/ci/setup-source-tools.sh` 验证预装工具并下载固定版本、校验 SHA-256 的 actionlint，不调用 apt/sudo。部署 job 仍通过 FRP 连接 Web 测试服务器。
 
-当前唯一自动工作流为 `.github/workflows/ci.yml` 的 Desktop and Web CI：保留 Web 构建、浏览器测试、预览发布、Python 3.11/3.13 安装包测试，以及 Debian 13 容器内的 Rust 格式/lint、Rust→Python 集成测试和 Tauri `.deb` 构建；新增独立 Debian 13 Qt 构建、公共 UI/模块边界测试和 `.deb` 打包。所有任务纳入原有 `CI Gate`，保留分支部署策略。桌面产物只上传 CI，不自动安装到机床；不构建或部署原生 LinuxCNC/AXIS `.deb`，不运行运动仿真。构建成功不代表机床控制或目标机图形已验收。
+当前唯一自动工作流为 `.github/workflows/ci.yml` 的 ArcAmberCNC Module CI，push 覆盖 `main`、`staging测试环境` 和 `kihon`，同时支持 PR、merge queue 与手动运行。每个模块显示独立的“语言：功能”检查结果，矩阵设置 `fail-fast: false`；统一 `CI Gate` 要求全部矩阵实例通过，名称保持不变以兼容分支保护。
+
+- C：HAL 抽象层、实时运动控制、硬件驱动；C++：LinuxCNC 任务层、G代码解析层、Python 扩展，共六个独立构建实例。入口为 `.github/ci/native-check.sh`，CI 专用目标文件复用原生 Makefile 依赖图，Debian 13 amd64 uspace 构建环境由 `.github/ci/native/Dockerfile` 管理。模块之间的编译依赖保留；不把独立 CI 误解成完全无依赖的库。
+- Python：独立控制服务（3.11/3.13）、预览适配、Qt 界面后端；各自安装当前源码生成的 wheel 并运行所属测试，入口为 `.github/ci/python-check.sh`。预览 job 强制要求 Debian 的真实 `gcode` 扩展存在，缺失时失败；原生 Python 扩展 job 则验证当前源码编译的扩展，不混淆两者。
+- QML：Qt 桌面界面；执行 QML UI、qmllint、模块边界与启动检查，再生成并验证 Qt `.deb`。`qt/scripts/ci-check.sh --suite desktop|qml` 为拆分入口，无参数仍运行完整 Qt 检查。
+- HAL/INI/Tcl：机床配置与模块连接；静态检查配置语法、常用 HAL 命令参数、本地文件引用和 include 环。Tcl 只检查语法完整性，不执行文件。历史诊断在 `.github/ci/config-baseline.json` 中逐项记录原因和文件 SHA-256，新增诊断、历史文件变化或已修复但未移除的记录均导致失败。
+- 保留 TypeScript/Vue Web 构建、浏览器测试、Rust Tauri 桌面环境，以及 Web 发布流程，名称同样采用“语言：功能”。
+
+CI 不启动 LinuxCNC、HAL 实时线程、模拟器或硬件。原生 HAL/运动/驱动以编译、链接和导出符号检查为主，任务层检查构建与动态依赖；解释器只运行独立文件解释回归。配置静态检查不能验证实际引脚存在、信号类型、单写入者、时序或机床参数正确性。原生构建仅上传日志，不发布 LinuxCNC 核心 `.deb`；桌面产物只上传 CI，不自动安装到机床。构建成功不代表机床控制或目标机图形已验收。
 
 Tauri 桌面 CI 的系统依赖与 Node/Rust 工具链由 `.github/ci/desktop/Dockerfile` 管理，使用 BuildKit 的 GitHub Actions 镜像层缓存；每次仍在新容器中运行 `.github/ci/desktop-in-container.sh` 检查当前源码。镜像不含应用源码，Rust 编译缓存随环境镜像 ID 隔离；缓存刷新和本地复现方式见 `.github/ci/README.md`。Qt job 在独立 `debian:13-slim` 容器内调用 `qt/scripts/ci-check.sh` 安装 Qt 依赖、构建、测试并打包，不改变 Web 部署路径。
 

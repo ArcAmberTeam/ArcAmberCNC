@@ -1,8 +1,8 @@
-name: Desktop and Web CI
+name: ArcAmberCNC Module CI
 
 on:
   push:
-    branches: [main, staging测试环境]
+    branches: [main, staging测试环境, kihon]
   pull_request:
   merge_group:
   workflow_dispatch:
@@ -22,7 +22,7 @@ concurrency:
 
 jobs:
   source-checks:
-    name: Workflow and deployment checks
+    name: Shell/Python：工作流与发布检查
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -38,7 +38,7 @@ jobs:
         run: .github/ci/check-source.sh
 
   web-build:
-    name: Web types, boundaries and build
+    name: TypeScript/Vue：Web 前端
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -68,7 +68,7 @@ jobs:
           if-no-files-found: error
 
   browser-tests:
-    name: Web browser tests
+    name: TypeScript：浏览器交互测试
     needs: web-build
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -112,8 +112,62 @@ jobs:
           path: frontend/test-results/
           if-no-files-found: ignore
 
+  native-checks:
+    name: ${{ matrix.name }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - module: hal
+            name: C：HAL 抽象层
+          - module: motion
+            name: C：实时运动控制
+          - module: drivers
+            name: C：硬件驱动
+          - module: task
+            name: C++：LinuxCNC 任务层
+          - module: interpreter
+            name: C++：G代码解析层
+          - module: python-extensions
+            name: C++：Python 扩展
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@v4
+      - name: Prepare the native Debian 13 toolchain
+        uses: docker/build-push-action@v7
+        with:
+          context: .github/ci/native
+          platforms: linux/amd64
+          tags: arcamber-native-ci:current
+          load: true
+          pull: true
+          provenance: false
+          cache-from: type=gha,scope=native-debian13-amd64
+          # Only one matrix child updates the shared dependency cache.
+          cache-to: ${{ matrix.module == 'hal' && 'type=gha,scope=native-debian13-amd64,mode=max' || '' }}
+      - name: Compile and verify this module without starting a controller
+        env:
+          NATIVE_MODULE: ${{ matrix.module }}
+        run: |
+          set -o pipefail
+          mkdir -p native-logs
+          docker run --rm --init --platform linux/amd64 \
+            --mount "type=bind,src=$GITHUB_WORKSPACE,dst=/workspace,readonly" \
+            arcamber-native-ci:current \
+            bash .github/ci/native-check.sh "$NATIVE_MODULE" 2>&1 | tee "native-logs/$NATIVE_MODULE.log"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: native-${{ matrix.module }}-logs
+          path: native-logs/
+          if-no-files-found: ignore
+
   python-checks:
-    name: Python service (${{ matrix.python }})
+    name: Python：独立控制服务 (${{ matrix.python }})
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     strategy:
@@ -131,16 +185,8 @@ jobs:
           cache-dependency-path: backend/requirements-ci.txt
       - name: Install pinned Python build and check tools
         run: python -m pip install -r backend/requirements-ci.txt
-      - name: Check Python formatting and code
-        run: |
-          ruff check backend
-          ruff format --check backend
-      - name: Build and install the service package
-        run: |
-          python -m build --no-isolation backend
-          python -m pip install --no-deps backend/dist/*.whl
-      - name: Test the installed CLI and Unix socket protocol
-        run: python -m unittest discover -s backend/tests -v
+      - name: Check the installed service, controller and Unix socket protocol
+        run: bash .github/ci/python-check.sh service
       - uses: actions/upload-artifact@v7
         if: matrix.python == '3.13'
         with:
@@ -148,8 +194,40 @@ jobs:
           path: backend/dist/
           if-no-files-found: error
 
+  preview-checks:
+    name: Python：预览适配
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Test the installed preview adapter with Debian's real G-code extension
+        run: |
+          docker run --rm --init --platform linux/amd64 \
+            --mount "type=bind,src=$GITHUB_WORKSPACE,dst=/workspace" \
+            --workdir /workspace debian:13-slim \
+            bash .github/ci/preview-check.sh
+
+  config-checks:
+    name: HAL/INI/Tcl：机床配置与模块连接
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Install the Tcl syntax parser
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends tcl
+      - name: Check configuration syntax and local file references without executing HAL
+        run: |
+          python3 -m unittest discover -s .github/ci/config-tests -v
+          python3 .github/ci/check-configs.py
+
   tauri-build:
-    name: Tauri Debian 13 build and service bridge
+    name: Rust：Tauri 桌面环境
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
@@ -221,15 +299,70 @@ jobs:
           path: frontend/src-tauri/target/release/bundle/deb/*.deb
           if-no-files-found: error
 
+  qt-build:
+    name: ${{ matrix.name }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - suite: desktop
+            name: Python：Qt 界面后端
+          - suite: qml
+            name: QML：Qt 桌面界面
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Check the Qt container entry point
+        run: |
+          shellcheck qt/scripts/ci-check.sh
+          bash -n qt/scripts/ci-check.sh
+      - name: Check this Qt module in Debian 13
+        env:
+          QT_SUITE: ${{ matrix.suite }}
+        run: |
+          docker run --rm --init --platform linux/amd64 \
+            --env CI=true \
+            --mount "type=bind,src=$GITHUB_WORKSPACE,dst=/workspace" \
+            --workdir /workspace \
+            debian:13-slim \
+            bash qt/scripts/ci-check.sh --install-deps --suite "$QT_SUITE"
+      - name: Upload Qt test diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: native-qt-${{ matrix.suite }}-diagnostics
+          path: qt/build/Testing/Temporary/
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@v7
+        if: matrix.suite == 'qml'
+        with:
+          name: betterlinuxcnc-qt-debian13
+          path: qt/build/*.deb
+          if-no-files-found: error
+
   ci-gate:
     # Preserve this exact check name for existing branch protection.
     name: CI Gate
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     if: ${{ always() }}
-    needs: [source-checks, web-build, browser-tests, python-checks, tauri-build]
+    needs:
+      [
+        source-checks,
+        web-build,
+        browser-tests,
+        native-checks,
+        python-checks,
+        preview-checks,
+        config-checks,
+        tauri-build,
+        qt-build,
+      ]
     steps:
-      - name: Require Web, Python and Tauri verification jobs to pass
+      - name: Require every language and module check to pass
         env:
           NEEDS_JSON: ${{ toJSON(needs) }}
         run: |
@@ -246,7 +379,7 @@ jobs:
           PY
 
   deploy-staging:
-    name: Deploy Web to test machine
+    name: Shell/Python：Web 测试环境部署
     needs: ci-gate
     if: >-
       github.repository == 'Xamber-Software/BetterLinuxCNC' &&

@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "betterlinuxcnc-service"
-version = "0.1.0"
-description = "Local diagnostics-only service for the BetterLinuxCNC desktop"
+version = "0.2.0"
+description = "Private Unix socket controller and isolated LinuxCNC program preview service"
 readme = "README.md"
 requires-python = ">=3.11"
 license = "GPL-2.0-or-later"

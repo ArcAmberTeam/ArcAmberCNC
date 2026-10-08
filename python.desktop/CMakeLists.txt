@@ -29,9 +29,9 @@ if(BUILD_TESTING)
     set_tests_properties(python-integration PROPERTIES ENVIRONMENT
         "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/python;QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software;QT_QUICK_CONTROLS_STYLE=Basic")
     add_test(NAME backend-integration COMMAND Python3::Interpreter -m unittest discover
-        -s "${CMAKE_CURRENT_SOURCE_DIR}/../backend/tests" -v)
+        -s "${CMAKE_CURRENT_SOURCE_DIR}/../python.service/tests" -v)
     set_tests_properties(backend-integration PROPERTIES ENVIRONMENT
-        "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/../backend/src")
+        "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/../python.service/src")
     add_test(NAME desktop-startup COMMAND Python3::Interpreter
         "${CMAKE_CURRENT_SOURCE_DIR}/app/main.py" --smoke-test
         --socket "${CMAKE_CURRENT_BINARY_DIR}/no-controller-for-startup.sock")
@@ -44,7 +44,7 @@ install(PROGRAMS "${CMAKE_CURRENT_BINARY_DIR}/betterlinuxcnc" DESTINATION ${CMAK
 install(PROGRAMS "${CMAKE_CURRENT_BINARY_DIR}/betterlinuxcnc-service" DESTINATION ${CMAKE_INSTALL_BINDIR})
 install(DIRECTORY python/bettercnc DESTINATION ${CMAKE_INSTALL_LIBDIR}/betterlinuxcnc/python
     PATTERN "__pycache__" EXCLUDE PATTERN "*.pyc" EXCLUDE)
-install(DIRECTORY ../backend/src/ DESTINATION ${CMAKE_INSTALL_LIBDIR}/betterlinuxcnc/python
+install(DIRECTORY ../python.service/src/ DESTINATION ${CMAKE_INSTALL_LIBDIR}/betterlinuxcnc/python
     PATTERN "__pycache__" EXCLUDE PATTERN "*.pyc" EXCLUDE PATTERN "*.egg-info" EXCLUDE)
 install(DIRECTORY qml/ DESTINATION ${CMAKE_INSTALL_DATADIR}/betterlinuxcnc/qml)
 install(FILES packaging/betterlinuxcnc-qt.desktop DESTINATION share/applications)

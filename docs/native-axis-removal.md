@@ -1,6 +1,6 @@
 # 原生 AXIS 移除边界
 
-本次移除的是原生 **AXIS GUI**。2026-10-08 后续已删除 Web，正式界面归 `python.qt/`；LinuxCNC 的解释器、轨迹规划、实时运动、HAL、驱动和运动学代码保留。运动控制里的 `axis` 表示坐标轴，不是待删除的界面。
+本次移除的是原生 **AXIS GUI**。2026-10-08 后续已删除 Web，正式界面归 `python.desktop/`；LinuxCNC 的解释器、轨迹规划、实时运动、HAL、驱动和运动学代码保留。运动控制里的 `axis` 表示坐标轴，不是待删除的界面。
 
 ## 已删除
 
@@ -28,7 +28,7 @@ QtVCP、Gmoccapy、Touchy、配置向导和独立诊断工具是其他上游程�
 
 需要运行控制引擎时，必须选择可用的控制入口并完成对应配置迁移。Qt 需要显式配置独立控制服务及对应机床会话，参见 [Qt 迁移记录](qt-qml-migration.md)。
 
-Qt 资源归 `python.qt/qml/BetterCnc/Catalog/`，历史 Web 设计资料从 Git 获取，来源链接固定到删除前的 Git 提交。历史文档、翻译记录中出现 AXIS 名称不表示该程序仍可构建或安装。
+Qt 资源归 `python.desktop/qml/BetterCnc/Catalog/`，历史 Web 设计资料从 Git 获取，来源链接固定到删除前的 Git 提交。历史文档、翻译记录中出现 AXIS 名称不表示该程序仍可构建或安装。
 
 ## 验证
 

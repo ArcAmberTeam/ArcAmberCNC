@@ -16,7 +16,7 @@ import unittest
 
 
 ROOT = Path(__file__).resolve().parents[2]
-OWNERS = ("c.hal", "c.drive", "cpp.drive")
+OWNERS = ("c.hal", "c.drivers", "cpp.drivers")
 
 
 class NativeLayoutTests(unittest.TestCase):
@@ -58,17 +58,17 @@ class NativeLayoutTests(unittest.TestCase):
         paths = {
             "src/hal/hal.h": "c.hal/hal.h",
             "src/hal/utils/../hal_priv.h": "c.hal/hal_priv.h",
-            "src/hal/drivers/hal_pi_gpio.c": "c.drive/hal_pi_gpio.c",
+            "src/hal/drivers/hal_pi_gpio.c": "c.drivers/hal_pi_gpio.c",
             "src/hal/drivers/mesa-hostmot2/modbus/modcompile.py":
-                "c.drive/mesa-hostmot2/modbus/modcompile.py",
+                "c.drivers/mesa-hostmot2/modbus/modcompile.py",
             "src/hal/user_comps/mb2hal/mb2hal.c":
-                "c.drive/user/mb2hal/mb2hal.c",
+                "c.drivers/user/mb2hal/mb2hal.c",
             "src/hal/user_comps/wj200_vfd/wj200_vfd.comp":
-                "c.drive/user/wj200_vfd/wj200_vfd.comp",
+                "c.drivers/user/wj200_vfd/wj200_vfd.comp",
             "src/hal/user_comps/xhc-hb04.cc":
-                "cpp.drive/pendant/xhc-hb04.cc",
+                "cpp.drivers/pendant/xhc-hb04.cc",
             "src/hal/user_comps/xhc-whb04b-6/hal.cc":
-                "cpp.drive/pendant/xhc-whb04b-6/hal.cc",
+                "cpp.drivers/pendant/xhc-whb04b-6/hal.cc",
         }
         for legacy, owner in paths.items():
             with self.subTest(legacy=legacy):

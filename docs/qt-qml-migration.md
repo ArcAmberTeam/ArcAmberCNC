@@ -1,6 +1,6 @@
 # Vue 到 Qt Quick/QML 的迁移与控制接入
 
-2026-10-02：原生 QML 入口位于 `python.qt/`，保留 Vue 的布局、资源、中文文案、动作 ID、快捷键与面板交互。2026-10-08 将 Qt 移到 `python.qt/`，删除 Vue/Web、Tauri 和部署脚本；历史 Web 资料从 Git 获取，独立 Rust v1 诊断库在 `rust.socket/`。用户随后要求接入完整操作，并明确先使用 Unix socket、不运行模拟器。
+2026-10-02：原生 QML 入口位于 `python.desktop/`，保留 Vue 的布局、资源、中文文案、动作 ID、快捷键与面板交互。2026-10-08 将 Qt 移到 `python.desktop/`，删除 Vue/Web、Tauri 和部署脚本；历史 Web 资料从 Git 获取，独立 Rust v1 诊断库在 `rust.diagnostics/`。用户随后要求接入完整操作，并明确先使用 Unix socket、不运行模拟器。
 
 当前链路为 **QML → PySide6 QObject → Unix socket → 独立 Python 服务 → LinuxCNC**。Qt 进程不导入 LinuxCNC，服务不依赖 Qt。初版 C++ 应用启动器已由 PySide6 替换，C++ 只保留 Qt Quick Test 启动器；页面仍是原生 QML，没有 WebView。G 代码解释、插补、运动规划和实时执行继续由 LinuxCNC 核心负责，Python 做控制适配和隔离预览调度。
 
@@ -17,7 +17,7 @@
 | `BetterCnc.Manual`、`Toolpath`、`Program` | 观察注入的公开数据，发出操作意图，保存各自展示状态 |
 | `BetterCnc.Chrome`、`Workspace.qml` | 菜单、对话框、快捷键与功能组合 |
 
-Python 跨模块只导入公开包入口，QML 跨模块只使用 `qmldir` 公开类型。`python.qt/scripts/check_boundaries.py` 同时检查两种边界。预览进程可使用**只读** `linuxcnc.stat().poll()` 初始化 LinuxCNC 2.9 的 tooldata 映射；命令和 error channel 仍仅由 Controller 持有。这是独立解释器所需的 vendor 初始化，不允许预览发送机床命令。
+Python 跨模块只导入公开包入口，QML 跨模块只使用 `qmldir` 公开类型。`python.desktop/scripts/check_boundaries.py` 同时检查两种边界。预览进程可使用**只读** `linuxcnc.stat().poll()` 初始化 LinuxCNC 2.9 的 tooldata 映射；命令和 error channel 仍仅由 Controller 持有。这是独立解释器所需的 vendor 初始化，不允许预览发送机床命令。
 
 ## 已接入的行为
 
@@ -48,32 +48,32 @@ Qt 关闭时请求停止本会话点动、取消未发送操作和预览；服�
 源码运行（LinuxCNC 扩展需来自目标机匹配的系统安装）：
 
 ```sh
-PYTHONPATH=backend/src python3 -m betterlinuxcnc_service --ini /absolute/path/machine.ini
-python3 python.qt/app/main.py --ini /absolute/path/machine.ini
+PYTHONPATH=python.service/src python3 -m betterlinuxcnc_service --ini /absolute/path/machine.ini
+python3 python.desktop/app/main.py --ini /absolute/path/machine.ini
 ```
 
-macOS 开发界面可使用 `python3.12 -m venv python.qt/.venv` 后安装 `PySide6==6.8.3`，再运行 `python.qt/.venv/bin/python python.qt/app/main.py`。LinuxCNC 不可用时保留离线界面，不模拟机床。
+macOS 开发界面可使用 `python3.12 -m venv python.desktop/.venv` 后安装 `PySide6==6.8.3`，再运行 `python.desktop/.venv/bin/python python.desktop/app/main.py`。LinuxCNC 不可用时保留离线界面，不模拟机床。
 
 ## 构建与检查
 
 在安装 Qt 开发工具和 PySide6 的环境中：
 
 ```sh
-cmake -S python.qt -B python.qt/build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+cmake -S python.desktop -B python.desktop/build -G Ninja -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_INSTALL_LIBDIR=lib
-cmake --build python.qt/build --parallel
-ctest --test-dir python.qt/build --output-on-failure
+cmake --build python.desktop/build --parallel
+ctest --test-dir python.desktop/build --output-on-failure
 ```
 
-macOS 配置时增加 `-DCMAKE_PREFIX_PATH="$HOME/Qt/current/macos"` 与 `-DPython3_EXECUTABLE="$PWD/python.qt/.venv/bin/python"`。不同平台使用不同构建目录。
+macOS 配置时增加 `-DCMAKE_PREFIX_PATH="$HOME/Qt/current/macos"` 与 `-DPython3_EXECUTABLE="$PWD/python.desktop/.venv/bin/python"`。不同平台使用不同构建目录。
 
 完整 Debian 13 CI 入口：
 
 ```sh
 docker run --rm --init --platform linux/amd64 \
   --mount "type=bind,src=$PWD,dst=/workspace" --workdir /workspace \
-  -e QT_BUILD_DIR=/workspace/python.qt/build-debian \
-  debian:13-slim bash python.qt/scripts/ci-check.sh --install-deps
+  -e QT_BUILD_DIR=/workspace/python.desktop/build-debian \
+  debian:13-slim bash python.desktop/scripts/ci-check.sh --install-deps
 ```
 
 脚本安装容器依赖、构建并执行 UI/Python/socket/解释器测试，不生成发布包或部署到目标机。offscreen/software 仅用于 CI，正常运行使用目标桌面的图形环境。服务和 Qt 桌面也各自提供 wheel/sdist 构建入口；服务 wheel 不内置 LinuxCNC 本机扩展。

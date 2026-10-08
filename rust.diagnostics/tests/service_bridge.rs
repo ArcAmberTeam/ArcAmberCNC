@@ -15,7 +15,7 @@ impl Drop for Process {
 }
 
 fn start_python(socket: &Path) -> Process {
-    let source = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../backend/src");
+    let source = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../python.service/src");
     let python = std::env::var("SERVICE_TEST_PYTHON").unwrap_or_else(|_| "python3".into());
     let mut process = Process(
         Command::new(python)

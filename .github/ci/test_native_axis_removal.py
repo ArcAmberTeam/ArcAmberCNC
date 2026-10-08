@@ -25,7 +25,7 @@ class NativeAxisRemovalTests(unittest.TestCase):
             with self.subTest(name=name):
                 self.assertFalse((ROOT / name).exists())
         for name in ("axis-48x48.png", "NOTICE.md", "TOOLBAR-LICENSE"):
-            self.assertTrue((ROOT / "python.qt/qml/BetterCnc/Catalog/assets" / name).is_file())
+            self.assertTrue((ROOT / "python.desktop/qml/BetterCnc/Catalog/assets" / name).is_file())
 
     def test_install_manifests_do_not_ship_the_retired_gui(self):
         for name in (

@@ -69,7 +69,7 @@ PYTHON_GRAPH = {
     "desktop-launcher": {"bettercnc.desktop"},
     "service-launcher": {"betterlinuxcnc_service"},
 }
-PYTHON_ROOTS = [ROOT / "python", ROOT.parent / "backend" / "src"]
+PYTHON_ROOTS = [ROOT / "python", ROOT.parent / "python.service" / "src"]
 VENDOR_MODULES = {"linuxcnc", "gcode", "hal"}
 # Preview's read-only linuxcnc.stat poll initializes native tool data before
 # gcode.parse. It never owns command, HAL or error-channel access.

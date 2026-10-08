@@ -22,7 +22,7 @@ SHELL:=/bin/bash
 
 # Physical source owners. hal/ is an upstream build compatibility link;
 # filesystem scans visit the owners explicitly instead of skipping links.
-HAL_SOURCE_DIRS := ../c.hal ../c.drive ../cpp.drive
+HAL_SOURCE_DIRS := ../c.hal ../c.drivers ../cpp.drivers
 NATIVE_SOURCE_DIRS := . $(HAL_SOURCE_DIRS)
 
 default: build-software

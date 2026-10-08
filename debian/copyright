@@ -261,28 +261,28 @@ Files:
  c.hal/utils/scope_vert.c
  c.hal/utils/upci.c
  c.hal/utils/upci.h
- c.drive/bcm2835.h
- c.drive/hal_ax5214h.c
- c.drive/hal_bb_gpio.c
- c.drive/hal_evoreg.c
- c.drive/hal_motenc.c
- c.drive/hal_pi_gpio.c
- c.drive/hal_ppmc.c
- c.drive/hal_skeleton.c
- c.drive/hal_speaker.c
- c.drive/hal_stg.c
- c.drive/hal_stg.h
- c.drive/hal_tiro.c
- c.drive/hal_vti.c
- c.drive/hal_vti.h
- c.drive/motenc.h
- c.drive/user/vfs11_vfd/vfs11_vfd.c
- c.drive/user/wj200_vfd/wj200_vfd.comp
- c.drive/user/gs2_vfd.c
- c.drive/user/pi500_vfd/pi500_vfd.comp
- c.drive/user/svd-ps_vfd.c
- c.drive/user/hy_gt_vfd.c
- c.drive/user/vfdb_vfd/vfdb_vfd.c
+ c.drivers/bcm2835.h
+ c.drivers/hal_ax5214h.c
+ c.drivers/hal_bb_gpio.c
+ c.drivers/hal_evoreg.c
+ c.drivers/hal_motenc.c
+ c.drivers/hal_pi_gpio.c
+ c.drivers/hal_ppmc.c
+ c.drivers/hal_skeleton.c
+ c.drivers/hal_speaker.c
+ c.drivers/hal_stg.c
+ c.drivers/hal_stg.h
+ c.drivers/hal_tiro.c
+ c.drivers/hal_vti.c
+ c.drivers/hal_vti.h
+ c.drivers/motenc.h
+ c.drivers/user/vfs11_vfd/vfs11_vfd.c
+ c.drivers/user/wj200_vfd/wj200_vfd.comp
+ c.drivers/user/gs2_vfd.c
+ c.drivers/user/pi500_vfd/pi500_vfd.comp
+ c.drivers/user/svd-ps_vfd.c
+ c.drivers/user/hy_gt_vfd.c
+ c.drivers/user/vfdb_vfd/vfdb_vfd.c
 Copyright: same flock of LinuxCNC devs as above
 License: GPL-2
 

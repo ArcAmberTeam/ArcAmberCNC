@@ -40,7 +40,7 @@ fi
 if [[ $qt_suite == desktop ]]; then
   # Debian's PySide6 is shared with a disposable venv for pinned build/lint tools.
   python3 -m venv --system-site-packages "$qt_build_dir/python-ci"
-  "$qt_build_dir/python-ci/bin/python" -m pip install -r "$qt_root/../backend/requirements-ci.txt"
+  "$qt_build_dir/python-ci/bin/python" -m pip install -r "$qt_root/../python.service/requirements-ci.txt"
   PYTHON="$qt_build_dir/python-ci/bin/python" bash "$qt_root/../.github/ci/python-check.sh" desktop
   exit 0
 fi

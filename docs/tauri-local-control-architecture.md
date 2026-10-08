@@ -1,5 +1,7 @@
 # Tauri 本地控制架构记录
 
+2026-10-08：本文为历史架构记录。Web/Tauri 应用及部署脚本已删除，v1 诊断实现提取为 `rust.socket/`。正式界面在 `python.qt/`，通过 PySide6/Python v2 socket 对接既有控制服务；当前控制链路见 [本地控制协议](local-control-protocol.md) 和 [Qt 迁移说明](qt-qml-migration.md)。下文 Tauri/Web 目录、CI 与设计约定不作为当前入口。
+
 原决策日期：2026-09-22。该决策曾约定正式产品只通过 Tauri 桌面程序操作，目标环境为 Debian 13、Intel 核显。
 
 2026-10-02 用户决定迁移为原生 Qt Quick/QML，新增正式桌面入口为 `qt/`。当前决策和验证步骤见 [Qt 迁移说明](qt-qml-migration.md)。`frontend/` 留作迁移对照和 Web 预览，Tauri/Rust 代码及诊断测试保留；本文继续记录其已有实现和此前规划，不再要求 Qt 经由 Vue、Tauri IPC 或 Rust。未来 Qt 使用独立 C++ 适配层对接原 Unix socket/Python 边界，当前仍只有原生展示，不接入机床。

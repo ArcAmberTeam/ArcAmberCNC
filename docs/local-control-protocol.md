@@ -2,7 +2,7 @@
 
 端点使用 AF_UNIX stream。父目录为同一用户所有的 0700 目录，socket 为 0600；服务不覆盖已有 socket。每帧为四字节大端无符号长度，随后 UTF-8 JSON，正文最大 65,536 字节。重复 JSON 字段、非有限数、非法版本、未知字段、无效参数与超长帧拒绝处理。
 
-v1 保持 `{version:1, request_id, method:"health"}` 的旧格式，返回历史诊断结果和 `machine_connected:false`。它不获取控制会话，也不代表实际机床状态；保留用于 Tauri 兼容。
+v1 保持 `{version:1, request_id, method:"health"}` 的旧格式，返回历史诊断结果和 `machine_connected:false`。它不获取控制会话，也不代表实际机床状态；由独立 `rust.socket` 库保留兼容。
 
 v2 请求：
 

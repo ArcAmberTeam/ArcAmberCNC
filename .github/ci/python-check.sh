@@ -21,17 +21,17 @@ case "$scope" in
     "$python_bin" -c 'import gcode, linuxcnc; print(gcode.__file__, linuxcnc.__file__)'
     ;;
   desktop)
-    package=qt
-    paths=(qt/python qt/tests/python qt/scripts qt/app/main.py qt/setup.py)
+    package=python.qt
+    paths=(python.qt/python python.qt/tests/python python.qt/scripts python.qt/app/main.py python.qt/setup.py)
     tests=(test_session.py test_desktop.py)
-    test_dir=qt/tests/python
+    test_dir=python.qt/tests/python
     export QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software QT_QUICK_CONTROLS_STYLE=Basic
     ;;
   *) echo "Unknown Python CI scope: $scope" >&2; exit 2 ;;
 esac
 "$python_bin" -m ruff check "${paths[@]}"
 "$python_bin" -m ruff format --check "${paths[@]}"
-"$python_bin" qt/scripts/check_boundaries.py
+"$python_bin" python.qt/scripts/check_boundaries.py
 package_dist=$(mktemp -d)
 trap 'rm -rf "$package_dist"' EXIT
 "$python_bin" -m build --no-isolation --outdir "$package_dist" "$package"

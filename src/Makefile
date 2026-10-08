@@ -20,6 +20,11 @@
 
 SHELL:=/bin/bash
 
+# Physical source owners. hal/ is an upstream build compatibility link;
+# filesystem scans visit the owners explicitly instead of skipping links.
+HAL_SOURCE_DIRS := ../c.hal ../c.drivers ../cpp.drivers
+NATIVE_SOURCE_DIRS := . $(HAL_SOURCE_DIRS)
+
 default: build-software
 
 install: install-software install-docs
@@ -530,7 +535,7 @@ userspace: $(TARGETS)
 pythonclean:
 	rm -f $(PYTARGETS)
 	find ../lib/python -name '*.so' -exec rm {} +
-	find . -name __pycache__ | xargs -r rm -r
+	find $(NATIVE_SOURCE_DIRS) -name __pycache__ | xargs -r rm -r
 python: $(PYTARGETS)
 userspace: python
 inclean:
@@ -556,9 +561,9 @@ endif
 # 'clean' cleans everything but dependency files, and 'depclean' cleans them
 # too.
 modclean:
-	find -name '.*.cmd' -or -name '*.ko' -or -name '*.mod.c' -or -name '*.mod.o' | xargs rm -f
+	find $(NATIVE_SOURCE_DIRS) -name '.*.cmd' -or -name '*.ko' -or -name '*.mod.c' -or -name '*.mod.o' | xargs rm -f
 	-rm -rf .tmp_versions
-	find . -name .tmp_versions |xargs rm -rf
+	find $(NATIVE_SOURCE_DIRS) -name .tmp_versions |xargs rm -rf
 	-rm -f ../rtlib/*.ko
 	-rm -f ../rtlib/*.so
 
@@ -567,7 +572,7 @@ depclean:
 
 clean: genclean depclean modclean
 genclean:
-	find . -name '*.o' |xargs rm -f
+	find $(NATIVE_SOURCE_DIRS) -name '*.o' |xargs rm -f
 	-rm -rf objects
 	-rm -f $(TARGETS)
 	-rm -f ../lib/*.so.[0-9]*
@@ -577,12 +582,9 @@ genclean:
 
 pycheck-python-files:
 	@echo 'Checking *.py files for python3 compatibility...'
-	@for d in ./hal; do \
-		filelist=$(shell mktemp) && \
-		find $$d -name '*.py' -type f > $$filelist && \
-		cat $$filelist | xargs /usr/bin/env python3 -m py_compile && \
-		rm -f $$filelist; \
-	done
+	@set -e; filelist=$$(mktemp); trap 'rm -f "$$filelist"' EXIT; \
+		find $(HAL_SOURCE_DIRS) -name '*.py' -type f > "$$filelist"; \
+		xargs /usr/bin/env python3 -m py_compile < "$$filelist"
 
 pycheck-python-script:
 	@echo 'Checking "text/x-python" and "text/x-script.python" (by MIME type) files python3 compatibility...'
@@ -1390,11 +1392,11 @@ tags:
 		-I EXPORT_SYMBOL+,RTAPI_MP_INT+,RTAPI_MP_LONG+,RTAPI_MP_STRING+ \
 		-I RTAPI_MP_ARRAY_INT+,RTAPI_MP_ARRAY_LONG+,RTAPI_MP_ARRAY_STRING+ \
 		-I MODULE_AUTHOR+,MODULE_DESCRIPTION+,MODULE_LICENSE+ \
-		-R . ../tcl ../scripts ../share/linuxcnc/tk-support/tcl
+		-R $(NATIVE_SOURCE_DIRS) ../tcl ../scripts ../share/linuxcnc/tk-support/tcl
 	rm -f TAGS
-	find . -type f -name '*.[ch]' -printf '%P\0' |xargs -0 etags -l c --append
-	find . -type f -name '*.cc' -printf '%P\0' |xargs -0 etags -l c++ --append
-	find . -type f -name '*.hh' -printf '%P\0' |xargs -0 etags -l c++ --append
+	find $(NATIVE_SOURCE_DIRS) -type f -name '*.[ch]' -print0 |xargs -0 etags -l c --append
+	find $(NATIVE_SOURCE_DIRS) -type f -name '*.cc' -print0 |xargs -0 etags -l c++ --append
+	find $(NATIVE_SOURCE_DIRS) -type f -name '*.hh' -print0 |xargs -0 etags -l c++ --append
 
 etags:
 	etags	--extra=+fq \
@@ -1403,14 +1405,15 @@ etags:
 		-I EXPORT_SYMBOL+,RTAPI_MP_INT+,RTAPI_MP_LONG+,RTAPI_MP_STRING+ \
 		-I RTAPI_MP_ARRAY_INT+,RTAPI_MP_ARRAY_LONG+,RTAPI_MP_ARRAY_STRING+ \
 		-I MODULE_AUTHOR+,MODULE_DESCRIPTION+,MODULE_LICENSE+ \
-		-R . ../tcl ../scripts ../share/linuxcnc/tk-support/tcl
-	find . -type f -name '*.[ch]' |xargs etags --language-force=C --append
-	find . -type f -name '*.cc' |xargs etags --language-force=C++ --append
-	find . -type f -name '*.hh' |xargs etags --language-force=C++ --append
+		-R $(NATIVE_SOURCE_DIRS) ../tcl ../scripts ../share/linuxcnc/tk-support/tcl
+	find $(NATIVE_SOURCE_DIRS) -type f -name '*.[ch]' |xargs etags --language-force=C --append
+	find $(NATIVE_SOURCE_DIRS) -type f -name '*.cc' |xargs etags --language-force=C++ --append
+	find $(NATIVE_SOURCE_DIRS) -type f -name '*.hh' |xargs etags --language-force=C++ --append
 
 .PHONY: swish
 swish:
 	swish-e -c .swish_config -v 0 -i $(BASEPWD) \
+		$(addprefix $(BASEPWD)/,$(HAL_SOURCE_DIRS)) \
 		$(dir $(BASEPWD))tcl \
 		$(dir $(BASEPWD))lib/python \
 		$(dir $(BASEPWD))scripts \
@@ -1430,7 +1433,7 @@ objects/var-%: Makefile $(wildcard $(SUBMAKEFILES)) Makefile.inc
 	ln -sf $(notdir $<) $@
 
 cscope:
-	cscope -Rb
+	cscope -Rb $(addprefix -s ,$(HAL_SOURCE_DIRS))
 
 cscopeclean:
 	bash -c 'for f in `find ./ -name "cscope.*out"`;do rm $$f;done'

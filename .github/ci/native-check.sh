@@ -11,8 +11,8 @@ native_work=$(mktemp -d /tmp/linuxcnc-native.XXXXXX)
 trap 'rm -rf "$native_work"' EXIT
 
 # Copy source files rather than modifying the checkout or trusting old objects.
-git -c safe.directory="$repo_root" -C "$repo_root" ls-files --cached --others --exclude-standard -z -- . ':!:native-logs' \
-  | tar -C "$repo_root" --null -T - -cf - | tar -C "$native_work" -xf -
+python3 "$repo_root/.github/ci/native-source-files.py" "$repo_root" \
+  | tar -C "$repo_root" --null --no-recursion -T - -cf - | tar -C "$native_work" -xf -
 cd "$native_work/src"
 ./autogen.sh
 ./configure --with-realtime=uspace --disable-check-runtime-deps \

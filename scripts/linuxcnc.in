@@ -570,7 +570,7 @@ case $EMCDISPLAY in
     axis|*/axis|axis.py|*/axis.py)
         echo "The native AXIS GUI has been removed from BetterLinuxCNC." >&2
         echo "Update [DISPLAY] DISPLAY to an available controller interface." >&2
-        echo "The Web frontend is currently a static prototype, not a controller DISPLAY." >&2
+        echo "Configure the Qt interface and its independent service for your controller session." >&2
         exit 1
         ;;
     tkemc) EMCDISPLAY=tklinuxcnc ;;

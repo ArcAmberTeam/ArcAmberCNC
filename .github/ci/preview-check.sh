@@ -8,5 +8,5 @@ DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
 preview_venv=$(mktemp -d)
 trap 'rm -rf "$preview_venv"' EXIT
 python3 -m venv --system-site-packages "$preview_venv"
-"$preview_venv/bin/python" -m pip install -r backend/requirements-ci.txt
+"$preview_venv/bin/python" -m pip install -r python.service/requirements-ci.txt
 PYTHON="$preview_venv/bin/python" bash .github/ci/python-check.sh preview

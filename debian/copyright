@@ -232,57 +232,57 @@ Files:
  src/rtapi/rtapi_proc.h
  src/rtapi/rtapi_common.h
  src/rtapi/rtai_ulapi.c
- src/hal/classicladder/README.txt
- src/hal/hal.h
- src/hal/utils/bitfile.c
- src/hal/utils/bitfile.h
- src/hal/utils/halcmd.c
- src/hal/utils/halcmd_commands.cc
- src/hal/utils/halcmd_commands.h
- src/hal/utils/halcmd_completion.c
- src/hal/utils/halcmd_completion.h
- src/hal/utils/halcmd.h
- src/hal/utils/halcmd_main.c
- src/hal/utils/halrmt.c
- src/hal/utils/meter.c
- src/hal/utils/miscgtk.c
- src/hal/utils/miscgtk.h
- src/hal/utils/pci_read.c
- src/hal/utils/pci_write.c
- src/hal/utils/scope.c
- src/hal/utils/scope_disp.c
- src/hal/utils/scope_files.c
- src/hal/utils/scope_horiz.c
- src/hal/utils/scope_rt.c
- src/hal/utils/scope_rt.h
- src/hal/utils/scope_shm.h
- src/hal/utils/scope_trig.c
- src/hal/utils/scope_usr.h
- src/hal/utils/scope_vert.c
- src/hal/utils/upci.c
- src/hal/utils/upci.h
- src/hal/drivers/bcm2835.h
- src/hal/drivers/hal_ax5214h.c
- src/hal/drivers/hal_bb_gpio.c
- src/hal/drivers/hal_evoreg.c
- src/hal/drivers/hal_motenc.c
- src/hal/drivers/hal_pi_gpio.c
- src/hal/drivers/hal_ppmc.c
- src/hal/drivers/hal_skeleton.c
- src/hal/drivers/hal_speaker.c
- src/hal/drivers/hal_stg.c
- src/hal/drivers/hal_stg.h
- src/hal/drivers/hal_tiro.c
- src/hal/drivers/hal_vti.c
- src/hal/drivers/hal_vti.h
- src/hal/drivers/motenc.h
- src/hal/user_comps/vfs11_vfd/vfs11_vfd.c
- src/hal/user_comps/wj200_vfd/wj200_vfd.comp
- src/hal/user_comps/gs2_vfd.c
- src/hal/user_comps/pi500_vfd/pi500_vfd.comp
- src/hal/user_comps/svd-ps_vfd.c
- src/hal/user_comps/hy_gt_vfd.c
- src/hal/user_comps/vfdb_vfd/vfdb_vfd.c
+ c.hal/classicladder/README.txt
+ c.hal/hal.h
+ c.hal/utils/bitfile.c
+ c.hal/utils/bitfile.h
+ c.hal/utils/halcmd.c
+ c.hal/utils/halcmd_commands.cc
+ c.hal/utils/halcmd_commands.h
+ c.hal/utils/halcmd_completion.c
+ c.hal/utils/halcmd_completion.h
+ c.hal/utils/halcmd.h
+ c.hal/utils/halcmd_main.c
+ c.hal/utils/halrmt.c
+ c.hal/utils/meter.c
+ c.hal/utils/miscgtk.c
+ c.hal/utils/miscgtk.h
+ c.hal/utils/pci_read.c
+ c.hal/utils/pci_write.c
+ c.hal/utils/scope.c
+ c.hal/utils/scope_disp.c
+ c.hal/utils/scope_files.c
+ c.hal/utils/scope_horiz.c
+ c.hal/utils/scope_rt.c
+ c.hal/utils/scope_rt.h
+ c.hal/utils/scope_shm.h
+ c.hal/utils/scope_trig.c
+ c.hal/utils/scope_usr.h
+ c.hal/utils/scope_vert.c
+ c.hal/utils/upci.c
+ c.hal/utils/upci.h
+ c.drivers/bcm2835.h
+ c.drivers/hal_ax5214h.c
+ c.drivers/hal_bb_gpio.c
+ c.drivers/hal_evoreg.c
+ c.drivers/hal_motenc.c
+ c.drivers/hal_pi_gpio.c
+ c.drivers/hal_ppmc.c
+ c.drivers/hal_skeleton.c
+ c.drivers/hal_speaker.c
+ c.drivers/hal_stg.c
+ c.drivers/hal_stg.h
+ c.drivers/hal_tiro.c
+ c.drivers/hal_vti.c
+ c.drivers/hal_vti.h
+ c.drivers/motenc.h
+ c.drivers/user/vfs11_vfd/vfs11_vfd.c
+ c.drivers/user/wj200_vfd/wj200_vfd.comp
+ c.drivers/user/gs2_vfd.c
+ c.drivers/user/pi500_vfd/pi500_vfd.comp
+ c.drivers/user/svd-ps_vfd.c
+ c.drivers/user/hy_gt_vfd.c
+ c.drivers/user/vfdb_vfd/vfdb_vfd.c
 Copyright: same flock of LinuxCNC devs as above
 License: GPL-2
 
@@ -333,8 +333,8 @@ License: GNU-All-Permissive
  warranty.
 
 
-Files: src/hal/hal_lib.c
-       src/hal/hal_priv.h
+Files: c.hal/hal_lib.c
+       c.hal/hal_priv.h
 Copyright: 2003 John Kasunich
 License: LGPL-2
 
@@ -342,7 +342,7 @@ Files: src/emc/linuxcnc.h
 Copyright: 2021 Petter Reinholdtsen
 License: LGPL-2
 
-Files: src/hal/classicladder/*
+Files: c.hal/classicladder/*
 Copyright: 2001-2007 Marc Le Douarain <marc.le-douarain@laposte.net>
 License: LGPL-2.1+
 Comment: The origin of this subtree is the Classic Ladder Project

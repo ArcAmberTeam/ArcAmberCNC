@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 class NativeAxisRemovalTests(unittest.TestCase):
-    def test_native_application_is_absent_and_web_assets_are_owned_locally(self):
+    def test_native_application_is_absent_and_qt_assets_are_owned_locally(self):
         for name in (
             "src/emc/usr_intf/axis", "share/axis", "bin/profile_axis",
             "lib/python/propertywindow.py", "docs/man/man1/axis.1",
@@ -24,8 +24,8 @@ class NativeAxisRemovalTests(unittest.TestCase):
         ):
             with self.subTest(name=name):
                 self.assertFalse((ROOT / name).exists())
-        for name in ("tool_run.gif", "tool_stop.gif", "NOTICE.md", "TOOLBAR-LICENSE"):
-            self.assertTrue((ROOT / "frontend/public/axis" / name).is_file())
+        for name in ("axis-48x48.png", "NOTICE.md", "TOOLBAR-LICENSE"):
+            self.assertTrue((ROOT / "python.desktop/qml/BetterCnc/Catalog/assets" / name).is_file())
 
     def test_install_manifests_do_not_ship_the_retired_gui(self):
         for name in (
@@ -137,7 +137,7 @@ except (configparser.Error, ValueError):
                     )
                     self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
                     self.assertIn("native AXIS GUI has been removed", result.stderr)
-                    self.assertIn("static prototype", result.stderr)
+                    self.assertIn("Configure the Qt interface", result.stderr)
                     self.assertFalse(trace.exists(), trace.read_text() if trace.exists() else "")
 
 

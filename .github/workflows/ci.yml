@@ -6,23 +6,17 @@ on:
   pull_request:
   merge_group:
   workflow_dispatch:
-    inputs:
-      deploy_staging:
-        description: Deploy the checked Web UI from this branch to the shared test VM
-        type: boolean
-        required: true
-        default: false
 
 permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name == 'workflow_dispatch' && inputs.deploy_staging && 'deploy' || 'ci' }}
-  cancel-in-progress: ${{ github.ref != 'refs/heads/staging测试环境' && !(github.event_name == 'workflow_dispatch' && inputs.deploy_staging) }}
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   source-checks:
-    name: Shell/Python：工作流与发布检查
+    name: Shell/Python：源码与工作流检查
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -32,85 +26,10 @@ jobs:
           persist-credentials: false
       - name: Prepare source-check tools on the hosted runner
         run: bash .github/ci/setup-source-tools.sh
-      - name: Check workflows, scripts, release packaging and rollback behavior
+      - name: Check workflows, scripts and source boundaries
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: .github/ci/check-source.sh
-
-  web-build:
-    name: TypeScript/Vue：Web 前端
-    runs-on: ubuntu-24.04
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          persist-credentials: false
-      - uses: actions/setup-node@v7
-        with:
-          node-version: "24"
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
-      - name: Install locked frontend dependencies
-        working-directory: frontend
-        run: npm ci
-      - name: Check types, module boundaries and formatting
-        working-directory: frontend
-        run: npm run check
-      - name: Build the Web application
-        working-directory: frontend
-        run: npm run build
-      - name: Package the immutable static release
-        run: python3 .github/ci/package-web.py --dist frontend/dist --output web-artifact --commit "$GITHUB_SHA"
-      - uses: actions/upload-artifact@v7
-        with:
-          name: betterlinuxcnc-web
-          path: web-artifact/
-          if-no-files-found: error
-
-  browser-tests:
-    name: TypeScript：浏览器交互测试
-    needs: web-build
-    runs-on: ubuntu-24.04
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          persist-credentials: false
-      - uses: actions/setup-node@v7
-        with:
-          node-version: "24"
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
-      - uses: actions/download-artifact@v8
-        with:
-          name: betterlinuxcnc-web
-          path: checked-artifact
-      - name: Verify and extract the same-run Web build
-        env:
-          EXPECTED_COMMIT: ${{ github.sha }}
-        run: |
-          (cd checked-artifact && sha256sum --check SHA256SUMS)
-          test "$(cat checked-artifact/COMMIT)" = "$EXPECTED_COMMIT"
-          mkdir -p frontend/dist
-          tar -xzf checked-artifact/web.tar.gz -C frontend/dist
-      - name: Install frontend test dependencies
-        working-directory: frontend
-        run: |
-          npm ci
-          npx playwright install --with-deps chromium
-      - name: Exercise the release build without a controller
-        working-directory: frontend
-        env:
-          PLAYWRIGHT_TEST_DIST: "1"
-          EXPECTED_COMMIT: ${{ github.sha }}
-        run: npm run test:e2e
-      - name: Upload browser diagnostics
-        if: failure()
-        uses: actions/upload-artifact@v7
-        with:
-          name: web-browser-diagnostics
-          path: frontend/test-results/
-          if-no-files-found: ignore
 
   native-checks:
     name: ${{ matrix.name }}
@@ -125,7 +44,7 @@ jobs:
           - module: motion
             name: C：实时运动控制
           - module: drivers
-            name: C：硬件驱动
+            name: C/C++：硬件驱动
           - module: task
             name: C++：LinuxCNC 任务层
           - module: interpreter
@@ -182,17 +101,11 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
           cache: pip
-          cache-dependency-path: backend/requirements-ci.txt
+          cache-dependency-path: python.service/requirements-ci.txt
       - name: Install pinned Python build and check tools
-        run: python -m pip install -r backend/requirements-ci.txt
+        run: python -m pip install -r python.service/requirements-ci.txt
       - name: Check the installed service, controller and Unix socket protocol
         run: bash .github/ci/python-check.sh service
-      - uses: actions/upload-artifact@v7
-        if: matrix.python == '3.13'
-        with:
-          name: betterlinuxcnc-python
-          path: backend/dist/
-          if-no-files-found: error
 
   preview-checks:
     name: Python：预览适配
@@ -226,78 +139,30 @@ jobs:
           python3 -m unittest discover -s .github/ci/config-tests -v
           python3 .github/ci/check-configs.py
 
-  tauri-build:
-    name: Rust：Tauri 桌面环境
+  rust-checks:
+    name: Rust：本地 socket 通信
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: rust.diagnostics
     steps:
       - uses: actions/checkout@v6
         with:
           persist-credentials: false
-      - name: Read the project's pinned Rust version
-        id: toolchain
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: Install the pinned Rust toolchain
         run: |
-          python3 - <<'PY'
-          import os
-          import tomllib
-          from pathlib import Path
-          config = tomllib.loads(Path("frontend/src-tauri/rust-toolchain.toml").read_text())
-          with open(os.environ["GITHUB_OUTPUT"], "a") as output:
-              print(f"rust={config['toolchain']['channel']}", file=output)
-          PY
-      - uses: docker/setup-buildx-action@v4
-      - name: Restore or build the Debian desktop environment
-        id: desktop-image
-        uses: docker/build-push-action@v7
-        with:
-          context: .github/ci/desktop
-          platforms: linux/amd64
-          build-args: RUST_VERSION=${{ steps.toolchain.outputs.rust }}
-          tags: betterlinuxcnc-desktop-ci:current
-          load: true
-          pull: true
-          # Keep the dependency image ID stable for Cargo cache reuse.
-          provenance: false
-          cache-from: type=gha,scope=desktop-debian13-amd64
-          cache-to: type=gha,scope=desktop-debian13-amd64,mode=max
-      - name: Restore npm downloads
-        uses: actions/cache@v4
-        with:
-          path: ${{ runner.temp }}/desktop-cache/npm
-          key: desktop-npm-node24-${{ hashFiles('frontend/package-lock.json') }}
-          restore-keys: desktop-npm-node24-
-      - name: Restore Cargo downloads and compiler outputs
-        uses: actions/cache@v4
-        with:
-          path: |
-            ${{ runner.temp }}/desktop-cache/cargo/registry
-            ${{ runner.temp }}/desktop-cache/cargo/git
-            frontend/src-tauri/target
-          key: desktop-cargo-${{ steps.desktop-image.outputs.imageid }}-${{ hashFiles('frontend/src-tauri/Cargo.lock') }}-${{ github.sha }}
-          restore-keys: |
-            desktop-cargo-${{ steps.desktop-image.outputs.imageid }}-${{ hashFiles('frontend/src-tauri/Cargo.lock') }}-
-            desktop-cargo-${{ steps.desktop-image.outputs.imageid }}-
-      - name: Check, test and package in a fresh Debian 13 container
-        env:
-          DESKTOP_CACHE: ${{ runner.temp }}/desktop-cache
+          version=$(python3 -c 'import tomllib; print(tomllib.load(open("rust-toolchain.toml", "rb"))["toolchain"]["channel"])')
+          rustup toolchain install "$version" --profile minimal --component rustfmt --component clippy
+      - name: Check library and Python protocol compatibility
         run: |
-          mkdir -p "$DESKTOP_CACHE/npm" "$DESKTOP_CACHE/cargo"
-          docker run --rm --init --platform linux/amd64 \
-            --user "$(id -u):$(id -g)" \
-            --env CI=true \
-            --env HOME=/tmp/desktop-home \
-            --env CARGO_HOME=/cache/cargo \
-            --env CARGO_TERM_COLOR=always \
-            --env npm_config_cache=/cache/npm \
-            --mount "type=bind,src=$GITHUB_WORKSPACE,dst=/workspace" \
-            --mount "type=bind,src=$DESKTOP_CACHE,dst=/cache" \
-            betterlinuxcnc-desktop-ci:current \
-            bash .github/ci/desktop-in-container.sh
-      - uses: actions/upload-artifact@v7
-        with:
-          name: betterlinuxcnc-desktop-debian13
-          path: frontend/src-tauri/target/release/bundle/deb/*.deb
-          if-no-files-found: error
+          cargo fmt --check
+          cargo check --locked --all-targets
+          cargo clippy --locked --all-targets -- -D warnings
+          SERVICE_TEST_PYTHON=python3 cargo test --locked
 
   qt-build:
     name: ${{ matrix.name }}
@@ -317,8 +182,8 @@ jobs:
           persist-credentials: false
       - name: Check the Qt container entry point
         run: |
-          shellcheck qt/scripts/ci-check.sh
-          bash -n qt/scripts/ci-check.sh
+          shellcheck python.desktop/scripts/ci-check.sh
+          bash -n python.desktop/scripts/ci-check.sh
       - name: Check this Qt module in Debian 13
         env:
           QT_SUITE: ${{ matrix.suite }}
@@ -328,20 +193,14 @@ jobs:
             --mount "type=bind,src=$GITHUB_WORKSPACE,dst=/workspace" \
             --workdir /workspace \
             debian:13-slim \
-            bash qt/scripts/ci-check.sh --install-deps --suite "$QT_SUITE"
+            bash python.desktop/scripts/ci-check.sh --install-deps --suite "$QT_SUITE"
       - name: Upload Qt test diagnostics
         if: failure()
         uses: actions/upload-artifact@v7
         with:
           name: native-qt-${{ matrix.suite }}-diagnostics
-          path: qt/build/Testing/Temporary/
+          path: python.desktop/build/Testing/Temporary/
           if-no-files-found: ignore
-      - uses: actions/upload-artifact@v7
-        if: matrix.suite == 'qml'
-        with:
-          name: betterlinuxcnc-qt-debian13
-          path: qt/build/*.deb
-          if-no-files-found: error
 
   ci-gate:
     # Preserve this exact check name for existing branch protection.
@@ -352,13 +211,11 @@ jobs:
     needs:
       [
         source-checks,
-        web-build,
-        browser-tests,
         native-checks,
         python-checks,
         preview-checks,
         config-checks,
-        tauri-build,
+        rust-checks,
         qt-build,
       ]
     steps:
@@ -377,42 +234,3 @@ jobs:
               job["result"] == "success" for job in results.values()
           ) else 1)
           PY
-
-  deploy-staging:
-    name: Shell/Python：Web 测试环境部署
-    needs: ci-gate
-    if: >-
-      github.repository == 'Xamber-Software/BetterLinuxCNC' &&
-      startsWith(github.ref, 'refs/heads/') &&
-      ((github.ref == 'refs/heads/staging测试环境' &&
-        (github.event_name == 'push' || github.event_name == 'workflow_dispatch')) ||
-       (github.event_name == 'workflow_dispatch' && inputs.deploy_staging))
-    runs-on: ubuntu-24.04
-    timeout-minutes: 20
-    environment: staging
-    concurrency:
-      group: betterlinuxcnc-staging-deploy
-      cancel-in-progress: false
-    steps:
-      - name: Record the selected branch and exact commit
-        env:
-          DEPLOY_REF: ${{ github.ref_name }}
-          DEPLOY_SHA: ${{ github.sha }}
-        run: |
-          printf 'Web test environment request: branch `%s`, commit `%s`.\n' \
-            "$DEPLOY_REF" "$DEPLOY_SHA" >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/checkout@v6
-        with:
-          persist-credentials: false
-      - uses: actions/download-artifact@v8
-        with:
-          name: betterlinuxcnc-web
-          path: staging-artifact
-      - name: Deploy the checked static Web release through FRP
-        env:
-          STAGING_SSH_KEY: ${{ secrets.STAGING_SSH_KEY }}
-          STAGING_KNOWN_HOSTS: ${{ secrets.STAGING_KNOWN_HOSTS }}
-          STAGING_HOST: ${{ vars.STAGING_HOST || '45.192.97.209' }}
-          STAGING_PORT: ${{ vars.STAGING_PORT || '39011' }}
-          STAGING_USER: deploy
-        run: .github/staging/deploy.sh staging-artifact

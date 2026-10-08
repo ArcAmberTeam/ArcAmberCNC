@@ -1,7 +1,0 @@
-{
-  "$schema": "../gen/schemas/desktop-schema.json",
-  "identifier": "main-window",
-  "description": "Main window may only query the diagnostics service; no device or shell commands.",
-  "windows": ["main"],
-  "permissions": ["allow-service-health"]
-}

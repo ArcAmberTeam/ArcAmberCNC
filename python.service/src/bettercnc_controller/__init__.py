@@ -7,5 +7,6 @@ command result; it is never a substitute for the observed machine state.
 """
 
 from ._controller import Controller
+from ._reader import StatusReader
 
-__all__ = ["Controller"]
+__all__ = ["Controller", "StatusReader"]

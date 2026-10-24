@@ -24,7 +24,13 @@ def default_socket() -> Path:
 
 
 async def serve(
-    path: Path, *, ini_path=None, controller_factory=None, process_factory=None, stop_event=None
+    path: Path,
+    *,
+    ini_path=None,
+    controller_factory=None,
+    process_factory=None,
+    status_reader_factory=None,
+    stop_event=None,
 ) -> None:
     """Embed the service with explicit controller/process seams and shutdown.
 
@@ -130,7 +136,9 @@ async def serve(
         identity = path.lstat()
         path.chmod(0o600)
         listener.setblocking(False)
-        runtime = ControllerRuntime(ini_path, controller_factory, process_factory)
+        runtime = ControllerRuntime(
+            ini_path, controller_factory, process_factory, status_reader_factory
+        )
         server = await asyncio.start_unix_server(handle, sock=listener, limit=MAX_FRAME_BYTES)
         async with server:
             print(f"Local controller service ready: {path}", flush=True)

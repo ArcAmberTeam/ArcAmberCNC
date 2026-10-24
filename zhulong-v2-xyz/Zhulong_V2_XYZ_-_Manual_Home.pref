@@ -23,7 +23,7 @@ kbd_width = 880
 kbd_set_height = False
 kbd_set_width = False
 blockheight = 0.0
-open_file = 
+open_file =
 screen1 = window
 hide_titlebar = False
 x_pos = 40
@@ -74,4 +74,3 @@ run_from_line = no_run
 unlock_way = use
 show_preview_on_offset = False
 use_keyboard_shortcuts = False
-

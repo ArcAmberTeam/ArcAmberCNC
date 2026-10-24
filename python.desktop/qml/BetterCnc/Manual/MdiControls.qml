@@ -19,7 +19,7 @@ Item {
     readonly property int verticalPadding: root.compact ? 12 : 16
     width: parent.width
     height: visible ? 270 + verticalPadding * 2 : 0
-    
+
 
     Item {
         x: root.panelPadding
@@ -121,4 +121,3 @@ Item {
         }
     }
 }
-

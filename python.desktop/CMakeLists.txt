@@ -39,7 +39,6 @@ if(BUILD_TESTING)
     set_tests_properties(desktop-startup PROPERTIES ENVIRONMENT
         "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software;QT_QUICK_CONTROLS_STYLE=Basic"
         FAIL_REGULAR_EXPRESSION "QQmlApplicationEngine failed;ReferenceError:;TypeError:;Unable to assign;Binding loop detected")
-<<<<<<< Updated upstream
     add_test(NAME interactive-gui-startup COMMAND Python3::Interpreter
         "${CMAKE_CURRENT_SOURCE_DIR}/tests/interactive/main.py" --smoke-test)
     set_tests_properties(interactive-gui-startup PROPERTIES ENVIRONMENT
@@ -49,7 +48,6 @@ if(BUILD_TESTING)
         -I "${CMAKE_CURRENT_SOURCE_DIR}/qml"
         "${CMAKE_CURRENT_SOURCE_DIR}/tests/interactive/Interactive.qml"
         "${CMAKE_CURRENT_SOURCE_DIR}/tests/interactive/InteractiveBackend.qml")
-=======
     add_test(NAME visual-preview-startup COMMAND Python3::Interpreter
         "${CMAKE_CURRENT_SOURCE_DIR}/tests/visual_preview.py"
         --capture "${CMAKE_CURRENT_BINARY_DIR}/visual-preview.png")
@@ -63,7 +61,6 @@ if(BUILD_TESTING)
     set_tests_properties(guided-preview-startup PROPERTIES ENVIRONMENT
         "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software;QT_QUICK_CONTROLS_STYLE=Basic"
         FAIL_REGULAR_EXPRESSION "QQmlApplicationEngine failed;ReferenceError:;TypeError:;Unable to assign;Binding loop detected")
->>>>>>> Stashed changes
 endif()
 
 install(PROGRAMS "${CMAKE_CURRENT_BINARY_DIR}/betterlinuxcnc" DESTINATION ${CMAKE_INSTALL_BINDIR})

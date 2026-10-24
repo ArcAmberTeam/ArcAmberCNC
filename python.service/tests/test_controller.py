@@ -5,7 +5,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 
-from bettercnc_controller import Controller
+from bettercnc_controller import Controller, StatusReader
 
 
 class FakeClock:
@@ -230,6 +230,51 @@ class FakeCommands:
             self.module.calls.append((method, args))
 
         return send
+
+
+class StatusReaderTests(unittest.TestCase):
+    def test_feedback_opens_only_status_and_keeps_motion_and_task_lines_separate(self):
+        module = FakeLinuxCNC()
+
+        def forbidden():
+            self.fail("read-only feedback opened a writable or consumptive channel")
+
+        module.command = module.error_channel = forbidden
+        module.status.task_mode = module.MODE_AUTO
+        module.status.interp_state = module.INTERP_READING
+        module.status.motion_line = 12
+        module.status.current_line = 90
+        reader = StatusReader(module=module, ini_path="/machine/machine.ini")
+        status = reader.poll()
+        self.assertTrue(status["connected"])
+        self.assertEqual(status["programState"], "running")
+        self.assertEqual(status["currentLine"], 12)
+        self.assertEqual(status["taskLine"], 90)
+        self.assertIsNone(status["progressPercent"])
+        module.status.paused = True
+        self.assertEqual(reader.poll()["programState"], "paused")
+        module.status.paused = False
+        module.status.interp_state = module.INTERP_IDLE
+        self.assertEqual(reader.poll()["programState"], "idle")
+        self.assertEqual(module.calls, [])
+
+    def test_disconnect_clears_feedback_and_reconnect_does_not_replay(self):
+        module = FakeLinuxCNC()
+        reader = StatusReader(module=module)
+        self.assertTrue(reader.poll()["connected"])
+        module.available = False
+        offline = reader.poll()
+        self.assertFalse(offline["connected"])
+        self.assertIsNone(offline["currentLine"])
+        self.assertEqual(offline["programState"], "unknown")
+        module.available = True
+        self.assertTrue(reader.poll()["connected"])
+        reader.close()
+        self.assertEqual(module.calls, [])
+
+    def test_configuration_mismatch_is_not_reported_as_a_connected_machine(self):
+        reader = StatusReader(module=FakeLinuxCNC(), ini_path="/other/machine.ini")
+        self.assertFalse(reader.poll()["connected"])
 
 
 class ControllerTests(unittest.TestCase):

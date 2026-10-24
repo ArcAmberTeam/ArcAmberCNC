@@ -27,7 +27,11 @@ c.drivers/                  C 为主的设备驱动
   user/                     Modbus、变频器、USB 等用户态设备驱动
 cpp.drivers/                C++ 设备驱动
   pendant/                  XHC 手轮驱动
-python.service/             Python 服务、控制规则和隔离预览
+python.service/             Python 服务、控制规则、隔离预览和 CAM 通信
+  src/bettercnc_cam_link/   独立 TCP 双向 CAM 联动服务
+    protocol/              自定义帧、请求结构、分块与 UDP 发现消息
+    receiver/              程序收件与发现握手回复校验
+    feedback/              回执、加工状态推送与发现广播
 src/                        混合 C/C++ 核心与统一原生构建入口
   emc/                      Task、解释器、运动、规划、运动学及接口
   libnml/                   NML 与数学/支持代码
@@ -60,12 +64,17 @@ QML 功能模块
 
 `rust.diagnostics → Unix socket → Python v1 health` 为独立诊断链路；不获取控制会话，不代替 v2，不用于判断真实机床连接。Qt 当前不经 Rust，目录迁移不会把两套协议合并或新增 FFI。
 
+CAM 在另一台设备生成 G-code，经自定义 TCP 双向协议发送到独立 `bettercnc_cam_link` 进程的 inbox；同一长连接返回回执、查询结果及订阅的加工状态。`protocol` 定义帧，`receiver` 接收程序，`feedback` 串行发送响应和推送；后者通过本地 v2 `machine.status` 读取反馈，不获取控制会话，不发送加载或启动命令。程序进入 inbox 后由本地操作员经已有控制链路选择加载。收件、加载和加工是不同状态，详见 [CAM 联动协议](cam-link-protocol.md)。
+
+不知道机床 IP 时，可显式开启 UDP 局域网发现：机床广播 `ANNOUNCE`，CAM 回复 `DISCOVER_REPLY`，机床回传 `DISCOVER_ACK`。CAM 从报文源地址取得机床 IP，再连接公布的 TCP 端口并认证。发现消息由同一三个能力目录拥有，根入口负责生命周期；广播握手不授予文件或机床操作权限。
+
 | 所有者 | 公开入口 | 边界 |
 | --- | --- | --- |
 | Qt 界面 | `BetterCnc.<Capability>` 的 qmldir | 组件不直接访问 socket、文件、进程或硬件 |
 | Qt Python | `bettercnc.desktop`、`bettercnc.session` | desktop 只导入 session 公开入口；session 只依赖标准库 |
 | Rust socket | `src/lib.rs` | 只暴露诊断查询及返回数据；内部实现私有 |
-| Python 服务 | `betterlinuxcnc_service`、`Controller`、`bettercnc_preview` | service 通过 controller/preview 公开入口协作，无反向依赖 |
+| Python 服务 | `betterlinuxcnc_service`、`Controller`、`StatusReader`、`bettercnc_preview` | service 通过 controller/preview 公开入口协作，无反向依赖；StatusReader 只读取状态 |
+| CAM 联动 | `bettercnc_cam_link` 的 `main`、`serve` 与 CLI | 仅依赖标准库；拥有网络接收与 inbox；通过公开本地协议读取加工反馈 |
 | HAL/驱动 | 既有 HAL/RTAPI 接口 | 设备与信号适配，不依赖新增桌面或服务实现 |
 | 原生核心 | 既有 EMC/NML/RTAPI API | 保持实时职责和混合语言链接边界 |
 

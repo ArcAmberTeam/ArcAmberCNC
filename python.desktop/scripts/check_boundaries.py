@@ -66,6 +66,14 @@ PYTHON_GRAPH = {
     "betterlinuxcnc_service": {"bettercnc_controller", "bettercnc_preview"},
     "bettercnc_controller": set(),
     "bettercnc_preview": set(),
+    "bettercnc_cam_link": {
+        "bettercnc_cam_link.protocol",
+        "bettercnc_cam_link.receiver",
+        "bettercnc_cam_link.feedback",
+    },
+    "bettercnc_cam_link.protocol": set(),
+    "bettercnc_cam_link.receiver": {"bettercnc_cam_link.protocol"},
+    "bettercnc_cam_link.feedback": {"bettercnc_cam_link.protocol"},
     "desktop-launcher": {"bettercnc.desktop"},
     "service-launcher": {"betterlinuxcnc_service"},
 }

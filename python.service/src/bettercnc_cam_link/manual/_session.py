@@ -92,7 +92,7 @@ class JogSession:
                 await self.close()
                 raise JogError("jog_expired", "jog ended; press again to start a new movement")
             try:
-                await self._request("session.status", {"jog_lease": True})
+                await self._request("cam.jog.keepalive", {"jogId": jog_id})
                 self._deadline = time.monotonic() + self.LEASE_SECONDS
             except (OSError, TimeoutError, asyncio.IncompleteReadError, ValueError):
                 await self.close()
@@ -117,31 +117,7 @@ class JogSession:
             async with asyncio.timeout(self.LEASE_SECONDS):
                 self._reader, self._writer = await asyncio.open_unix_connection(str(self._socket))
             self._watchdog = asyncio.create_task(self._expire())
-            snapshot = await self._request("session.attach", {})
-            units = snapshot.get("linearUnits")
-            if (
-                not snapshot.get("connected")
-                or snapshot.get("motionMode") != "world"
-                or type(units) not in (int, float)
-                or not math.isfinite(units)
-                or units <= 0
-            ):
-                raise JogError(
-                    "jog_unavailable", "XYZ jog requires connected, homed world coordinates"
-                )
-            result = await self._request(
-                "command.execute",
-                {
-                    "action": "jog.start",
-                    "payload": {
-                        "axis": axis,
-                        "mode": "world",
-                        "direction": direction,
-                        "velocity": feed / 60 * units,
-                        "increment": 0,
-                    },
-                },
-            )
+            result = await self._request("cam.jog.start", params)
             if result.get("accepted") is not True:
                 raise JogError("jog_rejected", "controller rejected continuous jog")
             return {"jogId": jog_id, "accepted": True}

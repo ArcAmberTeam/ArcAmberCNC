@@ -293,14 +293,12 @@ static PyObject *poll(pyStatChannel *s, PyObject *o) {
       initialized=1;
     }
 #else //}{
-    static bool mmap_available = 1;
-    if (!mmap_available) return NULL;
-    if (!initialized) {
-        initialized=1;
-        if (tool_mmap_user()) {
-          mmap_available = 0;
-          fprintf(stderr,"poll(): continuing without tool mmap data\n");
-        }
+    // Observers can start before iocontrol creates the tool mapping. Keep NML
+    // polling usable and retry the mapping without marking tool_table ready.
+    static double next_mmap_attempt = 0;
+    if (!initialized && etime() >= next_mmap_attempt) {
+        next_mmap_attempt = etime() + 1.0;
+        initialized = tool_mmap_user() == 0;
     }
 #endif //}
     if(!check_stat(s->c)) return NULL;

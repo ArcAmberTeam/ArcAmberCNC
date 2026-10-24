@@ -1,6 +1,8 @@
 """Smoke-test the freshly compiled public Python API without a HAL session."""
 
 import importlib
+import os
+import subprocess
 import sys
 import tempfile
 from pathlib import Path
@@ -30,4 +32,31 @@ assert callable(gcode.parse)
 # strerror requires an interpreter created by parse(); importing the extension
 # deliberately does not initialize one or open a machine's tool/status channels.
 assert callable(gcode.strerror)
+with tempfile.TemporaryDirectory() as directory:
+    # A missing, isolated NML configuration opens no real machine channels.
+    # Repeated offline polls must raise the vendor error, never SystemError or
+    # mark an unavailable tool mapping ready for tool_table access.
+    subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            """
+import os
+import linuxcnc
+linuxcnc.nmlfile = os.path.join(os.environ['HOME'], 'absent.nml')
+status = linuxcnc.stat()
+for _ in range(3):
+    try:
+        status.poll()
+    except linuxcnc.error:
+        pass
+    else:
+        raise AssertionError('missing NML configuration was reported as live')
+    assert status.tool_table == ()
+""",
+        ],
+        env={**os.environ, "HOME": directory},
+        check=True,
+        timeout=10,
+    )
 print("Native Python imports and INI API passed without opening control channels.")

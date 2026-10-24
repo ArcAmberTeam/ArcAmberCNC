@@ -63,3 +63,10 @@ Qt GUI 每 100 ms 发时间戳给 socket 工作线程。心跳超过 350 ms 时�
 ## 服务所有的 CAM 加工作业
 
 当服务显式配置 `--cam-inbox` 时，`cam.job.start` 与 `cam.job.status` 可在不附着桌面会话的连接调用，均要求唯一的 `{transferId}` 参数。服务复用现有 Controller 和单一串行工作线程。新接口只接受 inbox 中校验通过的文件，不接受客户端路径或任意机床指令。具体状态、去重和联锁见 [CAM 协议](cam-link-protocol.md)。桌面会话与 CAM 作业可共用同一 Controller；桌面断开只取消桌面的预览、点动与未发送桌面操作，不取消服务已接受的 CAM 作业。服务停机仍取消未发送作业步骤，正在加工的程序不自动中止，重启不重放。
+
+
+## CAM 与桌面共用点动控制器
+
+`cam.jog.start` 接受 `{jogId,axis,direction,feedRate}`；`axis` 为 X/Y/Z，`direction` 为 ±1，`feedRate` 为 0–3000 mm/min 内的正数。`cam.jog.keepalive` 与 `cam.jog.stop` 接受 `{jogId}`。这三个方法不获取桌面 `session.attach` 所有权，仍只通过服务已有的同一个 Controller 串行执行；速度由服务根据最新机床长度单位换算。
+
+一次点动绑定当前 Unix 连接与 UUID，独立租约为600毫秒；断开、停止或过期立即撤销，排队的旧开始不得执行。桌面状态心跳不能续租 CAM 点动。已有本地点动时拒绝远程开始；远程点动期间其他运动命令被拒绝，本地急停、断电、停止程序与停止点动可撤销远程租约。CAM 自动加工同样不得在点动租约内启动。重复 UUID 在五分钟保留窗口内拒绝，缓存最多4096条。桌面退出、服务关闭同样撤销点动；状态轮询、文件回执和已接受加工的归属保持原有规则。

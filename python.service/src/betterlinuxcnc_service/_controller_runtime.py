@@ -1,8 +1,10 @@
 """Single-writer session ownership, serialized controller work and jog leases."""
 
 import asyncio
+import math
 import os
 import time
+import uuid
 from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
 
@@ -37,6 +39,10 @@ class ControllerRuntime:
         self._snapshot = None
         self._lease_deadline = None
         self._jog_expired = False
+        self._cam_jog_owner = None
+        self._cam_jog_id = None
+        self._cam_jog_deadline = None
+        self._cam_jog_used = {}
         self._jobs = PreviewJobs(process_factory)
         self._poll_task = asyncio.create_task(self._poll_loop())
 
@@ -46,9 +52,67 @@ class ControllerRuntime:
     def _expired(self):
         return self._lease_deadline is not None and time.monotonic() >= self._lease_deadline
 
+    def _clear_cam_jog(self):
+        self._cam_jog_owner = self._cam_jog_id = self._cam_jog_deadline = None
+
+    def _stop_cam_jog(self):
+        if self._controller is not None:
+            self._controller.stop_jog()
+
+    async def _cancel_cam_jog(self, owner):
+        if self._cam_jog_owner is owner:
+            self._clear_cam_jog()
+            await self._work(self._stop_cam_jog)
+
+    def _start_cam_jog(self, owner, params):
+        if self._cam_jog_owner is not owner or self._releasing:
+            raise ProtocolError("jog_expired", "本次点动已结束")
+        if self._controller is None:
+            self._new_controller(self._generation)
+        snapshot = self._controller.poll()
+        units = snapshot.get("linearUnits")
+        if (
+            not snapshot.get("connected")
+            or snapshot.get("motionMode") != "world"
+            or type(units) not in (int, float)
+            or not math.isfinite(units)
+            or units <= 0
+        ):
+            raise ProtocolError("jog_unavailable", "XYZ 点动需要已连接且已回零的世界坐标模式")
+        # EOF/stop/expiry invalidates a start queued behind another worker call.
+        if (
+            self._cam_jog_owner is not owner
+            or self._cam_jog_id != params["jogId"]
+            or self._cam_jog_deadline is None
+            or time.monotonic() >= self._cam_jog_deadline
+            or self._releasing
+        ):
+            raise ProtocolError("jog_expired", "本次点动已结束")
+        if self._lease_deadline is not None:
+            raise ProtocolError("control_in_use", "本地界面正在点动")
+        accepted = self._controller.dispatch(
+            "jog.start",
+            {
+                "axis": params["axis"],
+                "mode": "world",
+                "direction": params["direction"],
+                "velocity": params["feedRate"] / 60 * units,
+                "increment": 0,
+            },
+        )
+        self._snapshot = self._controller.snapshot
+        if not accepted:
+            raise ProtocolError(
+                "jog_rejected", self._snapshot.get("commandMessage") or "点动被拒绝"
+            )
+        return {"jogId": params["jogId"], "accepted": True}
+
     def _poll(self, generation):
         if self._releasing or generation != self._generation or self._controller is None:
             return
+        if self._cam_jog_deadline is not None and time.monotonic() >= self._cam_jog_deadline:
+            self._clear_cam_jog()
+            self._controller.stop_jog()
         if self._expired() or self._jog_expired:
             self._jog_expired = False
             self._lease_deadline = None
@@ -94,8 +158,10 @@ class ControllerRuntime:
             self._close_controller()
 
     async def release(self, owner):
+        await self._cancel_cam_jog(owner)
         if self._owner is not owner:
             return
+        self._clear_cam_jog()
         self._releasing = True
         self._generation += 1  # invalidate queued work before awaiting anything
         self._lease_deadline = None
@@ -111,6 +177,7 @@ class ControllerRuntime:
     async def close(self):
         self._poll_task.cancel()
         await asyncio.gather(self._poll_task, return_exceptions=True)
+        self._clear_cam_jog()
         if self._owner is not None:
             await self.release(self._owner)
         await self._work(self._close_controller)
@@ -152,6 +219,11 @@ class ControllerRuntime:
             or self._controller is None
         ):
             raise ProtocolError("session_expired", "control session expired before command send")
+        if self._cam_jog_owner is not None:
+            if action not in ("jog.stop", "program.stop", "machine.estop", "machine.power"):
+                raise ProtocolError("control_in_use", "CAM 正在点动，请先松开")
+            self._clear_cam_jog()
+            self._controller.stop_jog()
         if action in ("jog.start", "machine.jog-plus", "machine.jog-minus") and self._expired():
             self._controller.stop_jog()
             self._lease_deadline = None
@@ -169,6 +241,8 @@ class ControllerRuntime:
         return {"accepted": bool(accepted), "snapshot": wire_snapshot(self._snapshot)}
 
     def _cam_request(self, method, transfer_id):
+        if method == "cam.job.start" and self._cam_jog_owner is not None:
+            raise ProtocolError("control_in_use", "CAM 正在点动，请先松开")
         if self._controller is None:
             self._new_controller(self._generation)
         if method == "cam.job.start":
@@ -179,6 +253,62 @@ class ControllerRuntime:
         return {"job": result}
 
     async def handle(self, owner, method, params):
+        if method in ("cam.jog.start", "cam.jog.keepalive", "cam.jog.stop"):
+            self._params(
+                params,
+                required=("jogId", "axis", "direction", "feedRate")
+                if method == "cam.jog.start"
+                else ("jogId",),
+            )
+            jog_id = params["jogId"]
+            try:
+                valid_id = isinstance(jog_id, str) and str(uuid.UUID(jog_id)) == jog_id
+            except ValueError:
+                valid_id = False
+            if not valid_id:
+                raise ProtocolError("invalid_params", "jogId 必须是规范 UUID")
+            if method == "cam.jog.start":
+                feed = params["feedRate"]
+                if (
+                    params["axis"] not in ("X", "Y", "Z")
+                    or type(params["direction"]) is not int
+                    or params["direction"] not in (-1, 1)
+                    or type(feed) not in (int, float)
+                    or not math.isfinite(feed)
+                    or not 0 < feed <= 3000
+                ):
+                    raise ProtocolError("invalid_params", "点动轴、方向或速度无效")
+                if (
+                    self._releasing
+                    or self._cam_jog_owner is not None
+                    or self._lease_deadline is not None
+                ):
+                    raise ProtocolError("control_in_use", "已有点动操作")
+                now = time.monotonic()
+                self._cam_jog_used = {k: v for k, v in self._cam_jog_used.items() if now - v < 300}
+                if jog_id in self._cam_jog_used or len(self._cam_jog_used) >= 4096:
+                    raise ProtocolError("jog_expired", "点动编号已使用或请求过于频繁")
+                self._cam_jog_used[jog_id] = now
+                self._cam_jog_owner, self._cam_jog_id = owner, jog_id
+                self._cam_jog_deadline = now + JOG_LEASE_SECONDS
+                try:
+                    return await self._work(self._start_cam_jog, owner, params)
+                except BaseException:
+                    await self._cancel_cam_jog(owner)
+                    raise
+            if self._cam_jog_owner is not owner or self._cam_jog_id != jog_id:
+                raise ProtocolError("jog_expired", "点动已结束")
+            deadline = self._cam_jog_deadline
+            if deadline is None:
+                raise ProtocolError("jog_expired", "点动已结束")
+            if method == "cam.jog.stop" or time.monotonic() >= deadline:
+                self._clear_cam_jog()
+                await self._work(self._stop_cam_jog)
+                if method != "cam.jog.stop":
+                    raise ProtocolError("jog_expired", "点动租约已过期")
+            else:
+                self._cam_jog_deadline = time.monotonic() + JOG_LEASE_SECONDS
+            return {"jogId": jog_id, "accepted": True}
         if method in ("cam.job.start", "cam.job.status"):
             self._params(params, required=("transferId",))
             if self._cam_inbox is None:
@@ -248,6 +378,8 @@ class ControllerRuntime:
                     "invalid_params", "action must be a string and payload an object"
                 )
             if action in ("jog.start", "machine.jog-plus", "machine.jog-minus"):
+                if self._cam_jog_owner is not None:
+                    raise ProtocolError("control_in_use", "CAM 正在点动，请先松开")
                 self._lease_deadline = time.monotonic() + JOG_LEASE_SECONDS
                 self._jog_expired = False
             return await self._work(self._execute, owner, self._generation, action, payload)

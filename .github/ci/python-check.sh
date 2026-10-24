@@ -10,8 +10,9 @@ case "$scope" in
     paths=(python.service/src/betterlinuxcnc_service python.service/src/bettercnc_controller
            python.service/src/bettercnc_cam_link
            python.service/tests/test_service.py python.service/tests/test_control_service.py python.service/tests/test_controller.py
-           python.service/tests/test_cam_link.py python.service/tests/test_cam_discovery.py)
-    tests=(test_service.py test_control_service.py test_controller.py test_cam_link.py test_cam_discovery.py)
+           python.service/tests/test_cam_link.py python.service/tests/test_cam_discovery.py
+           python.service/tests/test_received_jobs.py python.service/tests/test_cam_jog.py)
+    tests=(test_service.py test_control_service.py test_controller.py test_cam_link.py test_cam_discovery.py test_received_jobs.py test_cam_jog.py)
     test_dir=python.service/tests
     ;;
   preview)

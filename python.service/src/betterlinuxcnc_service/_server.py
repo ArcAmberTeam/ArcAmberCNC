@@ -31,6 +31,7 @@ async def serve(
     process_factory=None,
     status_reader_factory=None,
     stop_event=None,
+    cam_inbox=None,
 ) -> None:
     """Embed the service with explicit controller/process seams and shutdown.
 
@@ -137,7 +138,7 @@ async def serve(
         path.chmod(0o600)
         listener.setblocking(False)
         runtime = ControllerRuntime(
-            ini_path, controller_factory, process_factory, status_reader_factory
+            ini_path, controller_factory, process_factory, status_reader_factory, cam_inbox
         )
         server = await asyncio.start_unix_server(handle, sock=listener, limit=MAX_FRAME_BYTES)
         async with server:
@@ -164,10 +165,17 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="BetterLinuxCNC local controller service")
     parser.add_argument("--socket", type=Path, default=default_socket())
     parser.add_argument("--ini", type=Path)
+    parser.add_argument(
+        "--cam-inbox", type=Path, help="allow explicit CAM jobs from this private inbox"
+    )
     args = parser.parse_args()
     try:
         asyncio.run(
-            serve(args.socket.absolute(), ini_path=str(args.ini.absolute()) if args.ini else None)
+            serve(
+                args.socket.absolute(),
+                ini_path=str(args.ini.absolute()) if args.ini else None,
+                cam_inbox=args.cam_inbox.absolute() if args.cam_inbox else None,
+            )
         )
     except (OSError, ValueError) as exc:
         parser.exit(1, f"Cannot start local service: {exc}\n")

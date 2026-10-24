@@ -1,0 +1,9 @@
+#!/usr/bin/env python3
+"""Explicitly launched CAM link service; deployment supplies authentication and TLS."""
+import sys
+
+sys.path.insert(0, "@CMAKE_INSTALL_FULL_LIBDIR@/betterlinuxcnc/python")
+
+from bettercnc_cam_link import main
+
+main()

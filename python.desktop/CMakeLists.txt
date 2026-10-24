@@ -7,6 +7,7 @@ include(GNUInstallDirs)
 find_package(Python3 3.11 REQUIRED COMPONENTS Interpreter)
 configure_file(app/betterlinuxcnc.in betterlinuxcnc @ONLY)
 configure_file(app/betterlinuxcnc-service.in betterlinuxcnc-service @ONLY)
+configure_file(app/betterlinuxcnc-cam-link.in betterlinuxcnc-cam-link @ONLY)
 
 include(CTest)
 if(BUILD_TESTING)
@@ -42,6 +43,7 @@ endif()
 
 install(PROGRAMS "${CMAKE_CURRENT_BINARY_DIR}/betterlinuxcnc" DESTINATION ${CMAKE_INSTALL_BINDIR})
 install(PROGRAMS "${CMAKE_CURRENT_BINARY_DIR}/betterlinuxcnc-service" DESTINATION ${CMAKE_INSTALL_BINDIR})
+install(PROGRAMS "${CMAKE_CURRENT_BINARY_DIR}/betterlinuxcnc-cam-link" DESTINATION ${CMAKE_INSTALL_BINDIR})
 install(DIRECTORY python/bettercnc DESTINATION ${CMAKE_INSTALL_LIBDIR}/betterlinuxcnc/python
     PATTERN "__pycache__" EXCLUDE PATTERN "*.pyc" EXCLUDE)
 install(DIRECTORY ../python.service/src/ DESTINATION ${CMAKE_INSTALL_LIBDIR}/betterlinuxcnc/python

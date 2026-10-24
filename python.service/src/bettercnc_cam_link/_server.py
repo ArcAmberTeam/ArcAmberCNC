@@ -15,7 +15,9 @@ import stat
 from pathlib import Path
 
 from ._discovery import DiscoveryOptions, run_discovery
+from .execution import ExecutionError, ExecutionGateway
 from .feedback import FeedbackChannel, FeedbackError
+from .manual import JogError, JogSession
 from .protocol import MAX_FRAME_BYTES, ProtocolError, decode_chunk, read_request
 from .receiver import ProgramInbox, ReceiveError
 
@@ -39,11 +41,13 @@ async def serve(
     stop_event=None,
     sock=None,
     discovery=None,
+    auto_run=False,
 ):
     """Serve the authenticated CAM Link v2 TCP protocol on a persistent connection.
 
     protocol owns framing, receiver owns staged program files, and feedback owns
-    all replies and machine-status events. No network method issues commands.
+    all replies and machine-status events. Optional execution delegates jobs to the
+    local Controller; this process never opens LinuxCNC command channels.
     discovery optionally enables machine announcements and UDP discovery handshakes.
     An optional bound socket supports host activation and embedding.
     """
@@ -55,7 +59,10 @@ async def serve(
         if not isinstance(discovery, DiscoveryOptions):
             raise ValueError("discovery must be DiscoveryOptions or None")
         discovery.validate()
+    if type(auto_run) is not bool:
+        raise ValueError("auto_run must be boolean")
     programs = ProgramInbox(inbox, max_bytes=max_bytes)
+    execution = ExecutionGateway(control_socket)
     clients = set()
 
     async def handle(reader, writer):
@@ -69,6 +76,7 @@ async def serve(
             identify_program=programs.identify,
             io_timeout=io_timeout,
         )
+        jog = JogSession(control_socket)
         upload = None
         authenticated = False
         ids = set()
@@ -76,6 +84,8 @@ async def serve(
         async def route(request):
             nonlocal upload
             method, params = request.method, request.params
+            if method in ("jog.start", "jog.keepalive", "jog.stop"):
+                return await jog.request(method, params)
             if method == "ping":
                 _params(params)
                 return {"alive": True}
@@ -100,6 +110,19 @@ async def serve(
                 _params(params)
                 result = upload.finish()
                 upload = None
+                if auto_run and not result["duplicate"]:
+                    try:
+                        result["job"] = await execution.request("start", result["transferId"])
+                    except ExecutionError as error:
+                        result["job"] = {
+                            "transferId": result["transferId"],
+                            "state": "unknown"
+                            if error.code == "controller_unavailable"
+                            else "error",
+                            "message": str(error),
+                        }
+                elif auto_run:
+                    result["job"] = await execution.request("status", result["transferId"])
                 return result
             if method == "upload.abort":
                 _params(params)
@@ -109,7 +132,16 @@ async def serve(
                 return {"aborted": True}
             if method == "upload.receipt":
                 _params(params, "transferId")
-                return programs.receipt(params["transferId"])
+                result = programs.receipt(params["transferId"])
+                if auto_run:
+                    result["job"] = await execution.request("status", params["transferId"])
+                return result
+            if method in ("job.start", "job.status"):
+                _params(params, "transferId")
+                if not auto_run:
+                    raise ExecutionError("auto_run_disabled", "CAM auto execution is disabled")
+                programs.receipt(params["transferId"])
+                return {"job": await execution.request(method.split(".")[1], params["transferId"])}
             if method == "status.get":
                 _params(params)
                 return await channel.status()
@@ -167,7 +199,13 @@ async def serve(
                     continue
                 try:
                     result = await route(request)
-                except (ProtocolError, ReceiveError, FeedbackError) as error:
+                except (
+                    ProtocolError,
+                    ReceiveError,
+                    FeedbackError,
+                    ExecutionError,
+                    JogError,
+                ) as error:
                     if request.method in ("upload.chunk", "upload.finish") and upload is not None:
                         upload.close()
                         upload = None
@@ -186,6 +224,7 @@ async def serve(
         except (asyncio.IncompleteReadError, ConnectionError, OSError, TimeoutError):
             pass
         finally:
+            await jog.close()
             await channel.close()
             if upload is not None:
                 upload.close()
@@ -275,6 +314,11 @@ def main():
     parser.add_argument("--idle-timeout", type=float, default=60.0)
     parser.add_argument("--cert", type=Path)
     parser.add_argument("--key", type=Path)
+    parser.add_argument(
+        "--auto-run",
+        action="store_true",
+        help="submit newly received programs to the configured controller",
+    )
     parser.add_argument("--discover", action="store_true")
     parser.add_argument("--device-id")
     parser.add_argument("--device-name", default=socket.gethostname()[:64])
@@ -323,6 +367,7 @@ def main():
                 idle_timeout=args.idle_timeout,
                 ssl_context=context,
                 discovery=discovery,
+                auto_run=args.auto_run,
             )
         )
     except (OSError, ValueError) as error:

@@ -70,12 +70,17 @@ PYTHON_GRAPH = {
         "bettercnc_cam_link.protocol",
         "bettercnc_cam_link.receiver",
         "bettercnc_cam_link.feedback",
+        "bettercnc_cam_link.execution",
+        "bettercnc_cam_link.manual",
     },
     "bettercnc_cam_link.protocol": set(),
     "bettercnc_cam_link.receiver": {"bettercnc_cam_link.protocol"},
     "bettercnc_cam_link.feedback": {"bettercnc_cam_link.protocol"},
+    "bettercnc_cam_link.execution": set(),
+    "bettercnc_cam_link.manual": set(),
     "desktop-launcher": {"bettercnc.desktop"},
     "service-launcher": {"betterlinuxcnc_service"},
+    "cam-link-launcher": {"bettercnc_cam_link"},
 }
 PYTHON_ROOTS = [ROOT / "python", ROOT.parent / "python.service" / "src"]
 VENDOR_MODULES = {"linuxcnc", "gcode", "hal"}
@@ -117,6 +122,7 @@ for filename, owner in [
     ("main.py", "desktop-launcher"),
     ("betterlinuxcnc.in", "desktop-launcher"),
     ("betterlinuxcnc-service.in", "service-launcher"),
+    ("betterlinuxcnc-cam-link.in", "cam-link-launcher"),
 ]:
     source = ROOT / "app" / filename
     sources.append((source, "", owner, ast.parse(source.read_text(), filename=str(source))))

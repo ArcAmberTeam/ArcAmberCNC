@@ -14,6 +14,7 @@ v2 请求：
 
 | 方法 | 参数 | 返回 |
 | --- | --- | --- |
+| `machine.status` | 空对象 | 独立只读状态：运行状态、运动执行行、任务执行行、刀具、主轴、冷却；不要求附着控制会话 |
 | `session.attach` | 可选 `ini_path` | 状态快照；INI 不匹配或已有所有者则拒绝 |
 | `session.status` | 可选布尔 `jog_lease` | 最新机床快照；只有已建立点动租约才能续期 |
 | `command.execute` | `action`、对象 `payload` | `accepted` 与 `snapshot`；accepted 不是执行完成 |
@@ -21,7 +22,9 @@ v2 请求：
 | `preview.read` | `job_id`、非负整数 `offset` | 最多 256 段、next_offset、busy、done、units、bounds、error、warnings、truncated |
 | `preview.cancel` | `job_id` | `cancelled:true` |
 
-每个后续 v2 方法都要求当前连接持有会话。服务最多一个控制所有者，一个预览任务归属于该连接；断开释放所有权、取消预览和未发送的后续命令。其他 LinuxCNC 工具不受此 socket 所有权约束，应在部署时协调。
+除 `machine.status` 和 `session.attach` 外，每个 v2 方法都要求当前连接持有会话。`machine.status` 通过独立 `StatusReader` 在工作线程读取 `linuxcnc.stat`，不建立 command/error 通道，不获取控制所有权，也不续租点动；没有桌面控制会话时仍可查询。服务最多一个控制所有者，一个预览任务归属于该连接；控制连接断开释放所有权、取消预览和未发送的后续命令。观察者断开不改变机床状态。其他 LinuxCNC 工具不受此 socket 所有权约束，应在部署时协调。
+
+`machine.status` 中 `currentLine` 仅来自 `motion_line`，`taskLine` 来自任务层的 `current_line`，`readLine` 来自解释器预读的 `read_line`；这些位置分别返回，不能用任务行或预读行替代运动执行行。`progressPercent` 保持 null；循环、子程序和各段耗时不同，行号不能表示准确完成比例。`programState` 为 idle/running/paused/busy/estop/off/unknown；idle 不能证明某项作业已成功完成。详细外部接口见 [CAM 联动协议](cam-link-protocol.md)。
 
 ## 状态与操作
 

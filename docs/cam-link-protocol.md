@@ -1,0 +1,223 @@
+# CAM 联动 TCP 双向通信协议
+
+CAM Link 使用一条经过认证的 TCP 长连接接收外部 CAM 生成的 G-code，同时回传接收回执和只读加工反馈。外部协议版本为 2，帧头包含可读的消息类型，例如 `SEND_GCODE` 表示“发送加工文件”。外部 TCP 协议与设备内部的 Unix socket v2 控制协议独立。
+
+## 模块职责
+
+```text
+bettercnc_cam_link/
+  protocol/     帧格式、请求结构、版本和分块编码
+  receiver/     程序接收、顺序校验、暂存、摘要和接收回执
+  feedback/     响应、错误、加工状态查询与订阅推送
+  _server.py    连接生命周期、认证及三个能力的组合
+```
+
+三个目录通过各自 `__init__.py` 的公开入口协作。`protocol` 不依赖其他能力；`receiver` 和 `feedback` 只依赖 `protocol`。`feedback` 通过公开 Unix 协议读取 `machine.status`，文件关联和发现随机数校验能力由组合入口注入。模块不自动加载程序、不获取控制会话，也不远程启动加工。
+
+## 启动
+
+安装 `python.service` 包后，使用 `betterlinuxcnc-cam-link` 或 `python -m bettercnc_cam_link`。运行环境为 Python 3.11+，无额外运行时依赖。
+
+准备当前用户所有、权限为 0600 的令牌文件，内容为 32 至 256 个字母、数字、下划线或短横线，可通过 `secrets.token_urlsafe(32)` 生成。令牌不作为命令行参数直接传入。
+
+```sh
+betterlinuxcnc-cam-link \
+  --host 127.0.0.1 --port 6522 \
+  --inbox /home/cnc/cam-inbox \
+  --token-file /home/cnc/.config/bettercnc/cam-token \
+  --control-socket /run/user/1000/betterlinuxcnc/control.sock
+```
+
+默认只监听本机。跨设备连接时，将 `--host` 指定为机床设备的网络地址，用 `--cert` 和 `--key` 提供 TLS 证书和私钥，CAM 客户端验证证书后发送同样的 TCP 帧。该端口使用 CAM Link 自定义协议，不提供 HTTP 接口。
+
+收件目录必须是当前用户所有的 0700 目录，不存在时创建。完整程序位于 `<inbox>/<transferId>/<filename>`，权限为 0600。本地操作员通过已有桌面文件打开操作选择该文件，由 Controller 校验加载条件。当前没有桌面收件通知或自动导入。
+
+本地控制服务另行启动；它不可达时仍可接收程序，加工反馈返回 `controller_unavailable`。CAM Link 不启动 LinuxCNC 或控制服务。
+
+## 不知道 IP 时发现机床
+
+机床主动发送 UDP 广播，CAM 不需要预先配置机床 IP。发现功能默认关闭，服务增加以下参数后开启：
+
+```sh
+betterlinuxcnc-cam-link \
+  --host 0.0.0.0 --port 6522 \
+  --inbox /home/cnc/cam-inbox \
+  --token-file /home/cnc/.config/bettercnc/cam-token \
+  --control-socket /run/user/1000/betterlinuxcnc/control.sock \
+  --discover \
+  --device-id 550e8400-e29b-41d4-a716-446655440000 \
+  --device-name CNC-01
+```
+
+`device-id` 使用安装时为该机床分配的稳定小写 UUID，每次启动沿用。上面的 UUID 为示例，多台机床必须分配不同 ID。跨设备部署按前述方式加上 `--cert`、`--key`，CAM 按预先配置的 TLS/令牌策略认证，发现结果只作为候选连接地址。
+
+默认每三秒向 `255.255.255.255:8421` 广播，机床 UDP 监听端口也为 8421。CAM 监听本机 UDP `0.0.0.0:8421`，接收广播并保留 `recvfrom` 的源 IP、源 UDP 端口。IPv4 广播发送需启用 `SO_BROADCAST`；该广播地址覆盖本地网络段，不提供跨路由/VLAN 发现。[Linux ip(7)](https://man7.org/linux/man-pages/man7/ip.7.html)
+
+可通过 `--discovery-address` 指定网卡所在子网的广播地址，`--discovery-port` 指定 CAM 监听端口，`--discovery-bind-port` 单独指定机床 UDP 绑定端口，`--discovery-interval` 调整广播间隔（0.1 至 60 秒）。多网卡时应显式选择机床 `--host` 地址及对应广播地址。CAM 和机床之间必须允许 UDP 发现端口、TCP 服务端口互通，交换机或无线客户端隔离不能阻断广播。
+
+发现握手为：
+
+```text
+机床 -- UDP 广播 ANNOUNCE --> CAM
+机床 <-- UDP 单播 DISCOVER_REPLY -- CAM
+机床 -- UDP 单播 DISCOVER_ACK --> CAM
+机床 <-- TCP 连接 + session.auth -- CAM
+```
+
+UDP 复用 24 字节 CAM2 帧头；一个数据报只能包含一帧，整帧最多 1024 字节，不拆包拼接，不传加工文件。三种帧头与正文事件严格匹配：
+
+| 帧头类型 | 正文 event | 用途 |
+| --- | --- | --- |
+| `ANNOUNCE` | `discovery.announce` | 机床公布可连接的服务 |
+| `DISCOVER_REPLY` | `discovery.reply` | CAM 回应刚收到的广播 |
+| `DISCOVER_ACK` | `discovery.ack` | 机床确认收到 CAM 回复 |
+
+广播正文如下，不包含认证令牌、程序或加工状态：
+
+```json
+{"version":2,"event":"discovery.announce","service":"bettercnc-cam-link","deviceId":"550e8400-e29b-41d4-a716-446655440000","deviceName":"CNC-01","tcpPort":6522,"tls":false,"nonce":"0123456789abcdef0123456789abcdef"}
+```
+
+CAM 将回复单播到广播报文的源 IP 和源 UDP 端口。回复复制 `deviceId`、`nonce`，并携带 CAM 自己的小写 UUID：
+
+```json
+{"version":2,"event":"discovery.reply","service":"bettercnc-cam-link","deviceId":"550e8400-e29b-41d4-a716-446655440000","camId":"3d813cbb-47fb-32ba-91df-831e1593ac29","nonce":"0123456789abcdef0123456789abcdef"}
+```
+
+机床仅接受与自身设备 ID 和近期广播随机数匹配的回复，确认帧将回复中的 `camId` 与 `nonce` 原样返回，并附带设备名、TCP 端口与 TLS 标记：
+
+```json
+{"version":2,"event":"discovery.ack","service":"bettercnc-cam-link","deviceId":"550e8400-e29b-41d4-a716-446655440000","deviceName":"CNC-01","camId":"3d813cbb-47fb-32ba-91df-831e1593ac29","tcpPort":6522,"tls":false,"nonce":"0123456789abcdef0123456789abcdef"}
+```
+
+CAM 根据确认报文的源 IP 和正文 `tcpPort` 建立 TCP 连接；确认中的设备 ID、CAM ID 和随机数应与待完成握手一致。IP 不从 JSON 中声明，不能用 `0.0.0.0` 或广播地址作为 TCP 目标。`tls` 描述服务监听配置，不替代 CAM 预设的 TLS 认证策略。
+
+机床保留最近三个广播的随机数，每个有效期为三个广播间隔；过期、错误设备、格式错误和超长报文静默忽略。每秒最多确认八个有效回复；UDP 丢包或限流时，CAM 可等待下一次广播再握手。机床持续广播，可被多个 CAM 发现；完成发现不获取机床控制所有权，也不替代 TCP `session.auth`。关闭服务时停止广播并释放 UDP 端口。
+
+Python CAM 端可复用 `bettercnc_cam_link.protocol.decode_discovery`、`encode_discovery` 编解码这些报文；服务宿主可通过公开 `DiscoveryOptions` 配置发现。真实跨设备广播仍须在部署的网卡、交换机和 CAM 客户端上联调。
+
+## 帧格式
+
+每帧为 24 字节固定帧头，随后是指定字节数的 UTF-8 JSON 正文：
+
+```text
+CAM2 | SEND_GCODE + NUL 补齐至 16 字节 | 正文长度 4 字节 | JSON 正文
+```
+
+| 字节偏移 | 长度 | 内容 |
+| --- | --- | --- |
+| 0 | 4 | ASCII 魔数 `CAM2`，标识外部 TCP 协议版本 2 |
+| 4 | 16 | ASCII 消息类型，右侧用 NUL（0x00）补齐，禁止嵌入 NUL |
+| 20 | 4 | 大端无符号整数，表示正文的字节数，不含帧头 |
+| 24 | 1 至 65,536 | UTF-8 JSON 正文，其中 `version` 必须为 2 |
+
+消息类型及含义如下：
+
+| 帧头类型 | 含义 | 对应正文 |
+| --- | --- | --- |
+| `AUTH` | 连接认证 | `session.auth` |
+| `PING` | 心跳 | `ping` |
+| `SEND_GCODE` | 发送加工文件 | `upload.begin`、`upload.chunk`、`upload.finish` |
+| `ABORT_GCODE` | 取消当前文件接收 | `upload.abort` |
+| `GET_RECEIPT` | 查询文件接收回执 | `upload.receipt` |
+| `GET_STATUS` | 查询加工状态 | `status.get` |
+| `SUB_STATUS` | 订阅加工状态 | `status.subscribe` |
+| `UNSUB_STATUS` | 取消状态订阅 | `status.unsubscribe` |
+| `REPLY` | 请求成功回执 | 带 `requestId`、`result` 的响应 |
+| `ERROR` | 请求错误回执 | 带 `requestId`、`error` 的响应 |
+| `STATUS` | 主动回传加工状态 | `machine.status` 事件，可能携带状态或错误 |
+| `REQUEST` | 尚未支持的方法 | 其他 `method`，返回 `unsupported_method` |
+
+接收端先校验魔数、类型和长度，再读取正文；帧头类型必须与正文 `method` 一致，不一致返回 `message_type_mismatch` 并关闭连接。上传的开始、分块和提交都标记为 `SEND_GCODE`，具体动作由正文 `method` 区分。回传端也使用同一帧头格式，可先根据类型区分回执、错误和主动状态。
+
+TCP 拆包、粘包均按帧头中的长度处理。错误魔数、未知类型、非法长度、JSON 重复字段、非有限数、额外信封字段和非法版本会导致错误回执并关闭连接。原来仅含四字节长度的外部 TCP v1 帧不再接受，CAM 发送端必须同步升级；设备内部的 Unix socket 帧格式不变。
+
+请求格式固定为：
+
+```json
+{"version":2,"requestId":"unique-id","method":"ping","params":{}}
+```
+
+`requestId` 为 1 至 64 个字符，在同一连接内不能复用。服务回执包含相同 `requestId`：
+
+```json
+{"version":2,"requestId":"unique-id","result":{"alive":true}}
+```
+
+失败返回 `error:{code,message}`，不包含 `result`。无法恢复请求 ID 时，错误回执使用空字符串 ID。业务参数错误通常允许继续通信；非法分块或提交失败会中止当前上传，并清理未发布文件。
+
+认证前超时为 10 秒；帧正文读取和回传写入超时为 10 秒。认证后的请求空闲超时默认 60 秒，可用 `--idle-timeout` 调整；订阅推送不续期客户端请求空闲时间，CAM 应每 30 秒发送一次 `ping`。最多同时接纳四个连接；额外连接关闭。每个连接最多接收 100,000 个不同请求 ID，达到限制后需重连。
+
+## 认证和方法
+
+连接后第一条有效请求必须为：
+
+```json
+{"version":2,"requestId":"auth-1","method":"session.auth","params":{"token":"<token>"}}
+```
+
+成功返回 `authenticated:true`；未认证或令牌不符返回 `unauthorized` 后关闭连接。认证成功后可连续发送下列请求：
+
+| 方法 | 参数 | 结果 |
+| --- | --- | --- |
+| `ping` | 空对象 | `alive:true` |
+| `upload.begin` | `transferId`、`filename`、`size`、`sha256` | `state:"receiving"`、`nextOffset:0` |
+| `upload.chunk` | `offset`、Base64 字符串 `data` | 下一块的 `nextOffset` |
+| `upload.finish` | 空对象 | 完整接收回执，附 `duplicate` 布尔值 |
+| `upload.abort` | 空对象 | `aborted:true`，清理当前未完成上传 |
+| `upload.receipt` | `transferId` | 已发布的持久化接收回执 |
+| `status.get` | 空对象 | 一次新鲜的加工状态 |
+| `status.subscribe` | 秒数 `interval`，范围 1 至 60 | `subscribed:true`，随后开始推送 |
+| `status.unsubscribe` | 空对象 | `subscribed:false`，停止本连接推送 |
+
+每个连接同时只能有一个上传任务，期间可以查询或订阅状态。请求处理按接收顺序串行；推送在独立异步任务运行，与所有响应共用发送锁，保证帧字节不交错。客户端必须区分带 `requestId` 的响应与带 `event` 的推送，不能假设下一帧一定是刚发请求的响应。重复订阅会替换此前的订阅。
+
+## 程序接收
+
+`transferId` 由 CAM 生成，格式为带短横线的小写 UUID，重传沿用同一 ID。`filename` 为纯文件名：ASCII 字母、数字、下划线、短横线和点，以字母或数字开头，扩展名为小写 `.ngc`、`.nc` 或 `.gcode`，扩展名前最多 120 个字符。路径分隔符和 URL 编码不合法。
+
+`size` 是完整文件的字节数，必须为正整数，默认上限为 64 MiB，可通过 `--max-bytes` 调整。`sha256` 为完整原始文件的 64 位小写十六进制摘要。文件必须是非空、不含 NUL 的 UTF-8 文本；G-code 语义仍由 LinuxCNC 解释器处理。
+
+上传顺序为 `upload.begin`、若干 `upload.chunk`、`upload.finish`。分块的 `offset` 从 0 开始，必须等于上次响应的 `nextOffset`。每块解码后最多 32,768 字节，且不能超过声明的剩余文件大小。UTF-8 字符可以跨块，服务保留增量解码状态。
+
+完整内容收到且摘要校验通过后，服务同步程序与回执，再原子发布接收目录。首次成功返回：
+
+```json
+{"version":2,"requestId":"finish-1","result":{"transferId":"550e8400-e29b-41d4-a716-446655440000","filename":"part.ngc","size":1234,"sha256":"<64 位摘要>","state":"received","duplicate":false}}
+```
+
+相同 ID、文件名、大小和摘要重新提交，返回相同回执及 `duplicate:true`；内容或名称冲突返回 `transfer_id_conflict`，不覆盖原程序。`upload.receipt` 的结果不含临时字段 `duplicate`。回执丢失时，先查询 `upload.receipt`；`unknown_transfer` 表示没有已发布回执，可按原 ID 重传完整文件。
+
+连接中断、请求读取超时、显式中止、分块或摘要错误以及正常停机时，当前未完成文件会清理。断电或强制杀进程可能留下 `.receiving-*` 隐藏目录，管理员可在服务停机后清理；它们不会被作为完整程序发布。当前没有跨连接断点续传。已接收程序保留到本地人工清理，部署时需管理收件目录容量。
+
+## 状态回传
+
+订阅成功回执发送后，服务立即采样一次状态，然后按 `interval` 间隔重新采样并推送。采样通过独立的本地 Unix socket 连接调用只读 `machine.status`，不获取控制权、不续租点动、不消费 LinuxCNC 错误通道，也不要求桌面控制会话存在。
+
+```json
+{"version":2,"event":"machine.status","data":{"connected":true,"programState":"running","currentLine":12,"taskLine":100,"readLine":120,"progressPercent":null,"transferId":null}}
+```
+
+| 字段 | 含义 |
+| --- | --- |
+| `connected` | LinuxCNC 状态是否有效 |
+| `programState` | `idle`、`running`、`paused`、`busy`、`estop`、`off` 或 `unknown` |
+| `file` | LinuxCNC 当前程序的本地路径 |
+| `transferId` | 程序路径位于当前 inbox 且与回执文件名一致时的传输 ID，否则 null |
+| `currentLine` | LinuxCNC `motion_line`，运动执行行 |
+| `taskLine` | LinuxCNC `current_line`，任务层执行行 |
+| `readLine` | LinuxCNC `read_line`，解释器预读行 |
+| `progressPercent` | 当前为 null，不根据行号估算完成比例 |
+| `mode`、`powered`、`estop`、`paused` | 操作模式、电源、急停、暂停 |
+| `queueDepth`、`activeQueueDepth` | 队列状态 |
+| `tool`、`spindleSpeed`、`feedOverride`、`flood`、`mist` | 刀号、主轴命令转速 RPM、进给倍率、冷却状态 |
+
+控制服务正常但 LinuxCNC 不可用时，状态为 `connected:false`、`programState:"unknown"`，行号和百分比为 null，其他字段可缺省。控制服务不可达或两秒内无法读取状态时，查询返回 `controller_unavailable`，订阅推送错误事件且不附带旧状态：
+
+```json
+{"version":2,"event":"machine.status","error":{"code":"controller_unavailable","message":"local controller status unavailable"}}
+```
+
+订阅继续重采样，连接恢复后重新推送实际状态。取消订阅后，已在网络缓冲区的事件仍可能先于取消回执到达；回执后不再产生该订阅的新事件。CAM 连接关闭时取消订阅，不影响机床加工。
+
+`transferId` 只按本地路径关联收件，复制或本地编辑文件不构成新的作业记录。`received` 只表示完整接收，`idle` 只表示当前空闲，均不能证明加工成功。当前没有独立作业生命周期、加工成功事件、剩余时间或远程启动、暂停、停止接口。

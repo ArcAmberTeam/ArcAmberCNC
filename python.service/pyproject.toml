@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "betterlinuxcnc-service"
 version = "0.2.0"
-description = "Private Unix socket controller and isolated LinuxCNC program preview service"
+description = "Local LinuxCNC control, isolated program preview and CAM link services"
 readme = "README.md"
 requires-python = ">=3.11"
 license = "GPL-2.0-or-later"
@@ -14,6 +14,7 @@ dependencies = []
 
 [project.scripts]
 betterlinuxcnc-service = "betterlinuxcnc_service:main"
+betterlinuxcnc-cam-link = "bettercnc_cam_link:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

@@ -114,6 +114,23 @@ class ControlServiceTests(unittest.IsolatedAsyncioTestCase):
         self.preview_exitcode = None
         self.real_preview = False
         self.seed_snapshot = {}
+        self.status_readers = []
+        test = self
+
+        class Reader:
+            def __init__(self, ini_path=None):
+                self.ini_path = ini_path
+                self.closed = False
+                self.threads = []
+                test.status_readers.append(self)
+
+            def poll(self):
+                self.threads.append(threading.get_ident())
+                return {"connected": True, "programState": "running", "currentLine": 12}
+
+            def close(self):
+                self.closed = True
+
         self.preview_result = {
             "units": "mm",
             "segments": [],
@@ -156,6 +173,7 @@ class ControlServiceTests(unittest.IsolatedAsyncioTestCase):
                 ini_path="/example/machine.ini",
                 controller_factory=factory,
                 process_factory=process_factory,
+                status_reader_factory=Reader,
                 stop_event=self.stop,
             )
         )
@@ -225,6 +243,38 @@ class ControlServiceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(reply["version"], 1)
         self.assertFalse(reply["result"]["machine_connected"])
         self.assertEqual(self.controllers, [])
+
+    async def test_machine_feedback_does_not_acquire_control_or_renew_jog_lease(self):
+        observer = await self.connect()
+        reply = await self.rpc(observer, "machine.status")
+        self.assertEqual(reply["result"]["currentLine"], 12)
+        self.assertEqual(self.controllers, [])
+        self.assertEqual(self.status_readers[0].ini_path, "/example/machine.ini")
+        self.assertNotIn(threading.get_ident(), self.status_readers[0].threads)
+        self.assertEqual(
+            (await self.rpc(observer, "machine.status", {"jog_lease": True}))["error"]["code"],
+            "invalid_params",
+        )
+        owner = await self.attached()
+        await self.rpc(owner, "command.execute", {"action": "jog.start", "payload": {"axis": "X"}})
+        for _ in range(6):
+            await self.rpc(observer, "machine.status")
+            await self.rpc(owner, "session.status")
+            await asyncio.sleep(0.15)
+        self.assertIn(("stop_jog",), self.controllers[0].calls)
+        self.assertEqual(
+            (await self.rpc(observer, "command.execute", {"action": "program.run", "payload": {}}))[
+                "error"
+            ]["code"],
+            "not_attached",
+        )
+        observer[1].close()
+        await observer[1].wait_closed()
+        self.assertTrue((await self.rpc(owner, "session.status"))["result"]["connected"])
+        self.assertFalse(self.controllers[0].closed)
+        self.stop.set()
+        await self.server
+        self.assertTrue(self.status_readers[0].closed)
 
     async def test_attach_has_exclusive_ownership_and_requires_exact_params(self):
         first = await self.attached()

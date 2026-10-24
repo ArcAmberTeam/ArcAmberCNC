@@ -27,6 +27,8 @@ def main():
     parser.add_argument("--report", type=Path, help="Write a local JSON interface audit")
     parser.add_argument("--capture", type=Path, help="Capture the initial window and exit")
     parser.add_argument("--interface", choices=("guided", "professional"), default="guided")
+    parser.add_argument("--width", type=int, default=1024)
+    parser.add_argument("--height", type=int, default=600)
     args = parser.parse_args()
     try:
         data = read_linear_program(args.program)
@@ -47,7 +49,7 @@ def main():
     engine = QQmlApplicationEngine()
     target = DIRECTORY.parent / "qml/Main.qml"
     engine.addImportPath(str(target.parent))
-    engine.setInitialProperties({"backend": desktop, "width": 1280, "height": 860,
+    engine.setInitialProperties({"backend": desktop, "width": args.width, "height": args.height,
                                  "interfaceMode": args.interface, "guidedStage": "preview"})
     try:
         engine.load(QUrl.fromLocalFile(str(target)))

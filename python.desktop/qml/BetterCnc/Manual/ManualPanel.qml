@@ -278,42 +278,36 @@ Rectangle {
 
                     RowLayout {
                         width: parent.width
-                        height: 30
+                        height: 44
                         spacing: 6
 
-                        UiButton {
+                        JogButton {
                             objectName: "jogMinus"
                             text: "−"
-                            font.pixelSize: 18
-                            Layout.preferredWidth: 40
-                            Layout.preferredHeight: Theme.controlHeight
+                            Layout.preferredWidth: 48
+                            Layout.preferredHeight: 44
                             Accessible.name: "负向点动"
                             enabled: root.jogHeld ? root.jogSafe : root.canJog && root.permitted("jog.start")
-                            onPressed: root.startJog(-1)
-                            onReleased: root.releaseJog()
-                            onCanceled: root.releaseJog()
-                            onActiveFocusChanged: if (!activeFocus && down) root.releaseJog()
+                            onJogPressed: root.startJog(-1)
+                            onJogReleased: root.releaseJog()
                         }
 
-                        UiButton {
+                        JogButton {
                             objectName: "jogPlus"
                             text: "+"
-                            font.pixelSize: 18
-                            Layout.preferredWidth: 40
-                            Layout.preferredHeight: Theme.controlHeight
+                            Layout.preferredWidth: 48
+                            Layout.preferredHeight: 44
                             Accessible.name: "正向点动"
                             enabled: root.jogHeld ? root.jogSafe : root.canJog && root.permitted("jog.start")
-                            onPressed: root.startJog(1)
-                            onReleased: root.releaseJog()
-                            onCanceled: root.releaseJog()
-                            onActiveFocusChanged: if (!activeFocus && down) root.releaseJog()
+                            onJogPressed: root.startJog(1)
+                            onJogReleased: root.releaseJog()
                         }
 
                         UiComboBox {
                             objectName: "jogIncrement"
                             model: ["连续点动", "0.1000", "0.0100", "0.0010", "0.0001"]
                             Layout.fillWidth: true
-                            Layout.preferredHeight: Theme.controlHeight
+                            Layout.preferredHeight: 44
                             Accessible.name: "点动方式与步距"
                             onActivated: {
                                 root.releaseJog();
@@ -322,9 +316,13 @@ Rectangle {
                         }
                     }
 
-                    Item {
-                        width: 1
-                        height: 8
+                    UiText {
+                        width: parent.width
+                        height: 24
+                        text: "触屏按住 250 毫秒启动 · 松开或滑动停止"
+                        font.pixelSize: 11
+                        color: Theme.muted
+                        verticalAlignment: Text.AlignVCenter
                     }
 
                     RowLayout {

@@ -6,6 +6,7 @@ import BetterCnc.Chrome 1.0
 
 Item {
     id: root
+    property bool settingsOpen: false
     property bool manualControlsEnabled: true
     signal manualRequested()
     property bool popupActive: false
@@ -17,8 +18,8 @@ Item {
     required property ManualState manual
     required property ToolpathState preview
     required property ChromeActions actions
-    Shortcut { sequence: "F3"; enabled: !root.popupActive; onActivated: { root.manualRequested(); root.manual.controlTab = "manual"; } }
-    Shortcut { sequence: "F5"; enabled: !root.popupActive; onActivated: { root.manualRequested(); root.manual.controlTab = "mdi"; } }
+    Shortcut { sequence: "F3"; enabled: !root.popupActive && !root.settingsOpen; onActivated: { root.manualRequested(); root.manual.controlTab = "manual"; } }
+    Shortcut { sequence: "F5"; enabled: !root.popupActive && !root.settingsOpen; onActivated: { root.manualRequested(); root.manual.controlTab = "mdi"; } }
     Repeater {
         model: root.configuredAxes
         delegate: Item {

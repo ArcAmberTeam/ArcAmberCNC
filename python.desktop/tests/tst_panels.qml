@@ -119,9 +119,9 @@ TestCase {
         verify(!previous.equals(renderedCanvas()), "Zoom must change the drawn geometry");
         compare(control("previewCaption").text, "透视图 · 125%");
         fixture.presentation.zoomBy(100);
-        compare(control("previewCaption").text, "透视图 · 200%");
+        compare(control("previewCaption").text, "透视图 · 2000%");
         fixture.presentation.zoomBy(0.001);
-        compare(control("previewCaption").text, "透视图 · 50%");
+        compare(control("previewCaption").text, "透视图 · 10%");
     }
     function test_displayLayersChangeRendering_data() {
         return ["show.program", "show.rapids", "show.alpha", "show.live", "show.tool",
@@ -283,4 +283,85 @@ TestCase {
             }
         }
     }
+    function test_mousePanOrbitAndReset() {
+        const canvas = control("toolpathCanvas"), state = fixture.presentation;
+        const x = canvas.width / 2, y = canvas.height / 2;
+        mouseDrag(canvas, x, y, 65, 25, Qt.LeftButton);
+        verify(state.panX > 20 && state.panY > 0, "Left drag must pan by default");
+        const before = renderedCanvas();
+        mouseDrag(canvas, x, y, 60, 20, Qt.RightButton);
+        verify(state.yaw > 0 && state.pitch > 0, "Right drag must orbit");
+        verify(!before.equals(renderedCanvas()));
+        const pan = state.panX;
+        mouseDrag(canvas, x, y, 40, 0, Qt.MiddleButton);
+        verify(state.panX > pan);
+        mouseClick(control("viewport-fit"));
+        tryCompare(state, "panX", 0); compare(state.panY, 0);
+        compare(state.yaw, 0); compare(state.pitch, 0); compare(state.zoom, 1);
+    }
+    function test_zoomAnchorsPointerAndIgnoresHorizontalWheel() {
+        const canvas = control("toolpathCanvas"), state = fixture.presentation;
+        const x = canvas.width * .7, y = canvas.height * .6;
+        mouseWheel(canvas, x, y, 0, 120);
+        verify(state.zoom > 1);
+        fuzzyCompare(state.panX, (x - canvas.width / 2) * (1 - state.zoom), 1);
+        fuzzyCompare(state.panY, (y - canvas.height / 2) * (1 - state.zoom), 1);
+        const zoom = state.zoom;
+        mouseWheel(canvas, x, y, 120, 0);
+        compare(state.zoom, zoom);
+    }
+    function test_touchPanPinchAndTwoToOneTransition() {
+        const canvas = control("toolpathCanvas"), state = fixture.presentation;
+        const x = canvas.width / 2, y = canvas.height / 2;
+        let finger = touchEvent(canvas);
+        finger.press(0, canvas, x, y).commit(); wait(20);
+        finger.move(0, canvas, x + 25, y + 10).commit(); wait(20);
+        finger.move(0, canvas, x + 65, y + 20).commit(); wait(20);
+        finger.release(0, canvas, x + 65, y + 20).commit(); wait(20);
+        verify(state.panX > 0, "Touch drag must pan");
+        state.resetView();
+        state.rotate = true;
+        let pinch = touchEvent(canvas);
+        pinch.press(0, canvas, x - 40, y).press(1, canvas, x + 40, y).commit(); wait(20);
+        pinch.move(0, canvas, x - 65, y).move(1, canvas, x + 65, y).commit(); wait(20);
+        pinch.move(0, canvas, x - 90, y + 25).move(1, canvas, x + 90, y + 25).commit(); wait(20);
+        verify(state.zoom > 1.2, "Pinch must zoom");
+        verify(state.panY > 0, "Two-finger translation must pan");
+        compare(state.yaw, 0); compare(state.pitch, 0);
+        pinch.release(0, canvas, x - 90, y + 25).stationary(1).commit(); wait(20);
+        compare(state.yaw, 0); compare(state.pitch, 0);
+        pinch.release(1, canvas, x + 90, y + 25).commit(); wait(20);
+        const zoom = state.zoom;
+        mouseMove(canvas, x + 20, y + 20);
+        compare(state.zoom, zoom);
+    }
+    function test_touchDoubleTapResetsView() {
+        const canvas = control("toolpathCanvas"), state = fixture.presentation;
+        state.panBy(60, 30); state.zoomBy(2); state.orbitBy(45, 20);
+        // Quick Test inserts 500 ms between mouse releases; touch events retain
+        // the real timing required by TapHandler's double-tap recognition.
+        const x = canvas.width / 2, y = canvas.height / 2;
+        let touch = touchEvent(canvas);
+        for (let i = 0; i < 2; ++i) {
+            touch.press(0, canvas, x, y).commit(); wait(20);
+            touch.release(0, canvas, x, y).commit(); wait(20);
+        }
+        tryCompare(state, "zoom", 1);
+        compare(state.panX, 0); compare(state.panY, 0);
+        compare(state.yaw, 0); compare(state.pitch, 0);
+    }
+    function test_viewButtonsRestorePlanarProjection() {
+        const canvas = control("toolpathCanvas"), state = fixture.presentation;
+        mouseClick(control("viewport-orbit"));
+        mouseDrag(canvas, canvas.width / 2, canvas.height / 2, 45, 35);
+        verify(state.yaw !== 0);
+        mouseClick(control("viewport-zoom-in"));
+        verify(state.zoom > 1);
+        mouseClick(control("viewport-top"));
+        compare(state.choices.view, "z");
+        compare(state.yaw, 0); compare(state.pitch, 0); compare(state.zoom, 1);
+        mouseClick(control("viewport-pan"));
+        compare(state.rotate, false);
+    }
+
 }

@@ -13,9 +13,16 @@ Rectangle {
     objectName: "workspace"
     color: Theme.base
     property string interfaceMode: "professional"
+    property bool settingsOpen: false
+    function openSettings() {
+        stopJog(); settingsOpen = true; settings.focusBack();
+    }
+    function closeSettings() {
+        settingsOpen = false; chrome.focusSettings();
+    }
     property string guidedStage: "prepare"
     readonly property bool guided: interfaceMode === "guided"
-    onInterfaceModeChanged: { stopJog(); forceActiveFocus(); }
+    onInterfaceModeChanged: { stopJog(); if (!settingsOpen) forceActiveFocus(); }
     onGuidedStageChanged: { stopJog(); forceActiveFocus(); }
     property Item focusedItem: null
     property var backend: null
@@ -91,19 +98,27 @@ Rectangle {
                 workspace.requestCommand("machine.mode", {mode: manualPresentation.controlTab});
         }
     }
-    property int programHeight: 184
+    property int programHeight: height <= 640 ? 120 : 184
     property bool initialized: false
     readonly property int maximumProgramHeight: Math.max(90, Math.min(340, panes.height - 247))
     readonly property bool compact: width <= 900
     readonly property int sidebarWidth: compact ? 280 : 304
     readonly property bool menuOpen: chrome.menuOpen
-    readonly property bool viewShortcutsEnabled: !popupActive && !chrome.menuOpen && !editing()
+    readonly property bool viewShortcutsEnabled: !settingsOpen && !popupActive && !chrome.menuOpen && !editing()
 
     function editing() {
         let item = focusedItem;
         while (item) {
             if (item instanceof TextInput || item instanceof TextEdit || item instanceof ComboBox)
                 return true;
+            item = item.parent;
+        }
+        return false;
+    }
+    function previewFocused() {
+        let item = focusedItem;
+        while (item) {
+            if (item === toolpathPanel) return true;
             item = item.parent;
         }
         return false;
@@ -146,17 +161,19 @@ Rectangle {
     ChromeBar {
         id: chrome
         width: parent.width
-        height: 144
+        height: implicitHeight
+        visible: !workspace.settingsOpen
         compact: workspace.compact
         interfaceMode: workspace.interfaceMode
         guidedStage: workspace.guidedStage
-        onInterfaceModeRequested: mode => workspace.interfaceMode = mode
+        onSettingsRequested: workspace.openSettings()
         onStageRequested: stage => workspace.guidedStage = stage
         actions: chromeActions
         preview: toolpathPresentation
     }
     Item {
         id: panes
+        visible: !workspace.settingsOpen
         x: Theme.gap
         y: chrome.height + Theme.gap
         width: parent.width - Theme.gap * 2
@@ -175,6 +192,7 @@ Rectangle {
             onDialogRequested: (actionId, title, axis) => dialogs.openDialog(actionId, title, axis)
         }
         ToolpathPanel {
+            id: toolpathPanel
             x: workspace.layout.previewRect.x; y: workspace.layout.previewRect.y
             width: workspace.layout.previewRect.width; height: workspace.layout.previewRect.height
             visible: workspace.layout.previewVisible
@@ -236,15 +254,27 @@ Rectangle {
         x: panes.x + workspace.layout.guideRect.x
         y: panes.y + workspace.layout.guideRect.y
         width: workspace.layout.guideRect.width; height: workspace.layout.guideRect.height
-        visible: workspace.guided && workspace.layout.guideVisible
+        visible: !workspace.settingsOpen && workspace.guided && workspace.layout.guideVisible
         stage: workspace.guidedStage
         actions: chromeActions
         onStageRequested: stage => workspace.guidedStage = stage
     }
     WorkspaceStatus {
+        visible: !workspace.settingsOpen
         anchors.bottom: parent.bottom
         width: parent.width
         machine: workspace.machine
+    }
+    WorkspaceSettings {
+        id: settings
+        anchors.fill: parent
+        visible: workspace.settingsOpen
+        interfaceMode: workspace.interfaceMode
+        preview: toolpathPresentation
+        actions: chromeActions
+        onBackRequested: workspace.closeSettings()
+        onInterfaceModeRequested: mode => workspace.interfaceMode = mode
+        onCommandRequested: (actionId, payload) => workspace.requestCommand(actionId, payload)
     }
     DialogHost {
         id: dialogs
@@ -274,7 +304,8 @@ Rectangle {
             workspace.backend.saveProgram(selectedFile.toString(), workspace.program.text)
     }
     WorkspaceShortcuts {
-        manualControlsEnabled: manualPanel.visible
+        settingsOpen: workspace.settingsOpen
+        manualControlsEnabled: manualPanel.visible && !workspace.previewFocused()
         onManualRequested: if (workspace.guided) workspace.guidedStage = "device"
         popupActive: workspace.popupActive
         menuOpen: workspace.menuOpen
@@ -287,7 +318,7 @@ Rectangle {
         actions: chromeActions
     }
     Keys.onPressed: event => {
-        if (!manualPanel.visible || !workspace.viewShortcutsEnabled || manualPresentation.controlTab !== "manual" || event.isAutoRepeat) return;
+        if (!manualPanel.visible || workspace.previewFocused() || !workspace.viewShortcutsEnabled || manualPresentation.controlTab !== "manual" || event.isAutoRepeat) return;
         const keys = {};
         keys[Qt.Key_Left] = ["X", -1]; keys[Qt.Key_Right] = ["X", 1];
         keys[Qt.Key_Down] = ["Y", -1]; keys[Qt.Key_Up] = ["Y", 1];

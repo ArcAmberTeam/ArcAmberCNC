@@ -8,12 +8,12 @@ ApplicationWindow {
     property var backend: null
     property alias interfaceMode: workspace.interfaceMode
     property alias guidedStage: workspace.guidedStage
-    width: 1440
-    height: 900
+    width: 1024
+    height: 600
     minimumWidth: 760
-    minimumHeight: 640
+    minimumHeight: 600
     visible: true
-    title: (backend && backend.program && backend.program.fileName ? backend.program.fileName + " — " : "") + "BetterLinuxCNC"
+    title: backend && backend.program && backend.program.fileName ? backend.program.fileName : "未打开程序"
     color: Theme.base
     font.family: Theme.fontFamily
     font.pixelSize: Theme.bodySize

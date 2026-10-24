@@ -15,10 +15,13 @@ Canvas {
     renderTarget: Canvas.Image
     property var geometry: []
     property var geometryBounds: ({min: [-25, -25, -25], max: [25, 25, 25]})
+    readonly property var pivot: geometryBounds.min.map((v, i) => (v + geometryBounds.max[i]) / 2)
     property var segmentsByLine: ({})
     property var livePoints: []
-    property real yaw: 0
-    property real pitch: 0
+    readonly property real yaw: presentation.yaw
+    readonly property real pitch: presentation.pitch
+    clip: true
+    activeFocusOnTab: true
     readonly property var viewport: frame()
 
     function syncProgram() {
@@ -53,9 +56,10 @@ Canvas {
         }
         overlay.requestPaint();
     }
-    function projected(point) {
-        let x = point[0], y = point[1], z = point[2];
-        if (yaw || pitch) {
+    function projected(point, unrotated = false) {
+        const center = pivot;
+        let x = point[0] - center[0], y = point[1] - center[1], z = point[2] - center[2];
+        if (!unrotated && (yaw || pitch)) {
             const cy = Math.cos(yaw), sy = Math.sin(yaw), cp = Math.cos(pitch), sp = Math.sin(pitch);
             const rx = x * cy - y * sy, ry = x * sy + y * cy;
             x = rx; y = ry * cp - z * sp; z = ry * sp + z * cp;
@@ -73,15 +77,15 @@ Canvas {
         for (let i = 0; i < 8; ++i) {
             const point = projected([geometryBounds[(i & 1) ? "max" : "min"][0],
                                      geometryBounds[(i & 2) ? "max" : "min"][1],
-                                     geometryBounds[(i & 4) ? "max" : "min"][2]]);
+                                     geometryBounds[(i & 4) ? "max" : "min"][2]], true);
             minX = Math.min(minX, point[0]); maxX = Math.max(maxX, point[0]);
             minY = Math.min(minY, point[1]); maxY = Math.max(maxY, point[1]);
         }
         const padding = Math.min(45, height * 0.15, width * 0.1);
         const scale = Math.max(0.01, Math.min(Math.max(1, width - padding * 2) / Math.max(1, maxX - minX),
                                             Math.max(1, height - padding * 2) / Math.max(1, maxY - minY))) * presentation.zoom;
-        return {scale: scale, x: width / 2 - (minX + maxX) / 2 * scale,
-                y: height / 2 - (minY + maxY) / 2 * scale};
+        return {scale: scale, x: width / 2 + presentation.panX,
+                y: height / 2 + presentation.panY};
     }
     function screen(point) {
         const p = projected(point);
@@ -121,6 +125,8 @@ Canvas {
         target: root.presentation
         function onChoicesChanged() { root.requestPaint(); overlay.requestPaint(); }
         function onFlagsChanged() { root.requestPaint(); overlay.requestPaint(); }
+        function onYawChanged() { root.requestPaint(); overlay.requestPaint(); }
+        function onPitchChanged() { root.requestPaint(); overlay.requestPaint(); }
         function onLiveResetRevisionChanged() { root.livePoints = []; overlay.requestPaint(); }
     }
     onPaint: {
@@ -173,14 +179,19 @@ Canvas {
         // Coordinate axes remain a frame reference when no program is loaded.
         ctx.lineWidth = 1.2;
         const origin = [38, height - 38];
-        for (const axis of [{to: [29, 10], color: Theme.danger, label: "X"},
-                            {to: [-13, 18], color: Theme.success, label: "Y"},
-                            {to: [0, -30], color: Theme.info, label: "Z"}]) {
+        const center = pivot;
+        const projectedCenter = projected(center);
+        for (const axis of [{index: 0, color: Theme.danger, label: "X"},
+                            {index: 1, color: Theme.success, label: "Y"},
+                            {index: 2, color: Theme.info, label: "Z"}]) {
+            const endpoint = center.slice(); endpoint[axis.index] += 1;
+            const direction = projected(endpoint);
+            const to = [(direction[0] - projectedCenter[0]) * 30, (direction[1] - projectedCenter[1]) * 30];
             ctx.strokeStyle = axis.color; ctx.fillStyle = axis.color;
             ctx.beginPath(); ctx.moveTo(origin[0], origin[1]);
-            ctx.lineTo(origin[0] + axis.to[0], origin[1] + axis.to[1]); ctx.stroke();
+            ctx.lineTo(origin[0] + to[0], origin[1] + to[1]); ctx.stroke();
             ctx.font = "11px '" + Theme.mono + "'";
-            ctx.fillText(axis.label, origin[0] + axis.to[0] + 3, origin[1] + axis.to[1] - 3);
+            ctx.fillText(axis.label, origin[0] + to[0] + 3, origin[1] + to[1] - 3);
         }
     }
     Canvas {
@@ -234,20 +245,48 @@ Canvas {
             }
         }
     }
-    MouseArea {
+    function zoomAt(factor, x, y) {
+        const before = presentation.zoom;
+        presentation.zoomBy(factor);
+        const ratio = presentation.zoom / before;
+        presentation.panX = (x - width / 2) - (x - width / 2 - presentation.panX) * ratio;
+        presentation.panY = (y - height / 2) - (y - height / 2 - presentation.panY) * ratio;
+    }
+    ViewportGestures {
         anchors.fill: parent
-        acceptedButtons: Qt.LeftButton
-        property real lastX: 0
-        property real lastY: 0
-        cursorShape: root.presentation.rotate ? Qt.OpenHandCursor : Qt.ArrowCursor
-        onPressed: mouse => { lastX = mouse.x; lastY = mouse.y; }
-        onPositionChanged: mouse => {
-            if (pressed && root.presentation.rotate) {
-                root.yaw += (mouse.x - lastX) / 150;
-                root.pitch += (mouse.y - lastY) / 150;
-                lastX = mouse.x; lastY = mouse.y;
-            }
+        rotate: root.presentation.rotate
+        enabled: root.visible && (!root.Window.window || root.Window.window.active)
+        onInteractionStarted: root.forceActiveFocus(Qt.MouseFocusReason)
+        onPanRequested: (dx, dy) => root.presentation.panBy(dx, dy)
+        onOrbitRequested: (dx, dy) => root.presentation.orbitBy(dx, dy)
+        onZoomRequested: (factor, x, y) => root.zoomAt(factor, x, y)
+        onResetRequested: root.presentation.resetView()
+    }
+    // Camera focus must not bubble arrow/Page keys into machine jogging.
+    Keys.onShortcutOverride: event => {
+        if ([Qt.Key_Left, Qt.Key_Right, Qt.Key_Up, Qt.Key_Down,
+             Qt.Key_PageUp, Qt.Key_PageDown, Qt.Key_Home, Qt.Key_End].indexOf(event.key) >= 0)
+            event.accepted = true;
+    }
+    Keys.onPressed: event => {
+        switch (event.key) {
+        case Qt.Key_Left: presentation.panBy(-20, 0); break;
+        case Qt.Key_Right: presentation.panBy(20, 0); break;
+        case Qt.Key_Up: presentation.panBy(0, -20); break;
+        case Qt.Key_Down: presentation.panBy(0, 20); break;
+        case Qt.Key_PageUp: presentation.zoomBy(1.25); break;
+        case Qt.Key_PageDown: presentation.zoomBy(1 / 1.25); break;
+        case Qt.Key_Home: presentation.resetView(); break;
+        case Qt.Key_End: break;
+        default: return;
         }
-        onWheel: wheel => { root.presentation.zoomBy(wheel.angleDelta.y > 0 ? 1.1 : 1 / 1.1); wheel.accepted = true; }
+        event.accepted = true;
+    }
+    Rectangle {
+        anchors.fill: parent
+        color: "transparent"
+        border.width: 2
+        border.color: Theme.accent
+        visible: root.activeFocus
     }
 }

@@ -58,6 +58,7 @@ Rectangle {
         Accessible.role: Accessible.PageTabList
         Accessible.name: "刀路与坐标显示"
         Row {
+            id: viewTabs
             x: 12
             anchors.verticalCenter: parent.verticalCenter
             spacing: 4
@@ -91,6 +92,13 @@ Rectangle {
                     root.presentation.previewTab = "preview";
                 }
             }
+        }
+        ViewportControls {
+            x: viewTabs.x + viewTabs.width + 12
+            width: Math.max(0, parent.width - x - 8)
+            height: 44
+            presentation: root.presentation
+            visible: root.presentation.previewTab === "preview"
         }
         Rectangle {
             anchors.bottom: parent.bottom

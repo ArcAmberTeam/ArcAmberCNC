@@ -95,7 +95,7 @@ TestCase {
         } else compare(lastRequest().id, entry.id);
         compare(backend.snapshot.taskState, "ON");
     }
-    function test_toolbar_data() { return Catalog.toolbar.map(entry => ({tag: entry.id, entry: entry})); }
+    function test_toolbar_data() { return Catalog.toolbar.filter(entry => !entry.id.startsWith("view.") && entry.id !== "program.optional" && entry.id !== "program.block-delete").map(entry => ({tag: entry.id, entry: entry})); }
     function test_toolbar(data) {
         if (data.entry.id === "program.pause") backend.update({busy: true});
         const preview = control("toolpathState");
@@ -154,23 +154,25 @@ TestCase {
         window.width = 760; window.height = 640;
         waitForRendering(window.contentItem);
         const viewport = control("toolbar-viewport");
-        const last = control("toolbar-view.clear");
+        const last = control("toolbar-program.step");
         last.forceActiveFocus(Qt.TabFocusReason);
         tryVerify(() => last.mapToItem(viewport, 0, 0).x + last.width <= viewport.width + 0.5);
-        verify(viewport.contentX > 0);
+        verify(viewport.contentWidth <= viewport.width, "Small-screen toolbar must fit without horizontal scrolling");
         const first = control("toolbar-machine.estop");
         first.forceActiveFocus(Qt.BacktabFocusReason);
         tryVerify(() => first.mapToItem(viewport, 0, 0).x >= -0.5);
         compare(viewport.contentX, 0);
     }
     function test_machineSelectionFollowsSnapshot() {
-        const optional = control("toolbar-program.optional");
-        compare(optional.selected, false);
+        click(control("open-settings")); click(control("settings-tab-machine"));
+        waitForRendering(window.contentItem);
+        const optional = control("settings-program.optional");
+        compare(optional.checked, false);
         click(optional);
         compare(lastRequest().payload.enabled, true);
-        compare(optional.selected, false);
+        compare(optional.checked, false);
         backend.update({optionalStop: true});
-        tryCompare(optional, "selected", true);
+        tryCompare(optional, "checked", true);
     }
     function test_touchOffCompensationNotice_data() {
         return [

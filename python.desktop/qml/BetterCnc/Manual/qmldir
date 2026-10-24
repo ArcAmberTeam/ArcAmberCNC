@@ -3,3 +3,5 @@ ManualState 1.0 ManualState.qml
 ManualPanel 1.0 ManualPanel.qml
 internal OverrideControls OverrideControls.qml
 internal MdiControls MdiControls.qml
+internal JogButton JogButton.qml
+ManualSettings 1.0 ManualSettings.qml

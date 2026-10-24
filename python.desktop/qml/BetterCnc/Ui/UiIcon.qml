@@ -6,8 +6,8 @@ Item {
     id: root
     property string name: "cube"
     property color color: Theme.secondary
-    implicitWidth: 18
-    implicitHeight: 18
+    implicitWidth: 20
+    implicitHeight: 20
     Shape {
         width: 24
         height: 24

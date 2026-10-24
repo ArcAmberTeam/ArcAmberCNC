@@ -1,6 +1,6 @@
 # C++ 驱动模块边界
 
-遵循根目录 `AGENT.md` 和 `$code-boundary-standards`。
+遵循根目录 `AGENT.md`。
 
 `pendant/` 拥有现有 XHC-HB04、XHC-WHB04B-6 手轮驱动及其完整资源。USB 报文、设备状态和 HAL 适配是驱动内部实现；保留现有 HAL 引脚、参数和命令行接口，不从应用层直接导入实现头文件。
 

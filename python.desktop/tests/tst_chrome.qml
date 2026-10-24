@@ -29,7 +29,7 @@ TestCase {
     }
     function init() {
         backend = createTemporaryObject(backendComponent, null);
-        window = createTemporaryObject(appComponent, null, {backend: backend});
+        window = createTemporaryObject(appComponent, null, {backend: backend, width: 1100, height: 820});
         verify(window !== null);
         window.requestActivate();
         waitForRendering(window.contentItem);

@@ -1,0 +1,6 @@
+# gmoccapy界面加载后连接手动换刀和刀具偏置。
+net tool-change-request => gmoccapy.toolchange-change
+net tool-change-confirmed <= gmoccapy.toolchange-changed
+net tool-number => gmoccapy.toolchange-number
+net tooloffset-x => gmoccapy.tooloffset-x
+net tooloffset-z => gmoccapy.tooloffset-z

@@ -77,8 +77,9 @@ Canvas {
             minX = Math.min(minX, point[0]); maxX = Math.max(maxX, point[0]);
             minY = Math.min(minY, point[1]); maxY = Math.max(maxY, point[1]);
         }
-        const scale = Math.max(0.01, Math.min(Math.max(1, width - 90) / Math.max(1, maxX - minX),
-                                            Math.max(1, height - 90) / Math.max(1, maxY - minY))) * presentation.zoom;
+        const padding = Math.min(45, height * 0.15, width * 0.1);
+        const scale = Math.max(0.01, Math.min(Math.max(1, width - padding * 2) / Math.max(1, maxX - minX),
+                                            Math.max(1, height - padding * 2) / Math.max(1, maxY - minY))) * presentation.zoom;
         return {scale: scale, x: width / 2 - (minX + maxX) / 2 * scale,
                 y: height / 2 - (minY + maxY) / 2 * scale};
     }
@@ -128,7 +129,7 @@ Canvas {
         ctx.reset();
         const backdrop = ctx.createRadialGradient(width / 2, height * 0.4, 0,
                                                   width / 2, height * 0.4, Math.max(width, height) * 0.7);
-        backdrop.addColorStop(0, "#212229"); backdrop.addColorStop(1, "#17181b");
+        backdrop.addColorStop(0, Theme.base); backdrop.addColorStop(1, Theme.glass);
         ctx.fillStyle = backdrop; ctx.fillRect(0, 0, width, height);
         if (presentation.choices.grid !== "off") {
             let spacing = parseFloat(presentation.choices.grid);
@@ -138,7 +139,7 @@ Canvas {
                 // A user-defined tiny grid must not freeze the UI.
                 const count = Math.max((high[0] - low[0]) / spacing, (high[1] - low[1]) / spacing);
                 if (count > 200) spacing *= Math.ceil(count / 200);
-                ctx.strokeStyle = "#244242"; ctx.lineWidth = 0.7; ctx.beginPath();
+                ctx.strokeStyle = Theme.grid; ctx.lineWidth = 0.7; ctx.beginPath();
                 for (let x = Math.floor(low[0] / spacing) * spacing; x <= high[0] + spacing; x += spacing)
                     line(ctx, [x, low[1], 0], [x, high[1], 0]);
                 for (let y = Math.floor(low[1] / spacing) * spacing; y <= high[1] + spacing; y += spacing)
@@ -150,8 +151,8 @@ Canvas {
             ctx.globalAlpha = presentation.flags["show.alpha"] ? 0.55 : 1;
             for (const kind of ["rapid", "feed"]) {
                 if (kind === "rapid" && !presentation.flags["show.rapids"]) continue;
-                ctx.strokeStyle = kind === "rapid" ? "#7977b7" : "#b2b9e8";
-                ctx.lineWidth = kind === "rapid" ? 0.8 : 1.1;
+                ctx.strokeStyle = kind === "rapid" ? Theme.rapid : Theme.accentFill;
+                ctx.lineWidth = kind === "rapid" ? 1 : 1.5;
                 ctx.setLineDash(kind === "rapid" ? [4, 4] : []);
                 ctx.beginPath();
                 for (let i = 0; i < geometry.length; ++i)
@@ -162,9 +163,9 @@ Canvas {
         }
         ctx.setLineDash([]);
         if (geometry.length && presentation.flags["show.extents"]) {
-            ctx.strokeStyle = "#626579"; ctx.lineWidth = 0.7;
+            ctx.strokeStyle = Theme.geometry; ctx.lineWidth = 0.7;
             box(ctx, geometryBounds.min, geometryBounds.max);
-            ctx.fillStyle = "#a0a2b5"; ctx.font = "11px '" + Theme.mono + "'";
+            ctx.fillStyle = Theme.secondary; ctx.font = "11px '" + Theme.mono + "'";
             const divisor = presentation.choices.units === "inch" ? 25.4 : 1;
             const dimensions = geometryBounds.max.map((v, i) => ((v - geometryBounds.min[i]) / divisor).toFixed(3));
             ctx.fillText(dimensions.join(" × ") + (divisor === 1 ? " mm" : " in"), 20, height - 15);
@@ -172,9 +173,9 @@ Canvas {
         // Coordinate axes remain a frame reference when no program is loaded.
         ctx.lineWidth = 1.2;
         const origin = [38, height - 38];
-        for (const axis of [{to: [29, 10], color: "#de6b64", label: "X"},
-                            {to: [-13, 18], color: "#68b576", label: "Y"},
-                            {to: [0, -30], color: "#799dce", label: "Z"}]) {
+        for (const axis of [{to: [29, 10], color: Theme.danger, label: "X"},
+                            {to: [-13, 18], color: Theme.success, label: "Y"},
+                            {to: [0, -30], color: Theme.info, label: "Z"}]) {
             ctx.strokeStyle = axis.color; ctx.fillStyle = axis.color;
             ctx.beginPath(); ctx.moveTo(origin[0], origin[1]);
             ctx.lineTo(origin[0] + axis.to[0], origin[1] + axis.to[1]); ctx.stroke();
@@ -194,19 +195,19 @@ Canvas {
             if (root.presentation.flags["show.limits"] && root.machine.axisLimits && root.machine.linearUnits > 0) {
                 const limits = root.machine.axisLimits;
                 if (["X", "Y", "Z"].every(a => limits[a] && limits[a].min !== null && limits[a].max !== null)) {
-                    ctx.strokeStyle = "#6b7278"; ctx.lineWidth = 1; ctx.setLineDash([5, 5]);
+                    ctx.strokeStyle = Theme.geometry; ctx.lineWidth = 1; ctx.setLineDash([5, 5]);
                     root.box(ctx, ["X", "Y", "Z"].map(a => limits[a].min / root.machine.linearUnits),
                              ["X", "Y", "Z"].map(a => limits[a].max / root.machine.linearUnits));
                     ctx.setLineDash([]);
                 }
             }
             if (root.presentation.flags["show.live"] && root.livePoints.length > 1) {
-                ctx.strokeStyle = "#a74949"; ctx.lineWidth = 1.2; ctx.beginPath();
+                ctx.strokeStyle = Theme.danger; ctx.lineWidth = 1.2; ctx.beginPath();
                 for (let i = 1; i < root.livePoints.length; ++i) root.line(ctx, root.livePoints[i - 1], root.livePoints[i]);
                 ctx.stroke();
             }
-            for (const selection of [{line: root.machine.currentLine, color: "#72d39d"},
-                                     {line: root.program ? root.program.selectedLine : 0, color: "#d9d4ff"}]) {
+            for (const selection of [{line: root.machine.currentLine, color: Theme.success},
+                                     {line: root.program ? root.program.selectedLine : 0, color: Theme.accent}]) {
                 const segments = root.segmentsByLine[selection.line] || [];
                 ctx.strokeStyle = selection.color; ctx.lineWidth = 2; ctx.beginPath();
                 for (let j = 0; j < segments.length; ++j) root.line(ctx, segments[j].start, segments[j].end);
@@ -216,10 +217,10 @@ Canvas {
                 const work = Coordinates.vector(root.machine, "g5xOffset");
                 if (work && root.machine.linearUnits > 0) {
                     const p = root.screen(work.slice(0, 3).map(v => v / root.machine.linearUnits));
-                    ctx.strokeStyle = "#7c76dd"; ctx.lineWidth = 1;
+                    ctx.strokeStyle = Theme.accent; ctx.lineWidth = 1;
                     ctx.beginPath(); ctx.moveTo(p[0] - 9, p[1]); ctx.lineTo(p[0] + 9, p[1]);
                     ctx.moveTo(p[0], p[1] - 9); ctx.lineTo(p[0], p[1] + 9); ctx.stroke();
-                    ctx.font = "11px '" + Theme.fontFamily + "'"; ctx.fillStyle = "#aaa6ef";
+                    ctx.font = "11px '" + Theme.fontFamily + "'"; ctx.fillStyle = Theme.accent;
                     ctx.fillText(Coordinates.workLabel(root.machine), p[0] + 6, p[1] - 12);
                 }
             }
@@ -228,8 +229,8 @@ Canvas {
                 const p = root.screen(tip);
                 ctx.beginPath(); ctx.moveTo(p[0] - 7, p[1] - 24); ctx.lineTo(p[0] + 7, p[1] - 24);
                 ctx.lineTo(p[0], p[1]); ctx.closePath();
-                ctx.fillStyle = "rgba(148,160,165,0.6)"; ctx.fill();
-                ctx.strokeStyle = "#9aadb5"; ctx.lineWidth = 0.8; ctx.stroke();
+                ctx.fillStyle = Theme.accentFill; ctx.fill();
+                ctx.strokeStyle = Theme.geometry; ctx.lineWidth = 0.8; ctx.stroke();
             }
         }
     }

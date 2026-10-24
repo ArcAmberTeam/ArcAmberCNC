@@ -9,7 +9,7 @@ CheckBox {
     padding: 0
     spacing: 7
     font.family: Theme.fontFamily
-    font.pixelSize: 11
+    font.pixelSize: Theme.labelSize
     hoverEnabled: true
     nextCheckState: function() { return interactive ? (checked ? Qt.Unchecked : Qt.Checked) : checkState; }
     indicator: Rectangle {
@@ -19,7 +19,7 @@ CheckBox {
         height: 14
         radius: 3
         color: control.checked ? Theme.accentFill : Theme.input
-        border.color: control.visualFocus ? Theme.accent : control.checked ? Theme.accent : "#5b5d68"
+        border.color: control.visualFocus ? Theme.accent : control.checked ? Theme.accent : Theme.borderControl
         border.width: control.visualFocus ? 2 : 1
         UiText {
             anchors.centerIn: parent

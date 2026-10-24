@@ -17,14 +17,14 @@ Item {
         anchors.right: parent.right
         spacing: 5
         UiText { objectName: root.objectName + ".value"; text: root.valueKnown ? Math.round(slider.value) : "—"; font.family: Theme.mono; font.pixelSize: 12 }
-        UiText { visible: root.valueKnown; text: root.unit; color: Theme.muted; font.pixelSize: 10; anchors.baseline: parent.children[0].baseline }
+        UiText { visible: root.valueKnown; text: root.unit; color: Theme.secondary; font.pixelSize: Theme.labelSize; anchors.baseline: parent.children[0].baseline }
     }
     Slider {
         id: slider
         objectName: root.objectName + ".slider"
         y: 23
         width: parent.width
-        height: 18
+        height: 24
         padding: 0
         from: root.from
         to: root.to
@@ -37,20 +37,20 @@ Item {
             x: slider.leftPadding
             y: slider.topPadding + slider.availableHeight / 2 - height / 2
             width: slider.availableWidth
-            height: 3
+            height: 4
             radius: 3
             color: Theme.borderControl
-            Rectangle { width: slider.visualPosition * parent.width; height: 3; radius: 3; color: Theme.accentFill }
+            Rectangle { width: slider.visualPosition * parent.width; height: 4; radius: 3; color: Theme.accentFill }
         }
         handle: Rectangle {
             x: slider.leftPadding + slider.visualPosition * (slider.availableWidth - width)
             y: slider.topPadding + slider.availableHeight / 2 - height / 2
-            width: 11
-            height: 11
+            width: 14
+            height: 14
             radius: 6
-            color: "#dad7ff"
+            color: Theme.surface
             border.width: 2
-            border.color: "#8e87e9"
+            border.color: Theme.accent
             Rectangle {
                 anchors.fill: parent
                 anchors.margins: -3

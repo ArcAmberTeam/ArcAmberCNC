@@ -45,10 +45,6 @@ Rectangle {
         jogStopRequested();
     }
     function cancelJogGesture() { jogHeld = false; }
-    function executeMdi() {
-        const command = mdiCommand.text.trim();
-        if (canOperate && command) commandRequested("mdi.execute", {text: command});
-    }
     onVisibleChanged: if (!visible) releaseJog()
     onJogSafeChanged: if (!jogSafe) releaseJog()
     Connections {
@@ -60,8 +56,10 @@ Rectangle {
     }
 
     objectName: "manualPanel"
-    implicitWidth: compact ? 264 : 296
+    implicitWidth: compact ? 280 : 304
     color: Theme.sidebar
+    radius: Theme.radius
+    border.color: Theme.border
     clip: true
 
     Connections {
@@ -181,7 +179,7 @@ Rectangle {
 
                         UiText {
                             text: root.presentation.mode === "joint" ? "关节：" : "坐标轴："
-                            font.pixelSize: 11
+                            font.pixelSize: Theme.labelSize
                             color: Theme.secondary
                             Layout.preferredWidth: 53
                             Layout.fillHeight: true
@@ -214,7 +212,7 @@ Rectangle {
                                     checked: root.presentation.mode === "joint" ? root.presentation.selectedJoint === Number(modelData)
                                              : root.presentation.selectedAxis === String(modelData)
                                     Layout.fillWidth: true
-                                    Layout.preferredHeight: 30
+                                    Layout.preferredHeight: Theme.controlHeight
                                     padding: 0
                                     hoverEnabled: true
                                     indicator: null
@@ -232,7 +230,7 @@ Rectangle {
                                                 radius: 5
                                                 color: axisButton.checked ? Theme.accentFill : Theme.input
                                                 border.width: 1
-                                                border.color: axisButton.checked ? Theme.accent : "#5b5d68"
+                                                border.color: axisButton.checked ? Theme.accent : Theme.borderControl
 
                                                 Rectangle {
                                                     anchors.centerIn: parent
@@ -248,7 +246,7 @@ Rectangle {
                                                 text: axisButton.text
                                                 font.family: Theme.mono
                                                 font.pixelSize: 12
-                                                color: axisButton.checked ? "#d0caff" : Theme.text
+                                                color: axisButton.checked ? Theme.accent : Theme.text
                                             }
                                         }
                                     }
@@ -257,7 +255,7 @@ Rectangle {
                                         radius: 5
                                         color: axisButton.checked ? Theme.accentSoft : Theme.input
                                         border.width: axisButton.visualFocus ? 2 : 1
-                                        border.color: axisButton.visualFocus ? Theme.accent : axisButton.checked ? "#5c537e" : Theme.borderControl
+                                        border.color: axisButton.visualFocus ? Theme.accent : axisButton.checked ? Theme.accent : Theme.borderControl
                                     }
 
                                     onClicked: {
@@ -288,7 +286,7 @@ Rectangle {
                             text: "−"
                             font.pixelSize: 18
                             Layout.preferredWidth: 40
-                            Layout.preferredHeight: 30
+                            Layout.preferredHeight: Theme.controlHeight
                             Accessible.name: "负向点动"
                             enabled: root.jogHeld ? root.jogSafe : root.canJog && root.permitted("jog.start")
                             onPressed: root.startJog(-1)
@@ -302,7 +300,7 @@ Rectangle {
                             text: "+"
                             font.pixelSize: 18
                             Layout.preferredWidth: 40
-                            Layout.preferredHeight: 30
+                            Layout.preferredHeight: Theme.controlHeight
                             Accessible.name: "正向点动"
                             enabled: root.jogHeld ? root.jogSafe : root.canJog && root.permitted("jog.start")
                             onPressed: root.startJog(1)
@@ -315,7 +313,7 @@ Rectangle {
                             objectName: "jogIncrement"
                             model: ["连续点动", "0.1000", "0.0100", "0.0010", "0.0001"]
                             Layout.fillWidth: true
-                            Layout.preferredHeight: 30
+                            Layout.preferredHeight: Theme.controlHeight
                             Accessible.name: "点动方式与步距"
                             onActivated: {
                                 root.releaseJog();
@@ -337,12 +335,12 @@ Rectangle {
                         UiButton {
                             objectName: "homeAll"
                             text: "全部回零"
-                            font.pixelSize: 11
+                            font.pixelSize: Theme.labelSize
                             leftPadding: 3
                             rightPadding: 3
                             Layout.fillWidth: true
                             Layout.preferredWidth: 1
-                            Layout.preferredHeight: 30
+                            Layout.preferredHeight: Theme.controlHeight
                             enabled: root.canOperate && root.permitted("machine.home-all")
                             onClicked: root.commandRequested("machine.home-all", {})
                         }
@@ -350,12 +348,12 @@ Rectangle {
                         UiButton {
                             objectName: "workTouchOff"
                             text: "工件对刀"
-                            font.pixelSize: 11
+                            font.pixelSize: Theme.labelSize
                             leftPadding: 3
                             rightPadding: 3
                             Layout.fillWidth: true
                             Layout.preferredWidth: 1
-                            Layout.preferredHeight: 30
+                            Layout.preferredHeight: Theme.controlHeight
                             enabled: root.canOperate && root.presentation.mode === "world" && root.permitted("machine.touch-off")
                             onClicked: root.dialogRequested("machine.touch-off", "工件对刀", root.presentation.selectedAxis)
                         }
@@ -363,12 +361,12 @@ Rectangle {
                         UiButton {
                             objectName: "toolTouchOff"
                             text: "刀具对刀"
-                            font.pixelSize: 11
+                            font.pixelSize: Theme.labelSize
                             leftPadding: 3
                             rightPadding: 3
                             Layout.fillWidth: true
                             Layout.preferredWidth: 1
-                            Layout.preferredHeight: 30
+                            Layout.preferredHeight: Theme.controlHeight
                             enabled: root.canOperate && root.presentation.mode === "world" && root.permitted("tool.touch-off")
                             onClicked: root.dialogRequested("tool.touch-off", "刀具对刀", root.presentation.selectedAxis)
                         }
@@ -406,7 +404,7 @@ Rectangle {
                             width: 53
                             text: "主轴："
                             color: Theme.secondary
-                            font.pixelSize: 11
+                            font.pixelSize: Theme.labelSize
                         }
 
                         Column {
@@ -518,7 +516,7 @@ Rectangle {
                             width: 53
                             text: "冷却："
                             color: Theme.secondary
-                            font.pixelSize: 11
+                            font.pixelSize: Theme.labelSize
                         }
 
                         Column {
@@ -552,205 +550,23 @@ Rectangle {
                 }
             }
 
-            Item {
-                id: mdiArea
-                readonly property int panelPadding: root.compact ? 12 : 18
-                readonly property int verticalPadding: root.compact ? 12 : 16
+            MdiControls {
                 width: parent.width
-                height: visible ? 270 + verticalPadding * 2 : 0
                 visible: root.presentation.controlTab === "mdi"
-
-                Item {
-                    x: mdiArea.panelPadding
-                    y: mdiArea.verticalPadding
-                    width: parent.width - mdiArea.panelPadding * 2
-                    height: 270
-
-                    UiText {
-                        height: 18
-                        text: "历史指令："
-                        font.pixelSize: 12
-                        color: Theme.secondary
-                    }
-
-                    Rectangle {
-                        y: 26
-                        width: parent.width
-                        height: 160
-                        radius: 6
-                        color: Theme.input
-                        border.width: 1
-                        border.color: Theme.border
-
-                        ListView {
-                            id: historyList
-                            objectName: "mdiHistory"
-                            anchors.fill: parent
-                            anchors.margins: 6
-                            clip: true
-                            model: root.history
-                            boundsBehavior: Flickable.StopAtBounds
-                            ScrollBar.vertical: UiScrollBar {}
-                            Accessible.name: "手动输入历史"
-
-                            delegate: ItemDelegate {
-                                id: historyButton
-                                required property string modelData
-                                required property int index
-                                objectName: "mdiHistory" + index
-                                width: historyList.width
-                                height: 28
-                                padding: 0
-                                text: modelData
-                                hoverEnabled: true
-
-                                contentItem: UiText {
-                                    leftPadding: 6
-                                    rightPadding: 6
-                                    text: historyButton.text
-                                    font.family: Theme.mono
-                                    font.pixelSize: 12
-                                    color: historyButton.hovered || historyButton.visualFocus ? Theme.text : Theme.secondary
-                                    verticalAlignment: Text.AlignVCenter
-                                }
-
-                                background: Rectangle {
-                                    radius: 4
-                                    color: historyButton.hovered || historyButton.visualFocus ? Theme.accentSoft : "transparent"
-                                }
-
-                                onClicked: mdiCommand.text = modelData
-                            }
-                        }
-                    }
-
-                    UiText {
-                        y: 202
-                        height: 18
-                        text: "手动输入指令："
-                        font.pixelSize: 12
-                        color: Theme.secondary
-                    }
-
-                    RowLayout {
-                        y: 228
-                        width: parent.width
-                        height: 32
-                        spacing: 4
-
-                        UiTextField {
-                            id: mdiCommand
-                            objectName: "mdiCommand"
-                            Layout.fillWidth: true
-                            Layout.preferredHeight: 32
-                            font.family: Theme.mono
-                            Accessible.name: "手动输入指令："
-                            selectByMouse: true
-                            onAccepted: root.executeMdi()
-                        }
-
-                        UiButton {
-                            objectName: "mdiExecute"
-                            text: "执行"
-                            Layout.preferredWidth: 48
-                            Layout.preferredHeight: 30
-                            enabled: root.canOperate && root.permitted("mdi.execute") && mdiCommand.text.trim().length > 0
-                            onClicked: root.executeMdi()
-                        }
-                    }
-                }
+                compact: root.compact
+                history: root.history
+                canOperate: root.canOperate
+                commandAllowed: root.permitted("mdi.execute")
+                onCommandRequested: (actionId, payload) => root.commandRequested(actionId, payload)
             }
 
-            Item {
-                id: overrides
-                readonly property int panelPadding: root.compact ? 12 : 18
-                readonly property int topPadding: root.compact ? 14 : 16
+            OverrideControls {
                 width: parent.width
-                height: topPadding + 1 + 34 + ranges.height
-
-                Rectangle {
-                    width: parent.width
-                    height: 1
-                    color: Theme.border
-                }
-
-                UiText {
-                    x: overrides.panelPadding
-                    y: overrides.topPadding + 1
-                    height: 18
-                    text: "速度与倍率"
-                    font.pixelSize: 12
-                    font.weight: Font.Medium
-                    verticalAlignment: Text.AlignVCenter
-                }
-
-                Column {
-                    id: ranges
-                    x: overrides.panelPadding
-                    y: overrides.topPadding + 35
-                    width: parent.width - overrides.panelPadding * 2
-
-                    UiRange {
-                        objectName: "feedOverride"
-                        width: parent.width
-                        height: 49
-                        label: "进给倍率"
-                        to: 120
-                        value: Number(root.machine.feedOverride || 0) * 100
-                        valueKnown: root.connected && typeof root.machine.feedOverride === "number" && isFinite(root.machine.feedOverride)
-                        enabled: valueKnown && root.permitted("override.feed")
-                        onMoved: value => root.commandRequested("override.feed", {value: value / 100})
-                    }
-
-                    UiRange {
-                        objectName: "rapidOverride"
-                        width: parent.width
-                        height: 49
-                        label: "快移倍率"
-                        to: 100
-                        value: Number(root.machine.rapidOverride || 0) * 100
-                        valueKnown: root.connected && typeof root.machine.rapidOverride === "number" && isFinite(root.machine.rapidOverride)
-                        enabled: valueKnown && root.permitted("override.rapid")
-                        onMoved: value => root.commandRequested("override.rapid", {value: value / 100})
-                    }
-
-                    UiRange {
-                        objectName: "spindleOverride"
-                        width: parent.width
-                        height: 49
-                        label: "主轴倍率"
-                        to: 120
-                        value: Number(root.machine.spindleOverride || 0) * 100
-                        valueKnown: root.connected && typeof root.machine.spindleOverride === "number" && isFinite(root.machine.spindleOverride)
-                        enabled: valueKnown && root.permitted("override.spindle")
-                        onMoved: value => root.commandRequested("override.spindle", {value: value / 100})
-                    }
-
-                    UiRange {
-                        objectName: "jogVelocity"
-                        width: parent.width
-                        height: 49
-                        label: "点动速度"
-                        to: Number(root.machine.jogMaxVelocity || root.machine.maxVelocity || 0) * 60
-                        value: root.presentation.jogVelocity
-                        enabled: root.connected
-                        unit: root.machine.linearUnits === 1 ? "毫米/分钟" : "机床单位/分钟"
-                        onMoved: value => { root.releaseJog(); root.presentation.jogVelocity = value; }
-                    }
-
-                    UiRange {
-                        objectName: "maxVelocity"
-                        width: parent.width
-                        height: 49
-                        label: "最大速度"
-                        to: Number(root.machine.maxVelocityLimit || root.machine.maxVelocity || 0) * 60
-                        value: Number(root.machine.maxVelocity || 0) * 60
-                        valueKnown: root.connected && typeof root.machine.maxVelocity === "number" && isFinite(root.machine.maxVelocity)
-                        enabled: valueKnown && root.permitted("velocity.max")
-                        unit: root.machine.linearUnits === 1 ? "毫米/分钟" : "机床单位/分钟"
-                        onMoved: value => root.commandRequested("velocity.max", {value: value / 60})
-                    }
-                }
+                presentation: root.presentation
+                machine: root.machine
+                compact: root.compact
+                onCommandRequested: (actionId, payload) => root.commandRequested(actionId, payload)
+                onJogStopRequested: root.releaseJog()
             }
 
             Item {
@@ -765,7 +581,7 @@ Rectangle {
                     height: 17
                     text: "当前模态指令："
                     color: Theme.secondary
-                    font.pixelSize: 11
+                    font.pixelSize: Theme.labelSize
                 }
 
                 Rectangle {
@@ -788,7 +604,7 @@ Rectangle {
                         text: root.machine.activeCodes || "—"
                         color: Theme.secondary
                         font.family: Theme.mono
-                        font.pixelSize: 11
+                        font.pixelSize: Theme.labelSize
                         lineHeightMode: Text.FixedHeight
                         lineHeight: 21
                         wrapMode: Text.Wrap

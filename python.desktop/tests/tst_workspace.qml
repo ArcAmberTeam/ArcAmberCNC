@@ -29,7 +29,7 @@ TestCase {
     }
     function init() {
         backend = createTemporaryObject(backendComponent, null);
-        window = createTemporaryObject(appComponent, null, {backend: backend});
+        window = createTemporaryObject(appComponent, null, {backend: backend, width: 1100, height: 820});
         verify(window !== null);
         window.requestActivate();
         waitForRendering(window.contentItem);
@@ -42,7 +42,7 @@ TestCase {
     function lastRequest() { return backend.requests[backend.requests.length - 1]; }
     function test_initialLayoutAndRealProgram() {
         compare(control("workspace").width, 1100);
-        compare(control("manualPanel").width, 296);
+        compare(control("manualPanel").width, 304);
         compare(control("programSeparator").height, 7);
         compare(control("mdiTab").text, "手动输入 [F5]");
         compare(window.title, "test.ngc — BetterLinuxCNC");
@@ -266,7 +266,7 @@ TestCase {
         sash.forceActiveFocus(); keyClick(Qt.Key_Up);
         compare(workspace.programHeight, 194);
         window.width = 760; window.height = 640;
-        tryCompare(control("manualPanel"), "width", 264);
+        tryCompare(control("manualPanel"), "width", 280);
         waitForRendering(window.contentItem);
         const slider = control("maxVelocity.slider");
         const scroller = control("manualScroller");
@@ -293,6 +293,7 @@ TestCase {
         tryCompare(dialog, "visible", true);
         compare(dialog.description, "当前状态不允许执行此指令");
     }
+<<<<<<< Updated upstream
 
     function test_jogRejectedWithoutPermittedState_data() {
         return [
@@ -390,5 +391,164 @@ TestCase {
         compare(lastRequest().id, "machine.touch-off");
         compare(lastRequest().payload.value, 5);
         verify(!dialog.visible);
+=======
+    function test_platinumLayout_data() {
+        return [
+            {tag: "wide", w: 1440, h: 900, columns: true},
+            {tag: "desktop", w: 1280, h: 800, columns: true},
+            {tag: "compact", w: 1024, h: 768, columns: false},
+            {tag: "minimum", w: 760, h: 640, columns: false}
+        ];
+    }
+    function test_platinumLayout(data) {
+        window.width = data.w; window.height = data.h;
+        waitForRendering(window.contentItem);
+        const manual = control("manualPanel");
+        const preview = control("toolpathPanel");
+        const program = control("programPanel");
+        verify(manual.x + manual.width < preview.x);
+        compare(control("programSeparator").visible, true);
+        compare(program.x, preview.x);
+        verify(preview.y + preview.height < program.y);
+        if (data.columns) verify(preview.width >= 520);
+        const stop = control("toolbar-program.stop");
+        const viewport = control("toolbar-viewport");
+        control("toolbar-view.clear").forceActiveFocus(Qt.TabFocusReason);
+        waitForRendering(window.contentItem);
+        verify(stop.mapToItem(window.contentItem, 0, 0).x >= viewport.mapToItem(window.contentItem, viewport.width, 0).x);
+        verify(stop.visible && stop.enabled);
+        verify(control("machineStatusLabel").visible);
+    }
+    function test_statusReflectsFeedback_data() {
+        return [
+            {tag: "offline", state: {connected: false}, text: "未连接"},
+            {tag: "estop", state: {estop: true}, text: "急停已触发"},
+            {tag: "busy", state: {busy: true}, text: "加工中"},
+            {tag: "paused", state: {busy: true, paused: true}, text: "已暂停"},
+            {tag: "unknown", state: {commandState: "unknown"}, text: "操作异常"}
+        ];
+    }
+    function test_statusReflectsFeedback(data) {
+        backend.update(data.state);
+        compare(control("machineStatusLabel").text, data.text);
+    }
+    function test_switchInterfacesPreservesStateWithoutCommands() {
+        keyClick(Qt.Key_F5);
+        control("mdiCommand").text = "G0 X25";
+        const state = control("toolpathState");
+        state.setChoice("view", "x");
+        backend.program.selectedLine = 3;
+        const manual = control("manualState");
+        manual.jogIncrement = 0.1;
+        const before = backend.requests.length;
+        click("interface-guided");
+        compare(window.interfaceMode, "guided");
+        compare(control("manualPanel").visible, false);
+        click("stage-device");
+        compare(control("mdiCommand").text, "G0 X25");
+        click("interface-professional");
+        compare(window.interfaceMode, "professional");
+        compare(state.choices.view, "x");
+        compare(backend.program.selectedLine, 3);
+        compare(manual.jogIncrement, 0.1);
+        compare(backend.requests.length, before);
+    }
+    function test_guidedStagesAndHiddenJog() {
+        click("interface-guided");
+        compare(control("workspaceGuide").visible, true);
+        compare(control("programPanel").visible, true);
+        const before = backend.requests.length;
+        control("workspace").forceActiveFocus();
+        keyClick(Qt.Key_Right);
+        compare(backend.requests.length, before);
+        click("guide-next");
+        compare(window.guidedStage, "preview");
+        compare(control("programPanel").visible, false);
+        compare(control("toolpathPanel").visible, true);
+        click("guide-next");
+        compare(window.guidedStage, "device");
+        compare(control("manualPanel").visible, true);
+        control("workspace").forceActiveFocus();
+        keyPress(Qt.Key_Right);
+        compare(lastRequest().id, "jog.start");
+        const stops = backend.stopCount;
+        click("stage-prepare");
+        verify(backend.stopCount > stops);
+        keyRelease(Qt.Key_Right);
+        const stopped = backend.requests.length;
+        control("workspace").forceActiveFocus();
+        keyClick(Qt.Key_Right);
+        compare(backend.requests.length, stopped);
+        keyClick(Qt.Key_F5);
+        compare(window.guidedStage, "device");
+        compare(control("mdiTab").selected, true);
+    }
+    function test_guidedActionsUseSharedPermissions() {
+        click("interface-guided");
+        click("stage-preview");
+        waitForRendering(window.contentItem);
+        control("guide-run").forceActiveFocus(Qt.TabFocusReason);
+        click("guide-run");
+        compare(lastRequest().id, "program.run");
+        backend.update({busy: true});
+        verify(!control("guide-run").enabled);
+        click("toolbar-program.pause");
+        compare(lastRequest().id, "program.pause");
+        backend.update({paused: true});
+        compare(control("toolbar-program.pause").text, "继续");
+        click("toolbar-program.pause");
+        compare(lastRequest().id, "program.resume");
+        click("toolbar-program.stop");
+        compare(lastRequest().id, "program.stop");
+        backend.update({connected: false});
+        verify(!control("toolbar-machine.estop").enabled);
+        verify(!control("guide-run").enabled);
+        compare(control("machineStatusLabel").text, "未连接");
+        backend.update({connected: true, busy: false, paused: false, capabilities: {"program.run": false}});
+        verify(!control("guide-run").enabled);
+        verify(!control("toolbar-program.run").enabled);
+    }
+    function test_guidedLayout_data() {
+        const rows = [];
+        for (const width of [760, 1024, 1280, 1440])
+            for (const stage of ["prepare", "preview", "device"])
+                rows.push({tag: width + "-" + stage, w: width, stage: stage});
+        return rows;
+    }
+    function test_guidedLayout(data) {
+        window.width = data.w; window.height = 640;
+        click("interface-guided");
+        click("stage-" + data.stage);
+        waitForRendering(window.contentItem);
+        const panels = [control("manualPanel"), control("programPanel"), control("toolpathPanel"), control("workspaceGuide")].filter(p => p.visible);
+        for (const item of panels) {
+            const p = item.mapToItem(window.contentItem, 0, 0);
+            verify(p.x >= 0 && p.y >= 144);
+            verify(p.x + item.width <= window.width);
+            verify(p.y + item.height <= window.height - 32);
+            verify(item.width > 0 && item.height > 0);
+            for (const other of panels) {
+                if (other === item) continue;
+                const q = other.mapToItem(window.contentItem, 0, 0);
+                verify(p.x + item.width <= q.x || q.x + other.width <= p.x
+                    || p.y + item.height <= q.y || q.y + other.height <= p.y);
+            }
+        }
+        for (const name of ["toolbar-machine.estop", "toolbar-program.stop", "interface-professional", "stage-device"]) {
+            const item = control(name);
+            const p = item.mapToItem(window.contentItem, 0, 0);
+            verify(item.visible && p.x >= 0 && p.x + item.width <= window.width);
+        }
+        if (data.stage !== "device") {
+            const next = control("guide-next");
+            const p = next.mapToItem(window.contentItem, 0, 0);
+            verify(p.y >= 144 && p.y + next.height <= window.height - 32);
+            if (data.stage === "preview") {
+                const run = control("guide-run");
+                const q = run.mapToItem(window.contentItem, 0, 0);
+                verify(q.y + run.height <= window.height - 32);
+            }
+        }
+>>>>>>> Stashed changes
     }
 }

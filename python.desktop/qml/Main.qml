@@ -6,15 +6,17 @@ ApplicationWindow {
     id: window
     objectName: "mainWindow"
     property var backend: null
-    width: 1100
-    height: 820
+    property alias interfaceMode: workspace.interfaceMode
+    property alias guidedStage: workspace.guidedStage
+    width: 1440
+    height: 900
     minimumWidth: 760
     minimumHeight: 640
     visible: true
     title: (backend && backend.program && backend.program.fileName ? backend.program.fileName + " — " : "") + "BetterLinuxCNC"
     color: Theme.base
     font.family: Theme.fontFamily
-    font.pixelSize: 13
+    font.pixelSize: Theme.bodySize
     onActiveChanged: if (!active) workspace.stopJog()
     onClosing: workspace.stopJog()
     onActiveFocusItemChanged: workspace.stopJog()

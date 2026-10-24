@@ -11,6 +11,7 @@
 - CAM Link 的能力目录为 `protocol`、`receiver`、`feedback`、`execution`、`manual`，各自 `__init__.py` 为公开入口。根目录只组合启动、认证、连接及可选 UDP 发现调度；`protocol` 不依赖业务，`receiver` 和 `feedback` 只依赖 `protocol`，分别拥有程序/发现回复接收和回执/状态/发现广播发送；`execution` 只拥有本地公开作业协议适配；`manual` 只通过本地公开控制会话协议适配 XYZ 连续点动及租约，均不依赖其他能力实现。目录之间禁止私有深层导入或反向依赖。外部协议为独立的 TCP v2 长连接，24 字节帧头包含 `CAM2`、16 字节 ASCII 类型和正文长度，类型必须与正文方法一致；内部 `machine.status` 仍使用本地 v2 Unix 协议。
 - `DiscoveryOptions` 是 CAM Link 的公开发现配置入口。UDP 发现显式开启，使用稳定设备 UUID，发送 `ANNOUNCE`，仅对匹配设备与近期随机数的 `DISCOVER_REPLY` 单播 `DISCOVER_ACK`。发现不携带令牌、文件或加工状态，不授予 TCP 认证或控制权，也不主动向 CAM 建立连接；关闭服务需停止广播并释放 UDP socket。
 - 测试从公开对象、安装后的 CLI 和 socket 观察行为；允许注入 vendor 模块、时钟和预览进程工厂，不导入私有文件。真实 gcode 测试仅解释临时程序，不启动模拟器或硬件。
+- 连接检查使用未附着的 `machine.status`，不能为了诊断获取现有 GUI 的控制权、读取错误通道或续租点动。必须保留“socket 可达但 LinuxCNC 离线”的反馈，不把服务就绪当作核心就绪。外部接口集成测试同时给 Controller 和 StatusReader 注入同一 vendor；只替换命令接口会使观察者误读真实或缺失的 LinuxCNC 模块。
 - 修改后运行 Ruff 检查、格式检查、安装包构建和 `unittest`；涉及协议时还运行 Rust 跨进程集成测试。
 
 - 用户要求局域网一键连接：不传 token 时 `session.auth` 使用空参数握手，传入 token 时仍校验令牌；不得自动回退或移除机床联锁、文件摘要和点动租约。

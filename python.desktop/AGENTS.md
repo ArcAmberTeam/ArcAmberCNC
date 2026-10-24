@@ -22,6 +22,14 @@
 - Qt 使用现有 Python v2 控制会话；独立 `rust.diagnostics/` 通信库保留 v1 `health` 诊断，尚未接入 Qt。服务可达与机床连接分别表示。
 - 静态资源全部本地提供，保留许可证与出处，不加载 CDN、外部字体或遥测。服务在独立进程解释刀路，通过有界分页传输；几何图层不能随每次坐标快照完整重绘。
 
+## 界面与连接约定
+
+- 主要目标窗口为 1024×600；同时保留业余用户的引导布局和专业用户布局，通过公开模块复用机床操作与状态。低频选项放入占满应用窗口的设置页，主界面保留常用操作、急停和停止。紧凑标题区域不显示 BetterLinuxCNC 品牌，窗口标题显示程序文件名或“未打开程序”。
+- 3D 旋转、平移、缩放与视角设置仅改变展示状态。触屏点动使用长按启动，释放、拖动取消、失焦和隐藏均须停止；预览键盘操作不能落入机床点动或回零快捷键。布局修改继续检查触控目标和最小窗口，不能只验收大屏。
+- 正式入口为 `app/main.py` 或安装后的 `betterlinuxcnc`；它们使用真实服务。`--check-connection` 通过 `bettercnc.session.read_machine_status` 只读查询，无窗口、无控制权；退出码 0 表示机床已连接、2 表示服务可达但机床离线、1 表示端点/传输/协议错误。不要同时传 `--ini` 或 `--program`。
+- 无 LinuxCNC 环境按用户约定使用 `python.desktop/.venv/bin/python python.desktop/tests/interactive/main.py`。测试在外部注入 vendor 接口，复用正式 GUI 和服务，不在生产代码添加假状态或模拟开关；Controller 与 StatusReader 都必须注入同一测试设备。
+- `external-interface-integration` 已纳入 CTest，覆盖原始 GUI/服务端到端行为、只读诊断与已有控制会话共存、断线恢复；替身测试不等于真实解释器或运动验收。真实目标机的安装与显示验收记录见 [本机连接说明](../docs/linuxcnc-local-connection.md)。
+
 ## 验证与 CI
 
 - 修改后运行 CMake 配置/构建、`ctest --test-dir python.desktop/build --output-on-failure` 及受影响 QML 的 `qmllint -I python.desktop/qml`；测试使用公开模块和可观察 UI，不跨模块导入内部实现。

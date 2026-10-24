@@ -16,7 +16,11 @@ from ._backend import DesktopBackend
 def main(argv=None):
     parser = argparse.ArgumentParser(description="BetterLinuxCNC QML desktop")
     parser.add_argument("-ini", "--ini", dest="ini", help="Require the service to use this INI")
-    parser.add_argument("--socket", help="Private Unix socket of betterlinuxcnc-service")
+    parser.add_argument(
+        "--socket",
+        default=os.environ.get("BETTERCNC_SOCKET"),
+        help="Private Unix socket of betterlinuxcnc-service",
+    )
     parser.add_argument("--program", help="Open a local G-code program")
     parser.add_argument("--qml", help=argparse.SUPPRESS)
     parser.add_argument("--smoke-test", action="store_true", help=argparse.SUPPRESS)
@@ -45,7 +49,11 @@ def main(argv=None):
     if not (qml / "Main.qml").is_file():
         print(f"QML installation is incomplete: {qml}", file=sys.stderr)
         return 1
-    backend = DesktopBackend(socket_path=args.socket, ini_path=args.ini)
+    backend = DesktopBackend(
+        socket_path=args.socket,
+        ini_path=args.ini,
+        managed=os.environ.get("BETTERCNC_MANAGED") == "1",
+    )
     app.installEventFilter(backend)
     engine = QQmlApplicationEngine()
     engine.addImportPath(str(qml))

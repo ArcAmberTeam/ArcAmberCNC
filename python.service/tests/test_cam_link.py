@@ -97,6 +97,66 @@ class Client:
         await self.writer.wait_closed()
 
 
+class CamDirectTests(unittest.IsolatedAsyncioTestCase):
+    async def asyncSetUp(self):
+        self.temp = tempfile.TemporaryDirectory(dir="/tmp", prefix="cam-direct-")
+        self.root = Path(self.temp.name)
+        self.stop = asyncio.Event()
+        listener = socket.socket()
+        listener.bind(("127.0.0.1", 0))
+        self.address = listener.getsockname()
+        self.server = asyncio.create_task(
+            serve(
+                self.root / "inbox",
+                control_socket=self.root / "offline.sock",
+                sock=listener,
+                stop_event=self.stop,
+            )
+        )
+        for _ in range(100):
+            if self.server.done():
+                await self.server
+            if (self.root / "inbox").exists():
+                break
+            await asyncio.sleep(0.01)
+        self.client = Client(*await asyncio.open_connection(*self.address))
+
+    async def asyncTearDown(self):
+        await self.client.close()
+        self.stop.set()
+        await asyncio.wait_for(self.server, 5)
+        self.temp.cleanup()
+
+    async def test_direct_handshake_upload_receipt_and_offline_status(self):
+        self.assertTrue((await self.client.rpc("session.auth"))["result"]["authenticated"])
+        self.assertTrue((await self.client.rpc("ping"))["result"]["alive"])
+        body = b"(direct connection test)\nM2\n"
+        transfer_id = str(uuid.uuid4())
+        metadata = {
+            "transferId": transfer_id,
+            "filename": "direct.ngc",
+            "size": len(body),
+            "sha256": hashlib.sha256(body).hexdigest(),
+        }
+        self.assertIn("result", await self.client.rpc("upload.begin", metadata))
+        self.assertIn(
+            "result",
+            await self.client.rpc(
+                "upload.chunk", {"offset": 0, "data": base64.b64encode(body).decode()}
+            ),
+        )
+        receipt = (await self.client.rpc("upload.finish"))["result"]
+        self.assertEqual(receipt["state"], "received")
+        self.assertEqual((self.root / "inbox" / transfer_id / "direct.ngc").read_bytes(), body)
+        self.assertEqual(
+            (await self.client.rpc("status.get"))["error"]["code"], "controller_unavailable"
+        )
+        self.assertFalse((self.root / "inbox" / transfer_id / "execution.json").exists())
+
+    async def test_direct_connection_still_requires_the_protocol_handshake(self):
+        self.assertEqual((await self.client.rpc("ping"))["error"]["code"], "unauthorized")
+
+
 class CamLinkTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.temp = tempfile.TemporaryDirectory(dir="/tmp", prefix="cam-")

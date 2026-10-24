@@ -18,7 +18,11 @@ ApplicationWindow {
     font.family: Theme.fontFamily
     font.pixelSize: Theme.bodySize
     onActiveChanged: if (!active) workspace.stopJog()
-    onClosing: workspace.stopJog()
+    onClosing: function(close) {
+        workspace.stopJog();
+        if (backend && typeof backend.requestClose === "function")
+            close.accepted = backend.requestClose();
+    }
     onActiveFocusItemChanged: workspace.stopJog()
     Workspace {
         id: workspace

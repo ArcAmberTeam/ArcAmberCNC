@@ -1,6 +1,7 @@
 """Public QObject behavior over a real Unix socket, with no controller process."""
 
 import copy
+import os
 import tempfile
 import time
 import unittest
@@ -38,7 +39,11 @@ class DesktopTests(unittest.TestCase):
         self.peer = Peer(self.reply)
         self.addCleanup(self.peer.close)
         settings = QSettings(str(Path(self.temporary.name) / "ui.ini"), QSettings.Format.IniFormat)
-        self.backend = DesktopBackend(socket_path=self.peer.path, settings=settings)
+        self.backend = DesktopBackend(
+            socket_path=self.peer.path,
+            settings=settings,
+            managed=self._testMethodName.startswith("test_managed_"),
+        )
         self.addCleanup(self.backend.close)
         self.wait(lambda: self.backend.snapshot.get("serviceConnected"))
 
@@ -201,6 +206,55 @@ class DesktopTests(unittest.TestCase):
                 )
             ]
             self.assertEqual(problems, [])
+        finally:
+            for window in engine.rootObjects():
+                window.setProperty("visible", False)
+            engine.deleteLater()
+            QCoreApplication.sendPostedEvents()
+
+    def test_managed_close_rejects_busy_pending_job_offline_and_stale_state(self):
+        self.assertTrue(self.backend.requestClose())
+        for update in (
+            {"busy": True},
+            {"busy": False, "commandState": "sent"},
+            {"commandState": "idle", "camJob": {"state": "starting"}},
+            {"camJob": None, "connected": False},
+        ):
+            self.state.update(update)
+            self.wait(
+                lambda update=update: all(
+                    self.backend.snapshot.get(key) == value for key, value in update.items()
+                )
+            )
+            self.assertFalse(self.backend.requestClose())
+        self.state["connected"] = True
+        self.wait(lambda: self.backend.snapshot.get("connected"))
+        self.assertTrue(self.backend.requestClose())
+        time.sleep(1.1)
+        self.assertFalse(self.backend.requestClose())
+        self.assertEqual(self.actions(), [])
+
+    def test_managed_window_rejects_close_during_program_and_accepts_when_idle(self):
+        qml = Path(__file__).resolve().parents[2] / "qml"
+        engine = QQmlApplicationEngine()
+        engine.addImportPath(str(qml))
+        engine.setInitialProperties({"backend": self.backend})
+        engine.load(QUrl.fromLocalFile(str(qml / "Main.qml")))
+        try:
+            self.assertTrue(engine.rootObjects())
+            window = engine.rootObjects()[0]
+            self.state["busy"] = True
+            self.wait(lambda: self.backend.snapshot.get("busy"))
+            self.assertFalse(window.close())
+            self.assertTrue(window.isVisible())
+            QTest.qWait(100)
+            capture = os.environ.get("BETTERCNC_CLOSE_CAPTURE")
+            if capture:
+                self.assertTrue(window.grabWindow().save(capture))
+            self.state["busy"] = False
+            self.wait(lambda: not self.backend.snapshot.get("busy"))
+            self.assertTrue(window.close())
+            self.assertFalse(window.isVisible())
         finally:
             for window in engine.rootObjects():
                 window.setProperty("visible", False)

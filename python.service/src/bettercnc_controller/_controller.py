@@ -10,6 +10,7 @@ from dataclasses import dataclass
 
 from ._config import AXES, SYSTEMS, Configuration
 from ._files import atomic_write, tool_table
+from ._received import ACTIVE, ReceivedPrograms
 from ._status import observe, offline
 
 
@@ -33,7 +34,9 @@ class Controller:
     callers must serialize *all* methods on a non-GUI worker thread.
     """
 
-    def __init__(self, ini_path=None, module=None, clock=None):
+    def __init__(self, ini_path=None, module=None, clock=None, cam_inbox=None):
+        self._received = ReceivedPrograms(cam_inbox)
+        self._cam_job = None
         self._module = module
         self._clock = clock or time.monotonic
         self._ini_path = ini_path or os.environ.get("INI_FILE_NAME")
@@ -55,6 +58,13 @@ class Controller:
         return getattr(self._module, name)
 
     def _result(self, state, message):
+        if (
+            self._cam_job
+            and self._cam_job["state"] in ACTIVE
+            and self._action == "program.run-received"
+            and state in ("completed", "error", "unknown")
+        ):
+            self._received.update(self._cam_job, state, message)
         self._command_state = state
         self._command_message = message
         if state in ("completed", "error", "unknown"):
@@ -63,6 +73,7 @@ class Controller:
 
     def _publish(self):
         self._snapshot.update(
+            camJob=deepcopy(self._cam_job),
             commandState=self._command_state,
             commandMessage=self._command_message,
             errors=list(self._errors),
@@ -70,6 +81,13 @@ class Controller:
         )
 
     def _disconnect(self, message):
+        if self._cam_job and self._cam_job["state"] in ACTIVE:
+            try:
+                self._received.update(self._cam_job, "unknown", "连接中断；加工结果未知，不会重放")
+            except (OSError, ValueError):
+                self._cam_job.update(
+                    state="unknown", message="作业记录写入失败；结果未知，不会重放"
+                )
         if self._steps or self._jogs:
             self._command_state = "unknown"
             self._command_message = "连接中断；命令结果未知，重连后不会重放"
@@ -117,6 +135,16 @@ class Controller:
                 self._errors.append({"kind": int(kind), "message": str(message), "error": is_error})
                 if is_error and self._steps:
                     self._result("error", str(message))
+            if self._cam_job and self._cam_job["state"] in ACTIVE:
+                if (
+                    not self._snapshot["powered"]
+                    or self._snapshot["estop"]
+                    or not all(self._snapshot["homed"])
+                ):
+                    self._result("error", "自动加工联锁已失效，取消未发送步骤")
+                elif self._snapshot["busy"] and self._steps and self._steps[0].method == "auto":
+                    if self._cam_job["state"] != "running":
+                        self._received.update(self._cam_job, "running", "加工中")
             if advance:
                 self._advance()
             self._publish()
@@ -132,6 +160,22 @@ class Controller:
             raise ValueError(message)
 
     def _guard(self, name):
+        if name == "camReady":
+            self._guard("homedIdle")
+            self._require(
+                bool(self._snapshot["homed"]) and all(self._snapshot["homed"]),
+                "自动加工要求全部 joint 已回零",
+            )
+            self._require(not self._snapshot["limitOverride"], "自动加工禁止限位覆盖")
+            self._require(
+                not any(
+                    joint.get("min_hard_limit") or joint.get("max_hard_limit")
+                    for joint in self._stat.joint
+                ),
+                "机床触发硬限位",
+            )
+            self._require(not self._snapshot["blockDelete"], "自动加工不允许跳过带 / 的程序行")
+            return
         s = self._snapshot
         self._require(s["connected"], "LinuxCNC 未连接，拒绝命令")
         if name == "connected":
@@ -248,6 +292,16 @@ class Controller:
             previous_serial = self._command.serial
             getattr(self._command, step.method)(*step.args)
             step.serial = self._command.serial
+            if (
+                self._cam_job
+                and self._cam_job["state"] in ACTIVE
+                and self._action == "program.run-received"
+            ):
+                self._received.update(
+                    self._cam_job,
+                    "starting" if step.method == "auto" else "loading",
+                    "等待 LinuxCNC 确认",
+                )
             step.sent_at = self._clock()
             if step.serial <= previous_serial:
                 self._result("unknown", "命令发送未生成可确认的序号；不会重试")
@@ -293,6 +347,12 @@ class Controller:
             if self._steps and not emergency:
                 raise ValueError("上一条命令尚未确认")
             if emergency:
+                if self._cam_job and self._cam_job["state"] in ACTIVE:
+                    self._received.update(
+                        self._cam_job,
+                        "unknown",
+                        "收到停止或联锁请求；不再续发加工步骤，请检查实际机床状态",
+                    )
                 self._steps.clear()
             steps = self._plan(action, payload)
             self._steps = deque(steps)
@@ -313,6 +373,54 @@ class Controller:
             else:
                 self._result("error", str(error))
             return False
+
+    def received_status(self, transfer_id):
+        """Read durable execution state; never replay or resume a stored job."""
+        if self._cam_job and self._cam_job["transferId"] == transfer_id:
+            return deepcopy(self._cam_job)
+        return self._received.status(transfer_id)
+
+    def start_received(self, transfer_id):
+        """Load and run one verified inbox program, with durable at-most-once intent."""
+        previous = self.received_status(transfer_id)
+        if previous is not None:
+            return previous
+        self._refresh(False)
+        self._require(not self._steps and not self._jogs, "上一条命令尚未完成")
+        self._require(not self._cam_job or self._cam_job["state"] not in ACTIVE, "已有自动加工作业")
+        record = self._received.reserve(transfer_id)
+        self._cam_job = record
+        self._action = "program.run-received"
+        try:
+            self._guard("camReady")
+            path = record["path"]
+            steps = [
+                self._step(
+                    "program_open",
+                    path,
+                    guard="camReady",
+                    expected=lambda: self._snapshot["file"] == path,
+                )
+            ]
+            steps += self._mode_steps("auto", "camReady")
+            # Unlike program.run's acceptance response, this final step waits for
+            # RCS_DONE, empty queues and in-position; idle alone is insufficient.
+            steps.append(
+                self._step(
+                    "auto",
+                    self._constant("AUTO_RUN"),
+                    0,
+                    guard="camReady",
+                    expected=lambda: not self._snapshot["busy"],
+                )
+            )
+            self._steps = deque(steps)
+            self._command_state = "pending"
+            self._advance()
+        except (ValueError, OSError, RuntimeError) as error:
+            self._result("error", str(error))
+        self._publish()
+        return deepcopy(self._cam_job)
 
     def _plan(self, action, payload):
         s, config = self._snapshot, self._config
@@ -716,6 +824,8 @@ class Controller:
     def close(self):
         if self._closed:
             return
+        if self._cam_job and self._cam_job["state"] in ACTIVE:
+            self._received.update(self._cam_job, "unknown", "控制服务会话关闭；不重放加工")
         self.stop_jog()
         # Stops are sent once; close never starts or replays another operation.
         self._steps.clear()

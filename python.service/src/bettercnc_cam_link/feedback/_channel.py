@@ -53,7 +53,7 @@ class FeedbackChannel:
             raise FeedbackError(
                 "controller_unavailable", "local controller status unavailable"
             ) from None
-        status["transferId"] = self._identify(status.get("file"))
+        status["transferId"] = self._identify(status.get("file")) or status.get("transferId")
         return status
 
     async def subscribe(self, interval):

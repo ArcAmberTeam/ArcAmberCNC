@@ -63,3 +63,10 @@ docs/help/vi/*
 docs/help/zh_CN/*
 configs/**/*.tbl.bak
 configs/**/halshow.preferences
+/launcher.json
+/.runtime/
+/private/
+/cam-inbox/
+/python.launcher/build/
+/python.launcher/dist/
+/python.launcher/src/*.egg-info/

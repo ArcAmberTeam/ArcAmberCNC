@@ -22,11 +22,13 @@ class ControllerRuntime:
         controller_factory=None,
         process_factory=None,
         status_reader_factory=None,
+        cam_inbox=None,
     ):
         self._factory = controller_factory or Controller
         self._status_factory = status_reader_factory or StatusReader
         self._status_reader = None
         self._ini = ini_path
+        self._cam_inbox = cam_inbox
         self._executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="linuxcnc-owner")
         self._controller = None
         self._owner = None
@@ -55,7 +57,7 @@ class ControllerRuntime:
 
     async def _poll_loop(self):
         while True:
-            if self._owner is not None and not self._releasing:
+            if self._controller is not None and not self._releasing:
                 try:
                     await self._work(self._poll, self._generation)
                 except Exception:
@@ -67,7 +69,9 @@ class ControllerRuntime:
     def _new_controller(self, generation):
         if generation != self._generation:
             return None
-        self._controller = self._factory(ini_path=self._ini)
+        if self._controller is None:
+            options = {"cam_inbox": self._cam_inbox} if self._cam_inbox is not None else {}
+            self._controller = self._factory(ini_path=self._ini, **options)
         self._snapshot = self._controller.poll()
         return self._snapshot
 
@@ -81,6 +85,14 @@ class ControllerRuntime:
                 self._controller = None
         self._snapshot = None
 
+    def _release_desktop(self):
+        # An accepted CAM job belongs to the service, not the upload/desktop socket.
+        job = (self._snapshot or {}).get("camJob") or {}
+        if job.get("state") in ("accepted", "loading", "starting", "running"):
+            self._controller.stop_jog()
+        else:
+            self._close_controller()
+
     async def release(self, owner):
         if self._owner is not owner:
             return
@@ -89,7 +101,7 @@ class ControllerRuntime:
         self._lease_deadline = None
         self._jog_expired = True
         try:
-            await self._work(self._close_controller)
+            await self._work(self._release_desktop)
         finally:
             await self._jobs.clear(owner)
             if self._owner is owner:
@@ -101,6 +113,7 @@ class ControllerRuntime:
         await asyncio.gather(self._poll_task, return_exceptions=True)
         if self._owner is not None:
             await self.release(self._owner)
+        await self._work(self._close_controller)
         await self._work(self._close_status_reader)
         self._executor.shutdown(wait=False, cancel_futures=True)
 
@@ -112,7 +125,13 @@ class ControllerRuntime:
     def _read_status(self):
         if self._status_reader is None:
             self._status_reader = self._status_factory(ini_path=self._ini)
-        return self._status_reader.poll()
+        result = self._status_reader.poll()
+        job = (self._snapshot or {}).get("camJob")
+        if job:
+            result["job"] = deepcopy(job)
+            if result.get("file") == job.get("path"):
+                result["transferId"] = job["transferId"]
+        return result
 
     def _params(self, params, required=(), optional=()):
         if not set(required).issubset(params) or not set(params).issubset(
@@ -149,7 +168,26 @@ class ControllerRuntime:
         self._snapshot = self._controller.snapshot
         return {"accepted": bool(accepted), "snapshot": wire_snapshot(self._snapshot)}
 
+    def _cam_request(self, method, transfer_id):
+        if self._controller is None:
+            self._new_controller(self._generation)
+        if method == "cam.job.start":
+            result = self._controller.start_received(transfer_id)
+        else:
+            result = self._controller.received_status(transfer_id)
+        self._snapshot = self._controller.snapshot
+        return {"job": result}
+
     async def handle(self, owner, method, params):
+        if method in ("cam.job.start", "cam.job.status"):
+            self._params(params, required=("transferId",))
+            if self._cam_inbox is None:
+                raise ProtocolError(
+                    "auto_run_disabled", "controller CAM execution is not configured"
+                )
+            if self._releasing:
+                raise ProtocolError("session_busy", "controller session is releasing")
+            return await self._work(self._cam_request, method, params["transferId"])
         if method == "machine.status":
             self._params(params)
             return await self._work(self._read_status)

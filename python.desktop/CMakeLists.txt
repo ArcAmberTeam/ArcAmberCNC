@@ -4,9 +4,14 @@ project(BetterLinuxCNC VERSION 0.2.0 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 include(GNUInstallDirs)
+set(BETTERCNC_PROJECT_DIR "/opt/arcambercnc" CACHE PATH "Runtime project directory containing launcher.json")
 find_package(Python3 3.11 REQUIRED COMPONENTS Interpreter)
 configure_file(app/betterlinuxcnc.in betterlinuxcnc @ONLY)
 configure_file(app/betterlinuxcnc-service.in betterlinuxcnc-service @ONLY)
+configure_file(app/betterlinuxcnc-cam-link.in betterlinuxcnc-cam-link @ONLY)
+configure_file(app/betterlinuxcnc-launch.in betterlinuxcnc-launch @ONLY)
+configure_file(packaging/betterlinuxcnc-launcher.service.in betterlinuxcnc-launcher.service @ONLY)
+configure_file(packaging/betterlinuxcnc-autostart.desktop.in betterlinuxcnc-autostart.desktop @ONLY)
 
 include(CTest)
 if(BUILD_TESTING)
@@ -65,9 +70,18 @@ endif()
 
 install(PROGRAMS "${CMAKE_CURRENT_BINARY_DIR}/betterlinuxcnc" DESTINATION ${CMAKE_INSTALL_BINDIR})
 install(PROGRAMS "${CMAKE_CURRENT_BINARY_DIR}/betterlinuxcnc-service" DESTINATION ${CMAKE_INSTALL_BINDIR})
+install(PROGRAMS "${CMAKE_CURRENT_BINARY_DIR}/betterlinuxcnc-cam-link" DESTINATION ${CMAKE_INSTALL_BINDIR})
+install(PROGRAMS "${CMAKE_CURRENT_BINARY_DIR}/betterlinuxcnc-launch" DESTINATION ${CMAKE_INSTALL_BINDIR})
+install(FILES "${CMAKE_CURRENT_BINARY_DIR}/betterlinuxcnc-launcher.service"
+    DESTINATION "${CMAKE_INSTALL_PREFIX}/lib/systemd/user")
+install(FILES "${CMAKE_CURRENT_BINARY_DIR}/betterlinuxcnc-autostart.desktop"
+    DESTINATION "/etc/xdg/autostart")
+install(FILES ../launcher.example.json DESTINATION "${BETTERCNC_PROJECT_DIR}")
 install(DIRECTORY python/bettercnc DESTINATION ${CMAKE_INSTALL_LIBDIR}/betterlinuxcnc/python
     PATTERN "__pycache__" EXCLUDE PATTERN "*.pyc" EXCLUDE)
 install(DIRECTORY ../python.service/src/ DESTINATION ${CMAKE_INSTALL_LIBDIR}/betterlinuxcnc/python
+    PATTERN "__pycache__" EXCLUDE PATTERN "*.pyc" EXCLUDE PATTERN "*.egg-info" EXCLUDE)
+install(DIRECTORY ../python.launcher/src/ DESTINATION ${CMAKE_INSTALL_LIBDIR}/betterlinuxcnc/python
     PATTERN "__pycache__" EXCLUDE PATTERN "*.pyc" EXCLUDE PATTERN "*.egg-info" EXCLUDE)
 install(DIRECTORY qml/ DESTINATION ${CMAKE_INSTALL_DATADIR}/betterlinuxcnc/qml)
 install(FILES packaging/betterlinuxcnc-qt.desktop DESTINATION share/applications)

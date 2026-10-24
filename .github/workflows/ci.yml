@@ -122,6 +122,28 @@ jobs:
             --workdir /workspace debian:13-slim \
             bash .github/ci/preview-check.sh
 
+  launcher-checks:
+    name: Python：启动编排 (${{ matrix.python }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.11", "3.13"]
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+          cache-dependency-path: python.service/requirements-ci.txt
+      - name: Install pinned build and check tools
+        run: python -m pip install -r python.service/requirements-ci.txt
+      - name: Verify installed standard-library launcher without starting LinuxCNC
+        run: bash .github/ci/python-check.sh launcher
+
   config-checks:
     name: HAL/INI/Tcl：机床配置与模块连接
     runs-on: ubuntu-24.04
@@ -213,6 +235,7 @@ jobs:
         source-checks,
         native-checks,
         python-checks,
+        launcher-checks,
         preview-checks,
         config-checks,
         rust-checks,

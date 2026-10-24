@@ -15,7 +15,9 @@ import stat
 from pathlib import Path
 
 from ._discovery import DiscoveryOptions, run_discovery
+from .execution import ExecutionError, ExecutionGateway
 from .feedback import FeedbackChannel, FeedbackError
+from .manual import JogError, JogSession
 from .protocol import MAX_FRAME_BYTES, ProtocolError, decode_chunk, read_request
 from .receiver import ProgramInbox, ReceiveError
 
@@ -28,7 +30,7 @@ def _params(params, *keys):
 async def serve(
     inbox,
     *,
-    token,
+    token=None,
     control_socket,
     host="127.0.0.1",
     port=6522,
@@ -39,15 +41,19 @@ async def serve(
     stop_event=None,
     sock=None,
     discovery=None,
+    auto_run=False,
 ):
     """Serve the authenticated CAM Link v2 TCP protocol on a persistent connection.
 
     protocol owns framing, receiver owns staged program files, and feedback owns
-    all replies and machine-status events. No network method issues commands.
+    all replies and machine-status events. Optional execution delegates jobs to the
+    local Controller; this process never opens LinuxCNC command channels.
     discovery optionally enables machine announcements and UDP discovery handshakes.
     An optional bound socket supports host activation and embedding.
     """
-    if not isinstance(token, str) or not re.fullmatch(r"[A-Za-z0-9_-]{32,256}", token):
+    if token is not None and (
+        not isinstance(token, str) or not re.fullmatch(r"[A-Za-z0-9_-]{32,256}", token)
+    ):
         raise ValueError("token must contain 32 to 256 URL-safe characters")
     if any(not math.isfinite(value) or value <= 0 for value in (io_timeout, idle_timeout)):
         raise ValueError("timeouts must be positive and finite")
@@ -55,7 +61,10 @@ async def serve(
         if not isinstance(discovery, DiscoveryOptions):
             raise ValueError("discovery must be DiscoveryOptions or None")
         discovery.validate()
+    if type(auto_run) is not bool:
+        raise ValueError("auto_run must be boolean")
     programs = ProgramInbox(inbox, max_bytes=max_bytes)
+    execution = ExecutionGateway(control_socket)
     clients = set()
 
     async def handle(reader, writer):
@@ -69,6 +78,7 @@ async def serve(
             identify_program=programs.identify,
             io_timeout=io_timeout,
         )
+        jog = JogSession(control_socket)
         upload = None
         authenticated = False
         ids = set()
@@ -76,6 +86,8 @@ async def serve(
         async def route(request):
             nonlocal upload
             method, params = request.method, request.params
+            if method in ("jog.start", "jog.keepalive", "jog.stop"):
+                return await jog.request(method, params)
             if method == "ping":
                 _params(params)
                 return {"alive": True}
@@ -100,6 +112,19 @@ async def serve(
                 _params(params)
                 result = upload.finish()
                 upload = None
+                if auto_run and not result["duplicate"]:
+                    try:
+                        result["job"] = await execution.request("start", result["transferId"])
+                    except ExecutionError as error:
+                        result["job"] = {
+                            "transferId": result["transferId"],
+                            "state": "unknown"
+                            if error.code == "controller_unavailable"
+                            else "error",
+                            "message": str(error),
+                        }
+                elif auto_run:
+                    result["job"] = await execution.request("status", result["transferId"])
                 return result
             if method == "upload.abort":
                 _params(params)
@@ -109,7 +134,16 @@ async def serve(
                 return {"aborted": True}
             if method == "upload.receipt":
                 _params(params, "transferId")
-                return programs.receipt(params["transferId"])
+                result = programs.receipt(params["transferId"])
+                if auto_run:
+                    result["job"] = await execution.request("status", params["transferId"])
+                return result
+            if method in ("job.start", "job.status"):
+                _params(params, "transferId")
+                if not auto_run:
+                    raise ExecutionError("auto_run_disabled", "CAM auto execution is disabled")
+                programs.receipt(params["transferId"])
+                return {"job": await execution.request(method.split(".")[1], params["transferId"])}
             if method == "status.get":
                 _params(params)
                 return await channel.status()
@@ -150,12 +184,15 @@ async def serve(
                     break
                 ids.add(request.request_id)
                 if not authenticated:
-                    valid = (
-                        request.method == "session.auth"
-                        and set(request.params) == {"token"}
-                        and isinstance(request.params["token"], str)
-                        and request.params["token"].isascii()
-                        and hmac.compare_digest(request.params["token"], token)
+                    valid = request.method == "session.auth" and (
+                        request.params == {}
+                        if token is None
+                        else (
+                            set(request.params) == {"token"}
+                            and isinstance(request.params["token"], str)
+                            and request.params["token"].isascii()
+                            and hmac.compare_digest(request.params["token"], token)
+                        )
                     )
                     if not valid:
                         await channel.error(
@@ -167,7 +204,13 @@ async def serve(
                     continue
                 try:
                     result = await route(request)
-                except (ProtocolError, ReceiveError, FeedbackError) as error:
+                except (
+                    ProtocolError,
+                    ReceiveError,
+                    FeedbackError,
+                    ExecutionError,
+                    JogError,
+                ) as error:
                     if request.method in ("upload.chunk", "upload.finish") and upload is not None:
                         upload.close()
                         upload = None
@@ -186,6 +229,7 @@ async def serve(
         except (asyncio.IncompleteReadError, ConnectionError, OSError, TimeoutError):
             pass
         finally:
+            await jog.close()
             await channel.close()
             if upload is not None:
                 upload.close()
@@ -267,7 +311,11 @@ async def serve(
 def main():
     parser = argparse.ArgumentParser(description="CAM link TCP reception and machining feedback")
     parser.add_argument("--inbox", type=Path, required=True)
-    parser.add_argument("--token-file", type=Path, required=True)
+    parser.add_argument(
+        "--token-file",
+        type=Path,
+        help="optional token authentication; omit for LAN direct connection",
+    )
     parser.add_argument("--control-socket", type=Path, required=True)
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=6522)
@@ -275,6 +323,11 @@ def main():
     parser.add_argument("--idle-timeout", type=float, default=60.0)
     parser.add_argument("--cert", type=Path)
     parser.add_argument("--key", type=Path)
+    parser.add_argument(
+        "--auto-run",
+        action="store_true",
+        help="submit newly received programs to the configured controller",
+    )
     parser.add_argument("--discover", action="store_true")
     parser.add_argument("--device-id")
     parser.add_argument("--device-name", default=socket.gethostname()[:64])
@@ -298,15 +351,17 @@ def main():
                 bind_port=args.discovery_bind_port,
                 interval=args.discovery_interval,
             )
-        info = args.token_file.lstat()
-        if (
-            not stat.S_ISREG(info.st_mode)
-            or info.st_uid != os.getuid()
-            or stat.S_IMODE(info.st_mode) & 0o077
-            or info.st_size > 257
-        ):
-            raise ValueError("token file must be user-owned, mode 0600, and at most 257 bytes")
-        token = args.token_file.read_text(encoding="ascii").strip()
+        token = None
+        if args.token_file is not None:
+            info = args.token_file.lstat()
+            if (
+                not stat.S_ISREG(info.st_mode)
+                or info.st_uid != os.getuid()
+                or stat.S_IMODE(info.st_mode) & 0o077
+                or info.st_size > 257
+            ):
+                raise ValueError("token file must be user-owned, mode 0600, and at most 257 bytes")
+            token = args.token_file.read_text(encoding="ascii").strip()
         context = None
         if args.cert:
             context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
@@ -323,6 +378,7 @@ def main():
                 idle_timeout=args.idle_timeout,
                 ssl_context=context,
                 discovery=discovery,
+                auto_run=args.auto_run,
             )
         )
     except (OSError, ValueError) as error:

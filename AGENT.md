@@ -6,7 +6,7 @@
 
 2026-10-08 用户决定删除 Web 并按“语言.职责”整理项目。**`python.desktop/` 是正式桌面入口**，Vue/Web、Tauri 桌面环境及部署脚本已删除；Web 源码及设计资料整体删除，历史内容从 Git 获取。Rust v1 诊断逻辑提取为独立 `rust.diagnostics/`，不替换现有 Python v2 控制链路。原生 AXIS 应用已删除，包括 Python 主程序、Tcl 界面、axis-remote、专属资源和构建/安装入口。LinuxCNC 控制核心、共享 Python API 和其他上游工具保留，不属于当前界面发布产物。删除边界及遗留配置说明见 [迁移记录](docs/native-axis-removal.md)，当前桌面决策见 [Qt 迁移说明](docs/qt-qml-migration.md)。
 
-用户随后要求全部接入，并明确先使用 Unix socket、不运行模拟。Qt 入口现通过独立 Python 控制服务接入 LinuxCNC 状态、命令及解释器预览；独立 `rust.diagnostics` 仍只查询 v1 诊断接口。服务由用户显式启动，桌面不自动启动 LinuxCNC 或 Python 服务。没有机床配置或实测依据时，不得声称完成了运动或目标机验收。视觉设计不向原生 Tcl/Python 回写。
+用户随后要求全部接入，并明确先使用 Unix socket、不运行模拟。Qt 入口现通过独立 Python 控制服务接入 LinuxCNC 状态、命令及解释器预览；独立 `rust.diagnostics` 仍只查询 v1 诊断接口。独立 `python.launcher/` 可由用户显式调用，统一编排控制服务、原生 LinuxCNC 和 CAM 联动；桌面和服务本身不启动彼此或核心。没有机床配置或实测依据时，不得声称完成了运动或目标机验收。视觉设计不向原生 Tcl/Python 回写。
 
 ## 技术与系统边界
 
@@ -19,6 +19,8 @@
 - v1 `health` 继续保持历史诊断格式，不能用于判断机床连接；真实状态只来自 v2 会话。离线坐标显示未知，测试夹具不得进入生产数据流。
 
 ## 模块边界
+
+`python.launcher/` 是 Python 标准库的独立编排入口，配置在运行项目目录 `launcher.json`。用户调用 `betterlinuxcnc-launch` 或安装后的 XDG 会话启动项，通过 CLI 依次启动控制服务、原生 `linuxcnc <ini>` 与 CAM 联动。就绪探测只查询公开 v2 `machine.status`，不获取控制会话。模块保活不重放命令；原生核心重启必须确认旧进程组与原生锁已释放。安装默认项目目录 `/opt/arcambercnc`，编译时由 `BETTERCNC_PROJECT_DIR` 指定；不覆盖已有配置，也不替用户选择或改写机床 INI/HAL。
 
 Qt 目录及依赖见 [python.desktop/AGENTS.md](python.desktop/AGENTS.md)：按 `BetterCnc.<Capability>` 命名模块及 `qmldir` 公开类型组织，组件通过公开状态与信号组合。Rust 的 `src/lib.rs` 为公开入口，内部通信实现私有，规范见 `rust.diagnostics/AGENTS.md`。跨模块和应用层只允许导入公开入口，禁止依赖环、反向依赖及生产代码引用测试夹具。
 

@@ -1,0 +1,6 @@
+[Desktop Entry]
+Type=Application
+Name=BetterLinuxCNC
+Exec="@CMAKE_INSTALL_FULL_BINDIR@/betterlinuxcnc-launch" --session-start
+Terminal=false
+NoDisplay=true

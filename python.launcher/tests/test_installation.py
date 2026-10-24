@@ -63,6 +63,10 @@ class InstallationTests(unittest.TestCase):
             parser.read(stage / "etc/xdg/autostart/betterlinuxcnc-autostart.desktop")
             self.assertIn("--session-start", parser["Desktop Entry"]["Exec"])
             self.assertNotEqual(parser["Desktop Entry"].get("Hidden"), "true")
+            parser.read(stage / "usr/share/applications/betterlinuxcnc-qt.desktop")
+            self.assertEqual(
+                parser["Desktop Entry"]["Exec"], "betterlinuxcnc-launch --session-start"
+            )
             result = subprocess.run(
                 [
                     sys.executable,

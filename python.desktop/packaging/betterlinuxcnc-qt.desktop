@@ -1,7 +1,7 @@
 [Desktop Entry]
 Type=Application
 Name=BetterLinuxCNC
-Comment=Native Qt Quick machine-operation interface prototype
-Exec=betterlinuxcnc
+Comment=Start LinuxCNC, controller and CAM link
+Exec=betterlinuxcnc-launch --session-start
 Terminal=false
 Categories=Utility;Engineering;

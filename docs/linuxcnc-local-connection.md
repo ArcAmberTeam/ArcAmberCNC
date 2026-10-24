@@ -5,23 +5,29 @@ Python 控制服务 → LinuxCNC。SSH 仅用于维护，不参与机床命令�
 
 ## 已核实的目标环境
 
-2026-10-25，通过 SSH 对 `teto@192.168.109.67` 做只读检查：
+2026-10-25，通过 SSH 检查 `teto@192.168.109.67`，随后经用户授权完成构建、安装和启动：
 
 - 仓库：`/home/teto/ArcAmberCNC`；Debian 13，实时内核，Python 3.13.5，PySide6 6.8.2.1。
 - 机床配置：`configs/zhulong-v2/烛龙V2.ini`；`DISPLAY = betterlinuxcnc`。
 - 仓库根目录已有本机专用 `launcher.json`，包含机床 INI、CAM 地址与收件设置。
 - 控制端点：`/run/user/1000/betterlinuxcnc/control.sock`。
-- 当时运行的是 `/usr/bin/betterlinuxcnc-launch` 及 `/usr` 下安装的 GUI/服务。
-- 公开 `machine.status` 返回 `connected: true`、`programState: idle`、
-  `mode: manual`、`spindleSpeed: 0`。这只是查询时的状态，不是运动验收。
+- 图形会话：X11 `DISPLAY=:0`，`XAUTHORITY=/home/teto/.Xauthority`；实际 GUI 窗口为 1024×600。
+- 已从合并后的 `origin/main` 提交 `6a190df` 安装 GUI、控制服务和启动器；安装后的 GUI Python 入口与 Main.qml 均与仓库文件摘要一致。
+- `betterlinuxcnc-launcher.service` 用户服务已启动，启动器报告 `ready`；GUI、真实 LinuxCNC、控制服务及 CAM 进程正常运行，用户确认可用。
+- 启动后只读反馈为已连接、急停且未使能；最后一次查询为手动、空闲、已使能、主轴转速 0。本次 Agent 未发送上电、回零、点动、主轴或加工命令；这些状态只是当时的反馈，不是运动验收或当前状态保证。
+- 安装前后 `launcher.json` 和机床 INI 摘要相同；原有 VERSION、debian/changelog 修改与未跟踪机床配置目录保留。
 
 现有 GUI 后端已经支持真实 v2 控制会话，无需新增网络控制层。交互测试通过外部
 注入接口替身；正式入口 `python.desktop/app/main.py` 和 `betterlinuxcnc` 不加载替身。
 
 ## 拉取后先检查连接
 
-由用户自行 push/pull，不提交目标机专用 `launcher.json`、日志、密码或硬件配置副本。
-目标机以 `teto` 用户执行：
+源码在本地修改、验证后推送，目标机从 Git 同步。用户已授权 Agent 使用 GitHub Desktop
+推送及在目标机拉取、构建、安装和启动。不提交目标机专用 `launcher.json`、日志、密码或硬件配置副本。
+每次核对工作分支和 HEAD，不能只看 `origin/main`：本次曾发现远端引用已更新，而工作分支仍在旧提交。
+确认目标引用后可使用 `git merge --ff-only origin/main`；若无法快进，先检查分歧，不用强制重置覆盖现场修改。
+
+目标机以 `teto` 用户执行只读连接检查：
 
 ```sh
 cd ~/ArcAmberCNC
@@ -52,24 +58,44 @@ cmake -S python.desktop -B python.desktop/build-target \
 cmake --build python.desktop/build-target
 ```
 
-以上仅在目标机准备安装文件。先由本机操作员完成正常停机、退出旧启动器与 LinuxCNC，
-然后由用户执行安装及重新启动。不要在旧 GUI/控制服务仍使用文件时覆盖安装。
+以上仅在目标机准备安装文件。先确认机床已按正常流程停机，旧启动器、LinuxCNC 与控制服务均已退出，
+再执行安装及重新启动。不要在旧 GUI/控制服务仍使用文件时覆盖安装，也不要以强杀进程代替正常停机。
 
 ```sh
 sudo cmake --install python.desktop/build-target
 systemctl --user daemon-reload
 betterlinuxcnc-launch --config "$HOME/ArcAmberCNC/launcher.json" --check
-betterlinuxcnc-launch --config "$HOME/ArcAmberCNC/launcher.json"
+export DISPLAY=:0
+export XAUTHORITY="$HOME/.Xauthority"
+xdpyinfo >/dev/null
+systemctl --user import-environment DISPLAY XAUTHORITY
+systemctl --user start betterlinuxcnc-launcher.service
 ```
 
 `sudo` 仅用于安装，运行程序仍使用普通用户。安装更新 GUI、控制服务、CAM、启动器及已有
 自动启动入口，不覆盖 `launcher.json`、机床 INI/HAL，也不安装 LinuxCNC 核心。
-`--check` 只输出计划，不启动进程；不带 `--check` 的命令才会加载真实机床配置。
-本文件中的安装/启动命令未通过 SSH 执行，需用户拉取后自行执行。
+`--check` 只输出计划，不启动进程；启动用户服务才会加载真实机床配置。
+上述安装和 systemd 启动流程已在目标机实际执行。用户服务独立于 SSH 会话，断开 SSH 后继续运行。
+需要直接在图形终端运行时，也可使用 `betterlinuxcnc-launch --config ./launcher.json`，但不能与用户服务并行启动。
 
 原有启动器按顺序启动控制服务、LinuxCNC（由其启动 DISPLAY），在读取到真实状态后启动 CAM。
 GUI 和服务使用同一个 INI、同一个私有 socket；`session.attach` 拒绝配置不匹配或第二个控制界面。
 原有 CAM 的 `auto_run` 设置不变。不要额外运行交互测试入口来连接真实机床。
+
+## 启动后检查
+
+```sh
+systemctl --user status betterlinuxcnc-launcher.service --no-pager -l
+betterlinuxcnc --check-connection --socket /run/user/1000/betterlinuxcnc/control.sock
+journalctl --user -u betterlinuxcnc-launcher.service -n 30 --no-pager
+ls -lt "$HOME/.local/state/betterlinuxcnc/launcher"
+```
+
+systemd 的 active 只代表启动器仍在运行；继续读取本次启动目录的 `state.json` 和
+`controller-*.log`、`linuxcnc-*.log`、`cam-link-*.log`，确认 ready、真实状态可读和窗口显示。
+直接 CLI 启动的默认日志目录为项目 `.runtime/launcher/`，不要与用户服务日志混淆。
+需要核对安装内容时，比较仓库和 `/usr/lib/betterlinuxcnc/python`、
+`/usr/share/betterlinuxcnc/qml` 中对应文件的摘要。记录当前提交和检查结果，不沿用旧截图或 PID。
 
 ## 单独启动界面
 

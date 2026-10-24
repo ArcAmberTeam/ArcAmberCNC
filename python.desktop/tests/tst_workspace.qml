@@ -293,7 +293,6 @@ TestCase {
         tryCompare(dialog, "visible", true);
         compare(dialog.description, "当前状态不允许执行此指令");
     }
-<<<<<<< Updated upstream
 
     function test_jogRejectedWithoutPermittedState_data() {
         return [
@@ -391,7 +390,8 @@ TestCase {
         compare(lastRequest().id, "machine.touch-off");
         compare(lastRequest().payload.value, 5);
         verify(!dialog.visible);
-=======
+    }
+
     function test_platinumLayout_data() {
         return [
             {tag: "wide", w: 1440, h: 900, columns: true},
@@ -549,6 +549,5 @@ TestCase {
                 verify(q.y + run.height <= window.height - 32);
             }
         }
->>>>>>> Stashed changes
     }
 }

@@ -39,11 +39,18 @@ class CamJogTests(unittest.IsolatedAsyncioTestCase):
         self.root = Path(self.temp.name)
         self.control = self.root / "control" / "service.sock"
         self.log = []
+        self.controllers = []
+
+        def factory(**options):
+            controller = FakeController(self.log, **options)
+            self.controllers.append(controller)
+            return controller
+
         self.stop_control = asyncio.Event()
         self.controller_task = asyncio.create_task(
             serve_control(
                 self.control,
-                controller_factory=lambda **options: FakeController(self.log, **options),
+                controller_factory=factory,
                 stop_event=self.stop_control,
             )
         )
@@ -88,6 +95,22 @@ class CamJogTests(unittest.IsolatedAsyncioTestCase):
             ]
         )
         return reader, writer
+
+    async def local(self):
+        reader, writer = await asyncio.open_unix_connection(str(self.control))
+        self.clients.append((reader, writer))
+        return reader, writer
+
+    async def local_rpc(self, client, method, params):
+        reader, writer = client
+        body = json.dumps(
+            {"version": 2, "request_id": uuid.uuid4().hex, "method": method, "params": params}
+        ).encode()
+        writer.write(struct.pack("!I", len(body)) + body)
+        await writer.drain()
+        async with asyncio.timeout(3):
+            size = struct.unpack("!I", await reader.readexactly(4))[0]
+            return json.loads(await reader.readexactly(size))
 
     async def rpc(self, reader, writer, method, params):
         message = {"version": 2, "requestId": uuid.uuid4().hex, "method": method, "params": params}
@@ -176,6 +199,69 @@ class CamJogTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(reply["error"]["code"], "invalid_params")
         _, reply = await self.start(reader, writer, feedRate=-1)
         self.assertEqual(reply["error"]["code"], "invalid_params")
+        self.assertEqual(sum(action == "jog.start" for action, _ in self.log), 1)
+
+    async def test_desktop_and_cam_share_one_controller_without_releasing_desktop(self):
+        desktop = await self.local()
+        self.assertTrue(
+            (await self.local_rpc(desktop, "session.attach", {}))["result"]["connected"]
+        )
+        reader, writer = await self.connect()
+        command, reply = await self.start(reader, writer, axis="X")
+        self.assertTrue(reply["result"]["accepted"])
+        self.assertEqual(len(self.controllers), 1)
+        await self.rpc(reader, writer, "jog.stop", {"jogId": command["jogId"]})
+        await self.wait_stopped()
+        self.assertTrue(
+            (await self.local_rpc(desktop, "session.status", {}))["result"]["connected"]
+        )
+        other = await self.local()
+        self.assertEqual(
+            (await self.local_rpc(other, "session.attach", {}))["error"]["code"],
+            "control_in_use",
+        )
+
+    async def test_local_stop_overrides_cam_and_revokes_remote_renewal(self):
+        desktop = await self.local()
+        await self.local_rpc(desktop, "session.attach", {})
+        reader, writer = await self.connect()
+        command, reply = await self.start(reader, writer)
+        self.assertTrue(reply["result"]["accepted"])
+        reply = await self.local_rpc(
+            desktop, "command.execute", {"action": "machine.estop", "payload": {}}
+        )
+        self.assertTrue(reply["result"]["accepted"])
+        actions = [action for action, _ in self.log]
+        self.assertLess(actions.index("stop"), actions.index("machine.estop"))
+        reply = await self.rpc(reader, writer, "jog.keepalive", {"jogId": command["jogId"]})
+        self.assertEqual(reply["error"]["code"], "jog_expired")
+
+    async def test_cam_cannot_interrupt_existing_desktop_jog(self):
+        desktop = await self.local()
+        await self.local_rpc(desktop, "session.attach", {})
+        await self.local_rpc(
+            desktop,
+            "command.execute",
+            {"action": "jog.start", "payload": {"axis": "X", "velocity": 0.1}},
+        )
+        reader, writer = await self.connect()
+        _, reply = await self.start(reader, writer)
+        self.assertEqual(reply["error"]["code"], "control_in_use")
+        self.assertFalse(any(action == "stop" for action, _ in self.log))
+
+    async def test_desktop_heartbeat_cannot_renew_independent_cam_service_lease(self):
+        desktop = await self.local()
+        await self.local_rpc(desktop, "session.attach", {})
+        remote = await self.local()
+        command = {"jogId": str(uuid.uuid4()), "axis": "X", "direction": 1, "feedRate": 60}
+        reply = await self.local_rpc(remote, "cam.jog.start", command)
+        self.assertTrue(reply["result"]["accepted"])
+        for _ in range(7):
+            await asyncio.sleep(0.12)
+            await self.local_rpc(desktop, "session.status", {"jog_lease": True})
+        await self.wait_stopped()
+        reply = await self.local_rpc(remote, "cam.jog.keepalive", {"jogId": command["jogId"]})
+        self.assertEqual(reply["error"]["code"], "jog_expired")
         self.assertEqual(sum(action == "jog.start" for action, _ in self.log), 1)
 
 

@@ -1,0 +1,6 @@
+{
+  "static_config_checker": "4 files, 0 diagnostics",
+  "mapping": "X:joint0/stepgen02; Y:joint1/stepgen00; Z:joint2/stepgen01",
+  "additional_checks": "INI references, manual homing, limits consistency, net pin uniqueness, no inactive-axis references, clean parameter file",
+  "runtime_validation": "NOT PERFORMED; no LinuxCNC/HAL/hardware started"
+}

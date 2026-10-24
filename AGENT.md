@@ -39,7 +39,7 @@ Qt 目录及依赖见 [python.desktop/AGENTS.md](python.desktop/AGENTS.md)：按
 
 ## 工作方式与验收
 
-1. 写、改、设计、审查或测试代码前应用 `$code-boundary-standards`；先读本文件、子目录规范和已有实现。
+1. 写、改、设计、审查或测试代码前，先读本文件、子目录规范和已有实现；不再要求调用额外的边界规范技能。
 2. 修改范围限于当前任务，保留用户已有改动；未经需求不要重构 LinuxCNC 原生代码。
 3. 模块对外 API 小而明确；不创建通用 `utils` 垃圾桶，不为了测试暴露私有实现。
 4. 从 Git 中删除前的 `frontend/docs/axis-parity.md` 核对 AXIS 按钮、条件项及来源。保留拷贝资产的许可证及来源。

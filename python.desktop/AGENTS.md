@@ -1,6 +1,6 @@
 # 原生 Qt Quick 界面规范
 
-先遵循根目录 [AGENT.md](../AGENT.md) 和 `$code-boundary-standards`。本目录 `python.desktop/` 是原生桌面入口，使用 PySide6、Python 3.11+、CMake 和 Qt 6.8+；C++17 只用于 UI 测试启动器。Web 界面与 Tauri 桌面环境已移除。本目录先按功能划分，仅在存在实际差异时再按平台或 CPU 架构分层。
+先遵循根目录 [AGENT.md](../AGENT.md)。本目录 `python.desktop/` 是原生桌面入口，使用 PySide6、Python 3.11+、CMake 和 Qt 6.8+；C++17 只用于 UI 测试启动器。Web 界面与 Tauri 桌面环境已移除。本目录先按功能划分，仅在存在实际差异时再按平台或 CPU 架构分层。
 
 ## 模块与公开入口
 

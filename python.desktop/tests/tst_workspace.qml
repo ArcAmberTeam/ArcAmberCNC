@@ -293,4 +293,102 @@ TestCase {
         tryCompare(dialog, "visible", true);
         compare(dialog.description, "当前状态不允许执行此指令");
     }
+
+    function test_jogRejectedWithoutPermittedState_data() {
+        return [
+            {tag: "disconnected", state: {connected: false}},
+            {tag: "power-off", state: {powered: false}},
+            {tag: "estop", state: {estop: true}},
+            {tag: "busy", state: {busy: true}},
+            {tag: "auto-mode", state: {mode: "auto"}},
+            {tag: "missing-axis", state: {axes: []}},
+            {tag: "capability-denied", state: {capabilities: {"jog.start": false}}}
+        ];
+    }
+    function test_jogRejectedWithoutPermittedState(data) {
+        backend.update(data.state);
+        const plus = control("jogPlus");
+        tryCompare(plus, "enabled", false);
+        const before = backend.requests.length;
+        mouseClick(plus, plus.width / 2, plus.height / 2);
+        control("workspace").forceActiveFocus();
+        keyPress(Qt.Key_Right);
+        keyRelease(Qt.Key_Right);
+        compare(backend.requests.length, before);
+    }
+
+    function test_reconnectDoesNotReplayHeldJog() {
+        const workspace = control("workspace");
+        workspace.forceActiveFocus();
+        keyPress(Qt.Key_Right);
+        compare(lastRequest().id, "jog.start");
+        const before = backend.requests.length;
+        const stops = backend.stopCount;
+        backend.update({connected: false});
+        tryVerify(() => backend.stopCount > stops);
+        verify(!control("jogPlus").enabled);
+        backend.update({connected: true});
+        tryCompare(control("jogPlus"), "enabled", true);
+        waitForRendering(window.contentItem);
+        compare(backend.requests.length, before);
+        keyRelease(Qt.Key_Right);
+        compare(backend.requests.length, before);
+        keyPress(Qt.Key_Right);
+        compare(backend.requests.length, before + 1);
+        compare(lastRequest().id, "jog.start");
+        keyRelease(Qt.Key_Right);
+    }
+
+    function test_offlineViewControlsRemainLocal() {
+        backend.update({connected: false, powered: false, axes: []});
+        const before = backend.requests.length;
+        const preview = control("toolpathState");
+        const zoom = preview.zoom;
+        click("toolbar-view.zoom-in");
+        verify(preview.zoom > zoom);
+        click("toolbar-view.x");
+        compare(preview.choices.view, "x");
+        click("droTab");
+        compare(preview.previewTab, "dro");
+        click("previewTab");
+        compare(preview.previewTab, "preview");
+        compare(backend.requests.length, before);
+    }
+
+    function test_invalidTouchOffDoesNotSubmit_data() {
+        return [
+            {tag: "empty", text: ""},
+            {tag: "whitespace", text: "   "},
+            {tag: "text", text: "bad"},
+            {tag: "overflow", text: "1e999"}
+        ];
+    }
+    function test_invalidTouchOffDoesNotSubmit(data) {
+        click("workTouchOff");
+        const dialog = control("dialogHost");
+        tryCompare(dialog, "opened", true);
+        verify(waitForRendering(dialog.contentItem));
+        const field = control("touch-value");
+        field.forceActiveFocus();
+        field.selectAll();
+        keyClick(Qt.Key_Backspace);
+        for (let i = 0; i < data.text.length; ++i) keyClick(data.text[i]);
+        compare(field.text, data.text);
+        const before = backend.requests.length;
+        click("dialog-submit");
+        compare(backend.requests.length, before);
+        verify(dialog.visible);
+        const error = control("dialog-validation-error");
+        verify(error.visible);
+        compare(error.text, "请输入有效的数值。");
+        // A validation failure must not prevent correcting and submitting the input.
+        field.forceActiveFocus();
+        field.selectAll();
+        keyClick(Qt.Key_5);
+        click("dialog-submit");
+        compare(backend.requests.length, before + 1);
+        compare(lastRequest().id, "machine.touch-off");
+        compare(lastRequest().payload.value, 5);
+        verify(!dialog.visible);
+    }
 }

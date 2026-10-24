@@ -38,6 +38,15 @@ if(BUILD_TESTING)
     set_tests_properties(desktop-startup PROPERTIES ENVIRONMENT
         "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software;QT_QUICK_CONTROLS_STYLE=Basic"
         FAIL_REGULAR_EXPRESSION "QQmlApplicationEngine failed;ReferenceError:;TypeError:;Unable to assign;Binding loop detected")
+    add_test(NAME interactive-gui-startup COMMAND Python3::Interpreter
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/interactive/main.py" --smoke-test)
+    set_tests_properties(interactive-gui-startup PROPERTIES ENVIRONMENT
+        "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software;QT_QUICK_CONTROLS_STYLE=Basic"
+        FAIL_REGULAR_EXPRESSION "QQmlApplicationEngine failed;ReferenceError:;TypeError:;Unable to assign;Binding loop detected")
+    add_test(NAME interactive-gui-lint COMMAND Qt6::qmllint --max-warnings 0
+        -I "${CMAKE_CURRENT_SOURCE_DIR}/qml"
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/interactive/Interactive.qml"
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/interactive/InteractiveBackend.qml")
 endif()
 
 install(PROGRAMS "${CMAKE_CURRENT_BINARY_DIR}/betterlinuxcnc" DESTINATION ${CMAKE_INSTALL_BINDIR})

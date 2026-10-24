@@ -1,6 +1,6 @@
 # Rust 本地通信边界
 
-先遵循根目录 [AGENT.md](../AGENT.md) 和 `$code-boundary-standards`。
+先遵循根目录 [AGENT.md](../AGENT.md)。
 
 - 本目录是独立 Rust 库，只拥有 Unix domain socket 的 v1 本地诊断通信；不依赖 Tauri、Web、Qt、HAL 或驱动，不启动 Python 或 LinuxCNC。
 - `src/lib.rs` 是唯一公开入口，只公开 `probe_service` 与 `ServiceHealth`；`service` 模块是私有实现。宿主通过公开 API 提供 socket 路径，不通过深层导入访问实现。

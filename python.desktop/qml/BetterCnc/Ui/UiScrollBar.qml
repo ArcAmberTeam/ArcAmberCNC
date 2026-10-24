@@ -12,7 +12,7 @@ ScrollBar {
         implicitWidth: 7
         implicitHeight: 7
         radius: 4
-        color: control.pressed ? "#555762" : "#3b3d45"
+        color: control.pressed ? Theme.secondary : Theme.borderControl
         opacity: control.size < 1 && (control.active || control.hovered || control.pressed) ? 1 : 0
     }
     background: Item { }

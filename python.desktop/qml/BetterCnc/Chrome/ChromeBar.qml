@@ -10,13 +10,18 @@ Item {
     required property ChromeActions actions
     required property ToolpathState preview
     property bool compact: width <= 900
+    property string interfaceMode: "professional"
+    property string guidedStage: "prepare"
+    readonly property bool guided: interfaceMode === "guided"
+    signal interfaceModeRequested(string mode)
+    signal stageRequested(string stage)
     readonly property bool menuOpen: {
         for (let index = 0; index < menubar.count; index++) {
             if (menubar.menuAt(index).visible) return true;
         }
         return false;
     }
-    implicitHeight: 146
+    implicitHeight: 144
     objectName: "workspace-chrome"
     readonly property var icons: ({
         "machine.estop": "octagon", "machine.power": "power", "file.open": "folder",
@@ -27,21 +32,22 @@ Item {
         "view.p": "cube", "view.rotate": "orbit", "view.clear": "eraser"
     })
 
+    MachineStatus { id: status; machine: root.actions.machine }
     Rectangle {
         id: header
         width: parent.width
-        height: 52
+        height: 56
         color: Theme.sidebar
         Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.border }
         Item {
             id: brand
-            width: root.compact ? 264 : 296
+            width: 230
             height: parent.height
             UiText {
                 x: 18
                 anchors.verticalCenter: parent.verticalCenter
                 text: "BetterLinuxCNC"
-                font.pixelSize: 13
+                font.pixelSize: 16
                 font.weight: Font.DemiBold
                 font.letterSpacing: -0.3
             }
@@ -49,25 +55,38 @@ Item {
                 anchors.right: parent.right
                 anchors.rightMargin: 18
                 anchors.verticalCenter: parent.verticalCenter
-                text: "工作空间"
-                font.pixelSize: 10
-                color: Theme.muted
+                text: ""
+                font.pixelSize: Theme.labelSize
+                color: Theme.secondary
                 visible: !root.compact
             }
         }
         Row {
+            visible: root.width >= 1200
             x: brand.width + (root.compact ? 14 : 20)
             anchors.verticalCenter: parent.verticalCenter
             spacing: 9
-            UiText { text: "机床"; font.pixelSize: 12; color: Theme.muted }
-            UiIcon { name: "chevron"; width: 12; height: 12; anchors.verticalCenter: parent.verticalCenter; color: Theme.muted }
-            UiText { text: "操作台"; font.pixelSize: 12; font.weight: Font.Medium }
+            UiText { text: "工作台"; font.pixelSize: 12; color: Theme.secondary }
+            UiIcon { name: "chevron"; width: 12; height: 12; anchors.verticalCenter: parent.verticalCenter; color: Theme.secondary }
+            UiText { text: root.guided ? "简易工作流" : "专业控制台"; font.pixelSize: 12; font.weight: Font.Medium }
+        }
+        Rectangle {
+            anchors.right: parent.right
+            anchors.rightMargin: 16
+            anchors.verticalCenter: parent.verticalCenter
+            width: 112; height: 32; radius: 6
+            color: Theme.glass; border.color: Theme.border
+            Row {
+                anchors.centerIn: parent; spacing: 8
+                Rectangle { width: 7; height: 7; radius: 4; color: status.tone; anchors.verticalCenter: parent.verticalCenter }
+                UiText { text: status.label; color: status.tone; font.pixelSize: Theme.labelSize }
+            }
         }
         MenuBar {
             id: menubar
             objectName: "main-menubar"
             anchors.right: parent.right
-            anchors.rightMargin: 14
+            anchors.rightMargin: 138
             anchors.verticalCenter: parent.verticalCenter
             spacing: 2
             padding: 0
@@ -106,44 +125,77 @@ Item {
     }
     Item {
         id: context
-        y: 52
+        y: 56
         width: parent.width
-        height: 44
+        height: 36
         Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.border }
         Row {
-            x: 20
-            anchors.verticalCenter: parent.verticalCenter
-            spacing: 10
-            UiText { text: root.actions.machine.axes && root.actions.machine.axes.length ? (root.actions.machine.axes.length === 3 ? "三轴加工" : root.actions.machine.axes.length + " 轴加工") : "机床操作"; font.pixelSize: 12; font.weight: Font.Medium }
-            Item {
-                width: 14
-                height: 18
-                UiText { anchors.centerIn: parent; text: "/"; font.pixelSize: 12; color: "#555761" }
-            }
-            Row {
-                spacing: 10
-                UiIcon { name: "file"; width: 14; height: 18; color: Theme.secondary }
-                UiText {
-                    text: root.actions.program && root.actions.program.fileName ? root.actions.program.fileName : "未打开程序"
-                    font.family: Theme.mono
-                    font.pixelSize: 11
-                    color: Theme.secondary
-                    anchors.verticalCenter: parent.verticalCenter
+            visible: root.guided
+            x: 12; anchors.verticalCenter: parent.verticalCenter; spacing: 4
+            Repeater {
+                model: [{id: "prepare", label: "1  准备程序"}, {id: "preview", label: "2  检查刀路"}, {id: "device", label: "3  设备控制"}]
+                UiButton {
+                    required property var modelData
+                    objectName: "stage-" + modelData.id
+                    text: modelData.label
+                    kind: "tab"; height: 28; width: root.compact ? 100 : 124
+                    selected: root.guidedStage === modelData.id
+                    onClicked: root.stageRequested(modelData.id)
                 }
+            }
+        }
+        UiText {
+            visible: !root.guided
+            x: 20; anchors.verticalCenter: parent.verticalCenter
+            width: parent.width - modeSelector.width - 52
+            text: "专业控制台  /  " + (root.actions.program && root.actions.program.fileName ? root.actions.program.fileName : "未打开程序")
+            elide: Text.ElideMiddle; font.pixelSize: Theme.labelSize; color: Theme.secondary
+        }
+        Row {
+            id: modeSelector
+            anchors.right: parent.right; anchors.rightMargin: 12
+            anchors.verticalCenter: parent.verticalCenter; spacing: 4
+            UiText { text: "界面"; color: Theme.secondary; font.pixelSize: Theme.labelSize; anchors.verticalCenter: parent.verticalCenter }
+            UiButton {
+                objectName: "interface-guided"; text: "简易"; width: 64; height: 28; kind: "tab"
+                selected: root.guided
+                onClicked: root.interfaceModeRequested("guided")
+            }
+            UiButton {
+                objectName: "interface-professional"; text: "专业"; width: 64; height: 28; kind: "tab"
+                selected: !root.guided
+                onClicked: root.interfaceModeRequested("professional")
             }
         }
     }
     Item {
-        y: 96
+        y: 92
         width: parent.width
-        height: 50
+        height: 52
         Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.border }
+        Rectangle {
+            anchors.right: parent.right
+            width: 112; height: parent.height
+            color: Theme.base; z: 2
+        }
+        UiButton {
+            z: 3
+            objectName: "toolbar-program.stop"
+            anchors.right: parent.right
+            anchors.rightMargin: 16
+            anchors.verticalCenter: parent.verticalCenter
+            width: 88
+            text: "停止"; iconName: "stop"; kind: "danger"
+            tooltip: "停止程序 [Esc]"
+            enabled: root.actions.canActivate("program.stop")
+            onClicked: root.actions.activate("program.stop")
+        }
         Flickable {
             id: toolbarViewport
             objectName: "toolbar-viewport"
             anchors.fill: parent
             anchors.leftMargin: 16
-            anchors.rightMargin: 16
+            anchors.rightMargin: 112
             contentWidth: toolbarRow.width
             contentHeight: height
             clip: true
@@ -158,42 +210,45 @@ Item {
             }
             Row {
                 id: toolbarRow
-                y: 9.5
-                height: 30
+                y: 6
+                height: 40
                 spacing: 4
                 Repeater {
-                    model: Catalog.toolbar
+                    model: Catalog.toolbar.filter(entry => entry.id !== "program.stop"
+                        && (!root.guided || ["machine.estop", "machine.power", "file.open", "program.run", "program.pause"].indexOf(entry.id) >= 0))
                     delegate: Row {
                         id: toolbarEntry
                         required property var modelData
                         spacing: 4
-                        height: 30
+                        height: 40
                         Item {
                             visible: !!toolbarEntry.modelData.separator
                             width: visible ? 11 : 0
-                            height: 30
+                            height: 40
                             Rectangle { anchors.centerIn: parent; width: 1; height: 18; color: Theme.borderControl }
                         }
                         UiButton {
                             id: toolbarButton
                             objectName: "toolbar-" + toolbarEntry.modelData.id
-                            width: toolbarEntry.modelData.id === "machine.estop" ? 69.5 : toolbarEntry.modelData.id === "program.run" ? 71.5 : 30
-                            height: 30
+                            width: root.guided ? 88 : toolbarEntry.modelData.id === "machine.estop" ? 76 : toolbarEntry.modelData.id === "program.run" ? 80 : 36
+                            height: 40
                             kind: toolbarEntry.modelData.id === "machine.estop" ? "danger" : toolbarEntry.modelData.id === "program.run" ? "primary" : "toolbar"
-                            iconName: root.icons[toolbarEntry.modelData.id] || "cube"
-                            text: toolbarEntry.modelData.id === "machine.estop" ? "急停" : toolbarEntry.modelData.id === "program.run" ? "运行" : ""
-                            font.pixelSize: 11
+                            iconName: actionId === "program.resume" ? "play" : root.icons[toolbarEntry.modelData.id] || "cube"
+                            text: root.guided ? ({"machine.estop": "急停", "machine.power": "电源", "file.open": "打开", "program.run": "运行", "program.pause": root.actions.machine.paused ? "继续" : "暂停"})[toolbarEntry.modelData.id]
+                                  : toolbarEntry.modelData.id === "machine.estop" ? "急停" : toolbarEntry.modelData.id === "program.run" ? "运行" : ""
+                            font.pixelSize: Theme.labelSize
                             selected: toolbarEntry.modelData.id === "view." + root.preview.choices.view
                                       || (toolbarEntry.modelData.id === "view.rotate" && root.preview.rotate)
                                       || (toolbarEntry.modelData.id === "machine.power" && !!root.actions.machine.powered)
                                       || (toolbarEntry.modelData.id === "program.optional" && !!root.actions.machine.optionalStop)
                                       || (toolbarEntry.modelData.id === "program.block-delete" && !!root.actions.machine.blockDelete)
-                            enabled: root.actions.canActivate(toolbarEntry.modelData.id)
-                            tooltip: toolbarEntry.modelData.label
+                            readonly property string actionId: root.guided && toolbarEntry.modelData.id === "program.pause" && root.actions.machine.paused ? "program.resume" : toolbarEntry.modelData.id
+                            enabled: root.actions.canActivate(actionId)
+                            tooltip: actionId === "program.resume" ? "继续程序" : toolbarEntry.modelData.label
                             onActiveFocusChanged: {
                                 if (activeFocus) toolbarViewport.ensureVisible(toolbarButton);
                             }
-                            onClicked: root.actions.activate(toolbarEntry.modelData.id, toolbarEntry.modelData.label)
+                            onClicked: root.actions.activate(actionId, toolbarEntry.modelData.label)
                         }
                     }
                 }

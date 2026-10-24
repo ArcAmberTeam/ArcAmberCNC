@@ -233,14 +233,14 @@ TestCase {
         compare(control("droPanel").visible, false);
     }
     function test_programSelectionAndContextAction() {
-        mouseClick(fixture.program, 200, 80);
+        mouseClick(control("programLine1"), 100, 20);
         compare(control("programLine1").Accessible.selected, true);
         keyClick(Qt.Key_Down);
         compare(control("programLine2").Accessible.selected, true);
         compare(control("programLine1").Accessible.selected, false);
         keyClick(Qt.Key_Up);
         compare(control("programLine1").Accessible.selected, true);
-        mouseClick(fixture.program, 200, 80, Qt.RightButton);
+        mouseClick(control("programLine1"), 100, 20, Qt.RightButton);
         tryCompare(control("programContextMenu"), "visible", true);
         mouseClick(control("runFromLineAction"));
         tryCompare(commandRequested, "count", 1);

@@ -1,6 +1,6 @@
 # Python 本地服务边界
 
-先遵循根目录 `AGENT.md` 和 `$code-boundary-standards`。
+先遵循根目录 `AGENT.md`。
 
 - 本目录是独立 Python 包；不导入前端实现，也不依赖原生 AXIS。
 - v1 `health` 保持历史诊断格式；v2 提供单写入者控制会话、状态、命令和隔离预览。`machine.status` 允许未附着的本地观察者读取新鲜状态，不获取控制权或续租点动。不得伪造反馈，也不启动 LinuxCNC。

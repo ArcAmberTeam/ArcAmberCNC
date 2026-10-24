@@ -43,11 +43,20 @@ class ServiceTests(unittest.TestCase):
         )
         self.addCleanup(self.stop)
         deadline = time.monotonic() + 5
-        while not self.path.exists():
+        # Binding creates the socket path before the service starts listening.
+        while True:
             if self.process.poll() is not None:
                 self.fail(self.process.stderr.read().decode())
+            try:
+                with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as probe:
+                    probe.settimeout(1)
+                    probe.connect(str(self.path))
+            except (FileNotFoundError, ConnectionRefusedError):
+                pass
+            else:
+                break
             if time.monotonic() > deadline:
-                self.fail("service did not bind its socket")
+                self.fail("service did not start listening on its socket")
             time.sleep(0.01)
 
     def stop(self):

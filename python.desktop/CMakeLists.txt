@@ -23,6 +23,7 @@ if(BUILD_TESTING)
     add_test(NAME module-boundaries COMMAND Python3::Interpreter
         "${CMAKE_CURRENT_SOURCE_DIR}/scripts/check_boundaries.py")
     file(GLOB_RECURSE QML_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/qml/*.qml")
+    list(APPEND QML_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/tests/VisualPreview.qml")
     add_test(NAME qml-lint COMMAND Qt6::qmllint --max-warnings 0
         -I "${CMAKE_CURRENT_SOURCE_DIR}/qml" ${QML_SOURCES})
     add_test(NAME python-integration COMMAND Python3::Interpreter -m unittest discover
@@ -37,6 +38,28 @@ if(BUILD_TESTING)
         "${CMAKE_CURRENT_SOURCE_DIR}/app/main.py" --smoke-test
         --socket "${CMAKE_CURRENT_BINARY_DIR}/no-controller-for-startup.sock")
     set_tests_properties(desktop-startup PROPERTIES ENVIRONMENT
+        "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software;QT_QUICK_CONTROLS_STYLE=Basic"
+        FAIL_REGULAR_EXPRESSION "QQmlApplicationEngine failed;ReferenceError:;TypeError:;Unable to assign;Binding loop detected")
+    add_test(NAME interactive-gui-startup COMMAND Python3::Interpreter
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/interactive/main.py" --smoke-test)
+    set_tests_properties(interactive-gui-startup PROPERTIES ENVIRONMENT
+        "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software;QT_QUICK_CONTROLS_STYLE=Basic"
+        FAIL_REGULAR_EXPRESSION "QQmlApplicationEngine failed;ReferenceError:;TypeError:;Unable to assign;Binding loop detected")
+    add_test(NAME interactive-gui-lint COMMAND Qt6::qmllint --max-warnings 0
+        -I "${CMAKE_CURRENT_SOURCE_DIR}/qml"
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/interactive/Interactive.qml"
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/interactive/InteractiveBackend.qml")
+    add_test(NAME visual-preview-startup COMMAND Python3::Interpreter
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/visual_preview.py"
+        --capture "${CMAKE_CURRENT_BINARY_DIR}/visual-preview.png")
+    set_tests_properties(visual-preview-startup PROPERTIES ENVIRONMENT
+        "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software;QT_QUICK_CONTROLS_STYLE=Basic"
+        FAIL_REGULAR_EXPRESSION "QQmlApplicationEngine failed;ReferenceError:;TypeError:;Unable to assign;Binding loop detected")
+    add_test(NAME guided-preview-startup COMMAND Python3::Interpreter
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/visual_preview.py"
+        --interface guided --stage preview --width 760 --height 640
+        --capture "${CMAKE_CURRENT_BINARY_DIR}/guided-preview.png")
+    set_tests_properties(guided-preview-startup PROPERTIES ENVIRONMENT
         "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software;QT_QUICK_CONTROLS_STYLE=Basic"
         FAIL_REGULAR_EXPRESSION "QQmlApplicationEngine failed;ReferenceError:;TypeError:;Unable to assign;Binding loop detected")
 endif()

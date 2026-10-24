@@ -1,0 +1,18 @@
+(GUI SIMULATION DEMO - not a machine-qualified machining program)
+(Units: mm. G54 origin: rectangle corner on top surface.)
+(Tool-center rectangle: 40 x 30. Depth: 1. Clearance: Z5.)
+(Simulator initial position: X0 Y0 Z5. No cutter compensation.)
+G21 G17 G90 G94
+G40 G49 G54 G80
+M5 M9
+G0 Z5
+G0 X0 Y0
+S6000 M3
+G1 Z-1 F60
+G1 X40 Y0 F240
+G1 X40 Y30
+G1 X0 Y30
+G1 X0 Y0
+G0 Z5
+M5
+M2

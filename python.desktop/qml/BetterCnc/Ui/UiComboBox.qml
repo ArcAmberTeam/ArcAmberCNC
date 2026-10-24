@@ -5,7 +5,7 @@ import QtQuick.Controls.Basic
 ComboBox {
     id: control
     implicitWidth: 150
-    implicitHeight: 32
+    implicitHeight: Theme.controlHeight
     leftPadding: 8
     rightPadding: 23
     font.family: Theme.fontFamily
@@ -26,8 +26,8 @@ ComboBox {
         y: (control.height - height) / 2
     }
     background: Rectangle {
-        radius: 6
-        color: Theme.input
+        radius: Theme.controlRadius
+        color: control.enabled ? Theme.input : Theme.disabled
         border.color: control.visualFocus ? Theme.accent : Theme.borderControl
         border.width: control.visualFocus ? 2 : 1
     }
@@ -59,6 +59,6 @@ ComboBox {
             currentIndex: control.highlightedIndex
             ScrollBar.vertical: UiScrollBar { }
         }
-        background: Rectangle { color: "#202125"; radius: 6; border.color: Theme.borderControl }
+        background: Rectangle { color: Theme.surface; radius: Theme.controlRadius; border.color: Theme.borderControl }
     }
 }

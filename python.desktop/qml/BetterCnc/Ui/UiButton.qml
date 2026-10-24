@@ -9,19 +9,19 @@ Button {
     property string tooltip: ""
     readonly property color foreground: !enabled ? Theme.muted
         : kind === "danger" ? Theme.danger
-        : selected ? (kind === "tab" ? Theme.text : "#c5bfff")
+        : selected ? Theme.accent
         : kind === "tab" && !selected || kind === "toolbar" && !hovered ? Theme.secondary : Theme.text
-    implicitWidth: Math.max(30, implicitContentWidth + leftPadding + rightPadding)
-    implicitHeight: 30
+    implicitWidth: Math.max(36, implicitContentWidth + leftPadding + rightPadding)
+    implicitHeight: kind === "primary" || kind === "danger" ? 40 : Theme.controlHeight
     padding: 4
     leftPadding: kind === "toolbar" ? 5 : 10
     rightPadding: leftPadding
     spacing: 7
     font.family: Theme.fontFamily
-    font.pixelSize: 12
+    font.pixelSize: Theme.bodySize
     hoverEnabled: true
     focusPolicy: Qt.StrongFocus
-    opacity: enabled ? 1 : 0.55
+    opacity: 1
     contentItem: Item {
         implicitWidth: contentRow.implicitWidth
         implicitHeight: contentRow.implicitHeight
@@ -45,18 +45,19 @@ Button {
         }
     }
     background: Rectangle {
-        radius: 6
-        color: control.kind === "danger" ? Theme.dangerSoft
-            : control.kind === "primary" ? (control.hovered ? "#7b73e6" : Theme.accentFill)
-            : control.selected || control.down ? (control.kind === "tab" ? Theme.hover : Theme.accentSoft)
+        radius: Theme.controlRadius
+        color: !control.enabled ? Theme.disabled
+            : control.kind === "danger" ? (control.hovered || control.down ? Theme.dangerSoft : Theme.surface)
+            : control.kind === "primary" ? (control.down ? Theme.accentPressed : control.hovered ? Theme.accentHover : Theme.accentFill)
+            : control.selected || control.down ? Theme.accentSoft
             : control.hovered ? Theme.hover
             : control.kind === "toolbar" || control.kind === "tab" ? "transparent" : Theme.raised
         border.width: 1
-        border.color: control.kind === "danger" ? "#583137"
-            : control.kind === "primary" ? "#7971e9"
-            : control.selected || control.down ? (control.kind === "tab" ? Theme.border : "#514a75")
+        border.color: control.kind === "danger" ? Theme.danger
+            : control.kind === "primary" ? Theme.accent
+            : control.selected || control.down ? (control.kind === "tab" ? Theme.border : Theme.accent)
             : control.kind === "toolbar" || control.kind === "tab" ? "transparent"
-            : control.hovered ? "#52545f" : Theme.borderControl
+            : control.hovered ? Theme.borderControl : Theme.borderControl
         Rectangle {
             anchors.fill: parent
             anchors.margins: -3

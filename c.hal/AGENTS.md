@@ -1,6 +1,6 @@
 # HAL 模块边界
 
-遵循根目录 `AGENT.md` 和 `$code-boundary-standards`。
+遵循根目录 `AGENT.md`。
 
 `c.hal/` 是 LinuxCNC HAL 的唯一源码所有者，保留核心库、组件、ClassicLadder、配置工具和用户态组件。`c` 表示主体实现语言；现有 C++ Python 绑定、混合 C/C++ 命令工具、Python 工具和 `.comp` 定义仍由所属 HAL 功能拥有，不按扩展名拆开链接单元。
 

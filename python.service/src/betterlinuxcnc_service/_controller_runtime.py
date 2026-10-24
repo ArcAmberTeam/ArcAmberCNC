@@ -6,7 +6,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
 
-from bettercnc_controller import Controller
+from bettercnc_controller import Controller, StatusReader
 
 from ._preview_jobs import PreviewJobs
 from ._protocol import ProtocolError
@@ -16,8 +16,16 @@ JOG_LEASE_SECONDS = 0.6
 
 
 class ControllerRuntime:
-    def __init__(self, ini_path=None, controller_factory=None, process_factory=None):
+    def __init__(
+        self,
+        ini_path=None,
+        controller_factory=None,
+        process_factory=None,
+        status_reader_factory=None,
+    ):
         self._factory = controller_factory or Controller
+        self._status_factory = status_reader_factory or StatusReader
+        self._status_reader = None
         self._ini = ini_path
         self._executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="linuxcnc-owner")
         self._controller = None
@@ -93,7 +101,18 @@ class ControllerRuntime:
         await asyncio.gather(self._poll_task, return_exceptions=True)
         if self._owner is not None:
             await self.release(self._owner)
+        await self._work(self._close_status_reader)
         self._executor.shutdown(wait=False, cancel_futures=True)
+
+    def _close_status_reader(self):
+        if self._status_reader is not None:
+            self._status_reader.close()
+            self._status_reader = None
+
+    def _read_status(self):
+        if self._status_reader is None:
+            self._status_reader = self._status_factory(ini_path=self._ini)
+        return self._status_reader.poll()
 
     def _params(self, params, required=(), optional=()):
         if not set(required).issubset(params) or not set(params).issubset(
@@ -131,6 +150,9 @@ class ControllerRuntime:
         return {"accepted": bool(accepted), "snapshot": wire_snapshot(self._snapshot)}
 
     async def handle(self, owner, method, params):
+        if method == "machine.status":
+            self._params(params)
+            return await self._work(self._read_status)
         if method == "session.attach":
             self._params(params, optional=("ini_path",))
             requested_ini = params.get("ini_path")

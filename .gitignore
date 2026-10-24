@@ -70,3 +70,4 @@ configs/**/halshow.preferences
 /python.launcher/build/
 /python.launcher/dist/
 /python.launcher/src/*.egg-info/
+.DS_Store

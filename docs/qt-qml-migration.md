@@ -32,6 +32,8 @@ capability 用于界面可用性，服务在执行前重新检查条件。命令
 
 ## 启动
 
+已安装目标机的新版 GUI/服务同步、只读连接诊断及切换步骤见 [LinuxCNC 本机连接说明](linuxcnc-local-connection.md)。
+
 目标环境为 Debian 13、Qt/PySide6 6.8+、Python 3.11+ 和已安装的 LinuxCNC 2.9。`.deb` 同时安装 GUI 与独立服务启动器，并声明运行依赖；不安装守护服务、不自动启动 LinuxCNC、不改 INI/HAL。
 
 在已经由用户启动的 LinuxCNC 会话旁，使用同一系统用户分别执行：

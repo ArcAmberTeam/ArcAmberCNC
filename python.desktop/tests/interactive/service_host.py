@@ -6,7 +6,7 @@ import threading
 import time
 from pathlib import Path
 
-from bettercnc_controller import Controller
+from bettercnc_controller import Controller, StatusReader
 from betterlinuxcnc_service import serve
 
 from .linear_program import read_linear_program
@@ -107,6 +107,7 @@ class ServiceHost:
             self.stopped = asyncio.Event()
             await serve(self.socket, ini_path=str(self.ini),
                         controller_factory=lambda **kwargs: Controller(module=self.vendor, **kwargs),
+                        status_reader_factory=lambda **kwargs: StatusReader(module=self.vendor, **kwargs),
                         process_factory=preview_process, stop_event=self.stopped)
         try:
             asyncio.run(run())

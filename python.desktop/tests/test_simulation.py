@@ -13,6 +13,7 @@ from PySide6.QtCore import QSettings
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtTest import QTest
 from bettercnc.desktop import DesktopBackend
+from bettercnc.session import SessionClient, read_machine_status
 from bettercnc_controller import Controller
 from interactive.linear_program import read_linear_program
 from interactive.service_host import ServiceHost, write_configuration
@@ -199,6 +200,19 @@ class SocketIntegrationTests(unittest.TestCase):
         while not predicate() and time.monotonic() < deadline:
             QTest.qWait(20)
         self.assertTrue(predicate(), self.desktop.snapshot)
+
+    def test_readonly_probe_preserves_existing_gui_control_session(self):
+        host = ServiceHost().start()
+        self.addCleanup(host.close)
+        owner = SessionClient(host.socket, ini_path=host.ini)
+        self.addCleanup(owner.close)
+        self.assertTrue(owner.poll()["connected"])
+        self.assertTrue(read_machine_status(host.socket)["connected"])
+        self.assertTrue(owner.poll()["connected"])
+        host.vendor.inject("connection", False)
+        self.assertFalse(read_machine_status(host.socket)["connected"])
+        host.vendor.inject("connection", True)
+        self.assertTrue(owner.poll()["connected"])
 
     def test_original_desktop_and_service_end_to_end(self):
         host = ServiceHost().start()

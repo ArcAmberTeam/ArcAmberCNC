@@ -1,6 +1,6 @@
 # CAM 联动 TCP 双向通信协议
 
-CAM Link 使用一条经过认证的 TCP 长连接接收外部 CAM 生成的 G-code，同时回传接收回执、加工作业状态和只读机床反馈。外部协议版本为 2，帧头包含可读的消息类型，例如 `SEND_GCODE` 表示“发送加工文件”。外部 TCP 协议与设备内部的 Unix socket v2 控制协议独立。
+CAM Link 使用一条完成协议握手的 TCP 长连接接收外部 CAM 生成的 G-code，同时回传接收回执、加工作业状态和只读机床反馈。外部协议版本为 2，帧头包含可读的消息类型，例如 `SEND_GCODE` 表示“发送加工文件”。外部 TCP 协议与设备内部的 Unix socket v2 控制协议独立。
 
 ## 模块职责
 
@@ -16,9 +16,11 @@ bettercnc_cam_link/
 
 ## 启动
 
+默认使用局域网直连，不传 `--token-file`、`--cert`、`--key`；CAM 发现设备后点击连接即可。第一帧仍是 `AUTH / session.auth`，参数为 `{}`，成功返回 `authenticated:true`，仅表示握手完成。直连不进行令牌认证或链路加密；协议、SHA-256、机床联锁和点动租约检查保留。后续令牌与 TLS 说明适用于显式配置的兼容模式，不会在认证失败后降级为直连。
+
 安装 `python.service` 包后，使用 `betterlinuxcnc-cam-link` 或 `python -m bettercnc_cam_link`。运行环境为 Python 3.11+，无额外运行时依赖。
 
-准备当前用户所有、权限为 0600 的令牌文件，内容为 32 至 256 个字母、数字、下划线或短横线，可通过 `secrets.token_urlsafe(32)` 生成。令牌不作为命令行参数直接传入。
+可选认证模式准备当前用户所有、权限为 0600 的令牌文件，内容为 32 至 256 个字母、数字、下划线或短横线，可通过 `secrets.token_urlsafe(32)` 生成。令牌不作为命令行参数直接传入。
 
 ```sh
 betterlinuxcnc-cam-link \
@@ -28,9 +30,9 @@ betterlinuxcnc-cam-link \
   --control-socket /run/user/1000/betterlinuxcnc/control.sock
 ```
 
-默认只监听本机。跨设备连接时，将 `--host` 指定为机床设备的网络地址，用 `--cert` 和 `--key` 提供 TLS 证书和私钥，CAM 客户端验证证书后发送同样的 TCP 帧。该端口使用 CAM Link 自定义协议，不提供 HTTP 接口。
+默认只监听本机。跨设备连接时，将 `--host` 指定为机床设备的网络地址；如启用可选 TLS 模式，用 `--cert` 和 `--key` 提供证书和私钥，CAM 客户端验证证书后发送同样的 TCP 帧。该端口使用 CAM Link 自定义协议，不提供 HTTP 接口。
 
-收件目录必须是当前用户所有的 0700 目录，不存在时创建。完整程序位于 `<inbox>/<transferId>/<filename>`，权限为 0600。本地操作员通过已有桌面文件打开操作选择该文件，由 Controller 校验加载条件。当前没有桌面收件通知或自动导入。
+收件目录必须是当前用户所有的 0700 目录，不存在时创建。完整程序位于 `<inbox>/<transferId>/<filename>`，权限为 0600。未启用自动加工时，由本地操作员选择文件；开启后的行为见自动加工章节。
 
 本地控制服务另行启动；它不可达时仍可接收程序，加工反馈返回 `controller_unavailable`。CAM Link 不启动 LinuxCNC 或控制服务。
 
@@ -237,7 +239,7 @@ TCP 拆包、粘包均按帧头中的长度处理。错误魔数、未知类型�
 | `job.start` | `START_JOB` | `{transferId}` | `{job}`；显式启动一个已接收文件，同编号不会重启 |
 | `job.status` | `GET_JOB` | `{transferId}` | `{job}`；没有加工记录时 job 为 null |
 
-外部接口仍要求 TLS 与 session.auth。本地 v2 接口为 `cam.job.start/status`，参数同为 `{transferId}`，不授予 CAM 任意路径、任意 MDI 或开机权限。允许调用这些接口的是配置了收件目录的控制服务；所有 native 调用仍在现有单一工作线程、同一 Controller 内串行执行，不建立第二个命令写入口。
+外部接口要求 session.auth 握手；配置令牌或 TLS 时继续执行对应校验。本地 v2 接口为 `cam.job.start/status`，参数同为 `{transferId}`，不授予 CAM 任意路径、任意 MDI 或开机权限。允许调用这些接口的是配置了收件目录的控制服务；所有 native 调用仍在现有单一工作线程、同一 Controller 内串行执行，不建立第二个命令写入口。
 
 Controller 核对私有收件目录、UUID、普通文件、接收回执、大小及 SHA-256，并将内容复制到同一任务目录下只读的 `.execution.ngc`，防止加载前后原收件文件变化影响加工。启动意图先持久化到 `execution.json`，再按确认顺序执行 `program_open`、AUTO 模式及 `AUTO_RUN(0)`。机床必须连接、已使能、未急停、所有 joint 已回零、空闲、无硬限位及限位覆盖，且未开启 block delete；不绕过 NO_FORCE_HOMING，也不自动回零。
 

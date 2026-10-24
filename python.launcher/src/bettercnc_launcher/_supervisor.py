@@ -7,7 +7,6 @@ import os
 import signal
 import stat
 import subprocess
-import threading
 import time
 from pathlib import Path
 
@@ -16,6 +15,28 @@ from ._ipc import quiescent, status
 
 class RecoveryBlocked(RuntimeError):
     pass
+
+
+class StopFlag:
+    """Signal handlers must not take the lock used by threading.Event.wait()."""
+
+    def __init__(self):
+        self.requested = False
+
+    def set(self):
+        self.requested = True
+
+    def is_set(self):
+        return self.requested
+
+    def wait(self, seconds):
+        deadline = time.monotonic() + seconds
+        while not self.requested:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
+            time.sleep(min(remaining, 0.05))
+        return self.requested
 
 
 def _private_directory(path):
@@ -62,7 +83,7 @@ class Runtime:
         self.config = config
         self.keep_alive = keep_alive
         self.service = self.native = self.cam = None
-        self.stop = threading.Event()
+        self.stop = StopFlag()
         self.logs = self.env = self.socket_identity = None
         self.generation = 0
         self._last_state = None

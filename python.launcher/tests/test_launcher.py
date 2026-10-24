@@ -144,6 +144,16 @@ class LauncherTests(unittest.TestCase):
         self.assertFalse((self.root / "run").exists())
         self.assertEqual(self.ini.read_bytes(), original)
 
+    def test_lan_direct_mode_needs_no_token_or_certificate_configuration(self):
+        self.data["cam"] = {"host": "0.0.0.0", "inbox": "inbox"}
+        self.write_config()
+        process = self.launch("--check")
+        plan = json.loads(self.output(process))
+        self.assertEqual(process.returncode, 0)
+        self.assertNotIn("--token-file", plan["commands"][2])
+        self.assertNotIn("--cert", plan["commands"][2])
+        self.assertNotIn("--auto-run", plan["commands"][2])
+
     def test_startup_order_same_ini_read_only_protocol_and_reverse_normal_cleanup(self):
         process = self.launch()
         self.ready()

@@ -136,15 +136,16 @@ def load(path, ini_override=None):
         if type(port) is not int or not 1 <= port <= 65535:
             raise ValueError("CAM port 必须在 1–65535 之间")
         inbox = _path(options.get("inbox"), path.parent)
-        token = _path(options.get("token_file"), path.parent)
-        # Do not resolve symlinks before validating the token itself.
-        token_source = Path(options.get("token_file", "")).expanduser()
-        if not token_source.is_absolute():
-            token_source = path.parent / token_source
-        if _private_file(token_source).st_size > 257 or not re.fullmatch(
-            r"[A-Za-z0-9_-]{32,256}", token.read_text(encoding="ascii").strip()
-        ):
-            raise ValueError("CAM 令牌必须包含 32–256 个 URL-safe 字符")
+        token = None
+        if options.get("token_file") is not None:
+            token = _path(options["token_file"], path.parent)
+            token_source = Path(options["token_file"]).expanduser()
+            if not token_source.is_absolute():
+                token_source = path.parent / token_source
+            if _private_file(token_source).st_size > 257 or not re.fullmatch(
+                r"[A-Za-z0-9_-]{32,256}", token.read_text(encoding="ascii").strip()
+            ):
+                raise ValueError("CAM 令牌必须包含 32–256 个 URL-safe 字符")
         auto_run = options.get("auto_run", False)
         if type(auto_run) is not bool:
             raise ValueError("auto_run 必须是布尔值")
@@ -156,13 +157,15 @@ def load(path, ini_override=None):
             str(port),
             "--inbox",
             str(inbox),
-            "--token-file",
-            str(token),
             "--control-socket",
             str(runtime / "control.sock"),
         ]
+        if token is not None:
+            args += ["--token-file", str(token)]
         cert, key = options.get("cert"), options.get("key")
-        if bool(cert) != bool(key) or (not ipaddress.ip_address(host).is_loopback and not cert):
+        if bool(cert) != bool(key) or (
+            token is not None and not ipaddress.ip_address(host).is_loopback and not cert
+        ):
             raise ValueError("局域网 CAM 服务必须配置 cert/key；两者必须同时提供")
         if cert:
             cert, key = _path(cert, path.parent), _path(key, path.parent)

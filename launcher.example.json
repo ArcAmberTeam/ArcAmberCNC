@@ -6,9 +6,6 @@
     "host": "192.168.109.67",
     "port": 6522,
     "inbox": "cam-inbox",
-    "token_file": "private/cam-token",
-    "cert": "private/cam-cert.pem",
-    "key": "private/cam-key.pem",
     "auto_run": false,
     "discovery": {
       "device_id": "replace-with-a-stable-device-uuid",

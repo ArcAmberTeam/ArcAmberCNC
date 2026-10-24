@@ -30,7 +30,7 @@ def _params(params, *keys):
 async def serve(
     inbox,
     *,
-    token,
+    token=None,
     control_socket,
     host="127.0.0.1",
     port=6522,
@@ -51,7 +51,9 @@ async def serve(
     discovery optionally enables machine announcements and UDP discovery handshakes.
     An optional bound socket supports host activation and embedding.
     """
-    if not isinstance(token, str) or not re.fullmatch(r"[A-Za-z0-9_-]{32,256}", token):
+    if token is not None and (
+        not isinstance(token, str) or not re.fullmatch(r"[A-Za-z0-9_-]{32,256}", token)
+    ):
         raise ValueError("token must contain 32 to 256 URL-safe characters")
     if any(not math.isfinite(value) or value <= 0 for value in (io_timeout, idle_timeout)):
         raise ValueError("timeouts must be positive and finite")
@@ -182,12 +184,15 @@ async def serve(
                     break
                 ids.add(request.request_id)
                 if not authenticated:
-                    valid = (
-                        request.method == "session.auth"
-                        and set(request.params) == {"token"}
-                        and isinstance(request.params["token"], str)
-                        and request.params["token"].isascii()
-                        and hmac.compare_digest(request.params["token"], token)
+                    valid = request.method == "session.auth" and (
+                        request.params == {}
+                        if token is None
+                        else (
+                            set(request.params) == {"token"}
+                            and isinstance(request.params["token"], str)
+                            and request.params["token"].isascii()
+                            and hmac.compare_digest(request.params["token"], token)
+                        )
                     )
                     if not valid:
                         await channel.error(
@@ -306,7 +311,11 @@ async def serve(
 def main():
     parser = argparse.ArgumentParser(description="CAM link TCP reception and machining feedback")
     parser.add_argument("--inbox", type=Path, required=True)
-    parser.add_argument("--token-file", type=Path, required=True)
+    parser.add_argument(
+        "--token-file",
+        type=Path,
+        help="optional token authentication; omit for LAN direct connection",
+    )
     parser.add_argument("--control-socket", type=Path, required=True)
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=6522)
@@ -342,15 +351,17 @@ def main():
                 bind_port=args.discovery_bind_port,
                 interval=args.discovery_interval,
             )
-        info = args.token_file.lstat()
-        if (
-            not stat.S_ISREG(info.st_mode)
-            or info.st_uid != os.getuid()
-            or stat.S_IMODE(info.st_mode) & 0o077
-            or info.st_size > 257
-        ):
-            raise ValueError("token file must be user-owned, mode 0600, and at most 257 bytes")
-        token = args.token_file.read_text(encoding="ascii").strip()
+        token = None
+        if args.token_file is not None:
+            info = args.token_file.lstat()
+            if (
+                not stat.S_ISREG(info.st_mode)
+                or info.st_uid != os.getuid()
+                or stat.S_IMODE(info.st_mode) & 0o077
+                or info.st_size > 257
+            ):
+                raise ValueError("token file must be user-owned, mode 0600, and at most 257 bytes")
+            token = args.token_file.read_text(encoding="ascii").strip()
         context = None
         if args.cert:
             context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)

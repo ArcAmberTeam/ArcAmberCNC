@@ -12,3 +12,5 @@
 - `DiscoveryOptions` 是 CAM Link 的公开发现配置入口。UDP 发现显式开启，使用稳定设备 UUID，发送 `ANNOUNCE`，仅对匹配设备与近期随机数的 `DISCOVER_REPLY` 单播 `DISCOVER_ACK`。发现不携带令牌、文件或加工状态，不授予 TCP 认证或控制权，也不主动向 CAM 建立连接；关闭服务需停止广播并释放 UDP socket。
 - 测试从公开对象、安装后的 CLI 和 socket 观察行为；允许注入 vendor 模块、时钟和预览进程工厂，不导入私有文件。真实 gcode 测试仅解释临时程序，不启动模拟器或硬件。
 - 修改后运行 Ruff 检查、格式检查、安装包构建和 `unittest`；涉及协议时还运行 Rust 跨进程集成测试。
+
+- 用户要求局域网一键连接：不传 token 时 `session.auth` 使用空参数握手，传入 token 时仍校验令牌；不得自动回退或移除机床联锁、文件摘要和点动租约。

@@ -4,8 +4,6 @@
 - `startup_timeout`、`shutdown_timeout`：启动等待、退出等待秒数。
 - `cam.host`、`cam.port`：机床 TCP 监听地址与端口，默认端口 6522。
 - `cam.inbox`：G-code 收件目录。
-- `cam.token_file`：配对令牌文件，权限 0600。
-- `cam.cert`、`cam.key`：TLS 证书与私钥文件。
 - `cam.auto_run`：是否收到新 G-code 后提交加工，默认 false。
 - `cam.discovery.device_id`、`device_name`、`address`：稳定设备 UUID、名称、广播地址；UDP 端口 8421。
 - `cam` 设为 null：不启用 CAM 联动。

@@ -7,12 +7,19 @@ import socket
 import struct
 import subprocess
 import sys
-import threading
+import time
 from pathlib import Path
 
 ROOT = Path(os.environ["FIXTURE_ROOT"])
 ROLE = Path(sys.argv[0]).name
-STOP = threading.Event()
+STOP = False
+
+
+def wait(seconds):
+    deadline = time.monotonic() + seconds
+    while not STOP and time.monotonic() < deadline:
+        time.sleep(min(0.01, max(0, deadline - time.monotonic())))
+    return STOP
 
 
 def event(kind, **values):
@@ -25,8 +32,9 @@ def event(kind, **values):
 
 
 def stop(*_):
+    global STOP
     event("stop")
-    STOP.set()
+    STOP = True
 
 
 def argument(name):
@@ -53,7 +61,7 @@ def controller():
         server.listen()
         server.settimeout(0.1)
         try:
-            while not STOP.is_set():
+            while not STOP:
                 try:
                     stream, _ = server.accept()
                 except TimeoutError:
@@ -89,12 +97,12 @@ def controller():
 
 def native():
     delay = float(os.environ.get("FIXTURE_NATIVE_DELAY", "0"))
-    STOP.wait(delay)
-    if STOP.is_set():
+    wait(delay)
+    if STOP:
         return 0
     (ROOT / "native-ready").touch()
     display = subprocess.Popen(["betterlinuxcnc", "-ini", sys.argv[1]], stdin=subprocess.DEVNULL)
-    while not STOP.wait(0.05) and not (ROOT / "quit-native").exists():
+    while not wait(0.05) and not (ROOT / "quit-native").exists():
         pass
     (ROOT / "native-ready").unlink(missing_ok=True)
     display.terminate()
@@ -118,7 +126,7 @@ def cam():
         ),
         flush=True,
     )
-    while not STOP.wait(0.05):
+    while not wait(0.05):
         if (ROOT / "fail-cam").exists():
             return 9
     return 0
@@ -139,7 +147,8 @@ def main():
         return native()
     if ROLE == "betterlinuxcnc-cam-link":
         return cam()
-    STOP.wait()
+    while not wait(0.1):
+        pass
     return 0
 
 

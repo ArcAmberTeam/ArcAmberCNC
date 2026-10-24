@@ -81,8 +81,14 @@ PYTHON_GRAPH = {
     "desktop-launcher": {"bettercnc.desktop"},
     "service-launcher": {"betterlinuxcnc_service"},
     "cam-link-launcher": {"bettercnc_cam_link"},
+    "bettercnc_launcher": set(),
+    "orchestration-launcher": {"bettercnc_launcher"},
 }
-PYTHON_ROOTS = [ROOT / "python", ROOT.parent / "python.service" / "src"]
+PYTHON_ROOTS = [
+    ROOT / "python",
+    ROOT.parent / "python.service" / "src",
+    ROOT.parent / "python.launcher" / "src",
+]
 VENDOR_MODULES = {"linuxcnc", "gcode", "hal"}
 # Preview's read-only linuxcnc.stat poll initializes native tool data before
 # gcode.parse. It never owns command, HAL or error-channel access.
@@ -123,6 +129,7 @@ for filename, owner in [
     ("betterlinuxcnc.in", "desktop-launcher"),
     ("betterlinuxcnc-service.in", "service-launcher"),
     ("betterlinuxcnc-cam-link.in", "cam-link-launcher"),
+    ("betterlinuxcnc-launch.in", "orchestration-launcher"),
 ]:
     source = ROOT / "app" / filename
     sources.append((source, "", owner, ast.parse(source.read_text(), filename=str(source))))
@@ -158,8 +165,8 @@ def check_import(source, owner, imported, names, line):
             errors.append(f"{label}: cross-module private import {imported}")
         elif names and any(name not in public_exports.get(target, set()) for name in names):
             errors.append(f"{label}: import is not declared by {target}.__all__: {names}")
-    elif owner == "bettercnc.session" and not is_standard_library(prefix):
-        errors.append(f"{label}: session may only depend on the standard library: {imported}")
+    elif owner in {"bettercnc.session", "bettercnc_launcher"} and not is_standard_library(prefix):
+        errors.append(f"{label}: {owner} may only depend on the standard library: {imported}")
 
 
 for source, module, owner, tree in sources:

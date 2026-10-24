@@ -12,6 +12,9 @@ python.desktop/             PySide6 + QML 桌面
     session/                v2 Unix socket 客户端
   qml/BetterCnc/             Ui、Catalog、Manual、Toolpath、Program、Chrome
   tests/                    QML 公共界面和 Python 公共接口测试
+python.launcher/            Python 标准库启动编排与保活
+  src/bettercnc_launcher/   配置、只读就绪检查、子进程和会话启动适配
+  tests/                    安装后的 CLI、进程及 Unix socket 边界测试
 rust.diagnostics/           独立 Rust v1 诊断通信
   src/lib.rs                probe_service、ServiceHealth 公开入口
   src/service.rs            私有协议与 Unix socket 实现
@@ -72,6 +75,7 @@ CAM 在另一台设备生成 G-code，经自定义 TCP 双向协议发送到独�
 | --- | --- | --- |
 | Qt 界面 | `BetterCnc.<Capability>` 的 qmldir | 组件不直接访问 socket、文件、进程或硬件 |
 | Qt Python | `bettercnc.desktop`、`bettercnc.session` | desktop 只导入 session 公开入口；session 只依赖标准库 |
+| 启动编排 | `bettercnc_launcher.main`、`betterlinuxcnc-launch` | 仅标准库，通过已安装 CLI 和只读 v2 Unix 协议编排，不导入服务或机床实现 |
 | Rust socket | `src/lib.rs` | 只暴露诊断查询及返回数据；内部实现私有 |
 | Python 服务 | `betterlinuxcnc_service`、`Controller`、`StatusReader`、`bettercnc_preview` | service 通过 controller/preview 公开入口协作，无反向依赖；StatusReader 只读取状态 |
 | CAM 联动 | `bettercnc_cam_link` 的 `main`、`serve` 与 CLI | 仅依赖标准库；拥有网络接收与 inbox；通过公开本地协议读取加工反馈 |

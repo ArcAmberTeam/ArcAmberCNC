@@ -57,6 +57,7 @@ class DesktopBackend(QObject):
         parent=None,
         worker_factory=ControllerWorker,
         settings=None,
+        managed=False,
     ):
         super().__init__(parent)
         self._snapshot = {
@@ -84,6 +85,8 @@ class DesktopBackend(QObject):
         self._preview_signature = None
         self._requested_file = ""
         self._closed = False
+        self._managed = managed
+        self._last_status_time = 0
         self._thread = QThread(self)
         self._thread.setObjectName("Local controller socket")
         self._worker = worker_factory(socket_path=socket_path, ini_path=ini_path)
@@ -113,6 +116,25 @@ class DesktopBackend(QObject):
     recentFiles = Property("QStringList", lambda self: self._recent, notify=recentFilesChanged)
     toolTable = Property("QVariantList", lambda self: self._tool_rows, notify=toolTableChanged)
     toolTableText = Property(str, lambda self: self._tool_text, notify=toolTableChanged)
+
+    @Slot(result=bool)
+    def requestClose(self):
+        """A managed DISPLAY exiting also tears down LinuxCNC's native core."""
+        state = self._snapshot
+        if self._managed and (
+            not state.get("connected")
+            or time.monotonic() - self._last_status_time > 1
+            or state.get("busy", True)
+            or state.get("paused", False)
+            or state.get("commandState") in ("accepted", "pending", "sent", "unknown")
+            or (state.get("camJob") or {}).get("state")
+            in ("accepted", "loading", "starting", "running", "unknown")
+        ):
+            self.errorOccurred.emit(
+                "加工、命令尚未结束或状态未知，不能退出机床界面；请先在本地停止并确认空闲。"
+            )
+            return False
+        return True
 
     def _context(self):
         names = (
@@ -144,6 +166,7 @@ class DesktopBackend(QObject):
         if self._closed:
             return
         previous = self._snapshot
+        self._last_status_time = time.monotonic()
         self._snapshot = copy.deepcopy(snapshot)
         if previous != self._snapshot:
             self.snapshotChanged.emit()

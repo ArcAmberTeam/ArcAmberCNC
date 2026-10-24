@@ -1,0 +1,19 @@
+{
+  "ini": "configs/your-machine/machine.ini",
+  "startup_timeout": 45,
+  "shutdown_timeout": 15,
+  "cam": {
+    "host": "192.168.109.67",
+    "port": 6522,
+    "inbox": "cam-inbox",
+    "token_file": "private/cam-token",
+    "cert": "private/cam-cert.pem",
+    "key": "private/cam-key.pem",
+    "auto_run": false,
+    "discovery": {
+      "device_id": "replace-with-a-stable-device-uuid",
+      "device_name": "烛龙V2",
+      "address": "192.168.109.255"
+    }
+  }
+}

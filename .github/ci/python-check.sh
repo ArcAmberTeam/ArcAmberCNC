@@ -2,9 +2,15 @@
 # Public CI scopes for the installed Python packages; vendor seams stay in tests.
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/../.."
-scope=${1:?Usage: python-check.sh service|preview|desktop}
+scope=${1:?Usage: python-check.sh service|preview|desktop|launcher}
 python_bin=${PYTHON:-python3}
 case "$scope" in
+  launcher)
+    package=python.launcher
+    paths=(python.launcher/src python.launcher/tests)
+    tests=(test_launcher.py test_installation.py)
+    test_dir=python.launcher/tests
+    ;;
   service)
     package=python.service
     paths=(python.service/src/betterlinuxcnc_service python.service/src/bettercnc_controller

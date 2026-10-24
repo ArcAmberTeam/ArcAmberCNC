@@ -13,7 +13,8 @@ Item {
     property string interfaceMode: "professional"
     property string guidedStage: "prepare"
     readonly property bool guided: interfaceMode === "guided"
-    signal interfaceModeRequested(string mode)
+    signal settingsRequested()
+    function focusSettings() { settingsButton.forceActiveFocus(Qt.TabFocusReason); }
     signal stageRequested(string stage)
     readonly property bool menuOpen: {
         for (let index = 0; index < menubar.count; index++) {
@@ -21,7 +22,9 @@ Item {
         }
         return false;
     }
-    implicitHeight: 144
+    readonly property bool inlineNavigation: width >= 1000
+    readonly property int headerInset: inlineNavigation ? 0 : 48
+    implicitHeight: headerInset + 52 + context.height
     objectName: "workspace-chrome"
     readonly property var icons: ({
         "machine.estop": "octagon", "machine.power": "power", "file.open": "folder",
@@ -32,61 +35,28 @@ Item {
         "view.p": "cube", "view.rotate": "orbit", "view.clear": "eraser"
     })
 
-    MachineStatus { id: status; machine: root.actions.machine }
+    // At the target width, menus and settings share the action row.
     Rectangle {
         id: header
+        z: 4
         width: parent.width
-        height: 56
-        color: Theme.sidebar
-        Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.border }
-        Item {
-            id: brand
-            width: 230
-            height: parent.height
-            UiText {
-                x: 18
-                anchors.verticalCenter: parent.verticalCenter
-                text: "BetterLinuxCNC"
-                font.pixelSize: 16
-                font.weight: Font.DemiBold
-                font.letterSpacing: -0.3
-            }
-            UiText {
-                anchors.right: parent.right
-                anchors.rightMargin: 18
-                anchors.verticalCenter: parent.verticalCenter
-                text: ""
-                font.pixelSize: Theme.labelSize
-                color: Theme.secondary
-                visible: !root.compact
-            }
-        }
-        Row {
-            visible: root.width >= 1200
-            x: brand.width + (root.compact ? 14 : 20)
-            anchors.verticalCenter: parent.verticalCenter
-            spacing: 9
-            UiText { text: "工作台"; font.pixelSize: 12; color: Theme.secondary }
-            UiIcon { name: "chevron"; width: 12; height: 12; anchors.verticalCenter: parent.verticalCenter; color: Theme.secondary }
-            UiText { text: root.guided ? "简易工作流" : "专业控制台"; font.pixelSize: 12; font.weight: Font.Medium }
-        }
-        Rectangle {
+        height: root.inlineNavigation ? 52 : 48
+        color: root.inlineNavigation ? "transparent" : Theme.sidebar
+        Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.border; visible: !root.inlineNavigation }
+        UiButton {
+            id: settingsButton
+            objectName: "open-settings"
             anchors.right: parent.right
-            anchors.rightMargin: 16
+            anchors.rightMargin: root.inlineNavigation ? 112 : 16
             anchors.verticalCenter: parent.verticalCenter
-            width: 112; height: 32; radius: 6
-            color: Theme.glass; border.color: Theme.border
-            Row {
-                anchors.centerIn: parent; spacing: 8
-                Rectangle { width: 7; height: 7; radius: 4; color: status.tone; anchors.verticalCenter: parent.verticalCenter }
-                UiText { text: status.label; color: status.tone; font.pixelSize: Theme.labelSize }
-            }
+            width: 76; height: 44
+            text: "设置"
+            onClicked: root.settingsRequested()
         }
         MenuBar {
             id: menubar
             objectName: "main-menubar"
-            anchors.right: parent.right
-            anchors.rightMargin: 138
+            x: root.inlineNavigation ? parent.width - 200 - width : 16
             anchors.verticalCenter: parent.verticalCenter
             spacing: 2
             padding: 0
@@ -94,7 +64,7 @@ Item {
             delegate: MenuBarItem {
                 id: trigger
                 objectName: "menubar-" + text
-                implicitHeight: 28
+                implicitHeight: 44
                 implicitWidth: contentItem.implicitWidth + 20
                 padding: 0
                 contentItem: UiText {
@@ -125,9 +95,10 @@ Item {
     }
     Item {
         id: context
-        y: 56
+        y: root.headerInset + 52
         width: parent.width
-        height: 36
+        height: root.guided ? 44 : 0
+        visible: root.guided
         Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.border }
         Row {
             visible: root.guided
@@ -138,38 +109,15 @@ Item {
                     required property var modelData
                     objectName: "stage-" + modelData.id
                     text: modelData.label
-                    kind: "tab"; height: 28; width: root.compact ? 100 : 124
+                    kind: "tab"; height: 44; width: root.compact ? 100 : 124
                     selected: root.guidedStage === modelData.id
                     onClicked: root.stageRequested(modelData.id)
                 }
             }
         }
-        UiText {
-            visible: !root.guided
-            x: 20; anchors.verticalCenter: parent.verticalCenter
-            width: parent.width - modeSelector.width - 52
-            text: "专业控制台  /  " + (root.actions.program && root.actions.program.fileName ? root.actions.program.fileName : "未打开程序")
-            elide: Text.ElideMiddle; font.pixelSize: Theme.labelSize; color: Theme.secondary
-        }
-        Row {
-            id: modeSelector
-            anchors.right: parent.right; anchors.rightMargin: 12
-            anchors.verticalCenter: parent.verticalCenter; spacing: 4
-            UiText { text: "界面"; color: Theme.secondary; font.pixelSize: Theme.labelSize; anchors.verticalCenter: parent.verticalCenter }
-            UiButton {
-                objectName: "interface-guided"; text: "简易"; width: 64; height: 28; kind: "tab"
-                selected: root.guided
-                onClicked: root.interfaceModeRequested("guided")
-            }
-            UiButton {
-                objectName: "interface-professional"; text: "专业"; width: 64; height: 28; kind: "tab"
-                selected: !root.guided
-                onClicked: root.interfaceModeRequested("professional")
-            }
-        }
     }
     Item {
-        y: 92
+        y: root.headerInset
         width: parent.width
         height: 52
         Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.border }
@@ -195,7 +143,7 @@ Item {
             objectName: "toolbar-viewport"
             anchors.fill: parent
             anchors.leftMargin: 16
-            anchors.rightMargin: 112
+            anchors.rightMargin: root.inlineNavigation ? 216 + menubar.width : 112
             contentWidth: toolbarRow.width
             contentHeight: height
             clip: true
@@ -215,6 +163,7 @@ Item {
                 spacing: 4
                 Repeater {
                     model: Catalog.toolbar.filter(entry => entry.id !== "program.stop"
+                        && !entry.id.startsWith("view.") && entry.id !== "program.optional" && entry.id !== "program.block-delete"
                         && (!root.guided || ["machine.estop", "machine.power", "file.open", "program.run", "program.pause"].indexOf(entry.id) >= 0))
                     delegate: Row {
                         id: toolbarEntry

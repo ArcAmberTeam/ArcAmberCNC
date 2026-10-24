@@ -39,13 +39,19 @@ TestCase {
         const item = control(name);
         mouseClick(item, item.width / 2, item.height / 2);
     }
+    function switchInterface(mode) {
+        click("open-settings");
+        click("settings-tab-interface");
+        click("interface-" + mode);
+        click("settings-back");
+    }
     function lastRequest() { return backend.requests[backend.requests.length - 1]; }
     function test_initialLayoutAndRealProgram() {
         compare(control("workspace").width, 1100);
         compare(control("manualPanel").width, 304);
         compare(control("programSeparator").height, 7);
         compare(control("mdiTab").text, "手动输入 [F5]");
-        compare(window.title, "test.ngc — BetterLinuxCNC");
+        compare(window.title, "test.ngc");
         verify(!control("dialogHost").visible);
         compare(control("feedOverride").value, 100);
     }
@@ -268,8 +274,9 @@ TestCase {
         window.width = 760; window.height = 640;
         tryCompare(control("manualPanel"), "width", 280);
         waitForRendering(window.contentItem);
+        click("open-settings"); click("settings-tab-machine");
         const slider = control("maxVelocity.slider");
-        const scroller = control("manualScroller");
+        const scroller = control("settingsScroller");
         slider.forceActiveFocus(Qt.TabFocusReason);
         tryVerify(() => slider.mapToItem(scroller, 0, 0).y >= 0);
         tryVerify(() => slider.mapToItem(scroller, 0, slider.height).y <= scroller.height);
@@ -344,10 +351,10 @@ TestCase {
         const before = backend.requests.length;
         const preview = control("toolpathState");
         const zoom = preview.zoom;
-        click("toolbar-view.zoom-in");
+        click("viewport-zoom-in");
         verify(preview.zoom > zoom);
-        click("toolbar-view.x");
-        compare(preview.choices.view, "x");
+        click("viewport-top");
+        compare(preview.choices.view, "z");
         click("droTab");
         compare(preview.previewTab, "dro");
         click("previewTab");
@@ -397,12 +404,14 @@ TestCase {
             {tag: "wide", w: 1440, h: 900, columns: true},
             {tag: "desktop", w: 1280, h: 800, columns: true},
             {tag: "compact", w: 1024, h: 768, columns: false},
+            {tag: "target-screen", w: 1024, h: 600, columns: false},
             {tag: "minimum", w: 760, h: 640, columns: false}
         ];
     }
     function test_platinumLayout(data) {
         window.width = data.w; window.height = data.h;
         waitForRendering(window.contentItem);
+        if (data.w === 1024) compare(control("workspace-chrome").height, 52);
         const manual = control("manualPanel");
         const preview = control("toolpathPanel");
         const program = control("programPanel");
@@ -413,7 +422,7 @@ TestCase {
         if (data.columns) verify(preview.width >= 520);
         const stop = control("toolbar-program.stop");
         const viewport = control("toolbar-viewport");
-        control("toolbar-view.clear").forceActiveFocus(Qt.TabFocusReason);
+        control("toolbar-program.step").forceActiveFocus(Qt.TabFocusReason);
         waitForRendering(window.contentItem);
         verify(stop.mapToItem(window.contentItem, 0, 0).x >= viewport.mapToItem(window.contentItem, viewport.width, 0).x);
         verify(stop.visible && stop.enabled);
@@ -437,24 +446,26 @@ TestCase {
         control("mdiCommand").text = "G0 X25";
         const state = control("toolpathState");
         state.setChoice("view", "x");
+        state.panBy(45, -20); state.zoomBy(1.5);
         backend.program.selectedLine = 3;
         const manual = control("manualState");
         manual.jogIncrement = 0.1;
         const before = backend.requests.length;
-        click("interface-guided");
+        switchInterface("guided");
         compare(window.interfaceMode, "guided");
         compare(control("manualPanel").visible, false);
         click("stage-device");
         compare(control("mdiCommand").text, "G0 X25");
-        click("interface-professional");
+        switchInterface("professional");
         compare(window.interfaceMode, "professional");
         compare(state.choices.view, "x");
+        compare(state.panX, 45); compare(state.panY, -20); compare(state.zoom, 1.5);
         compare(backend.program.selectedLine, 3);
         compare(manual.jogIncrement, 0.1);
         compare(backend.requests.length, before);
     }
     function test_guidedStagesAndHiddenJog() {
-        click("interface-guided");
+        switchInterface("guided");
         compare(control("workspaceGuide").visible, true);
         compare(control("programPanel").visible, true);
         const before = backend.requests.length;
@@ -484,7 +495,7 @@ TestCase {
         compare(control("mdiTab").selected, true);
     }
     function test_guidedActionsUseSharedPermissions() {
-        click("interface-guided");
+        switchInterface("guided");
         click("stage-preview");
         waitForRendering(window.contentItem);
         control("guide-run").forceActiveFocus(Qt.TabFocusReason);
@@ -516,14 +527,15 @@ TestCase {
         return rows;
     }
     function test_guidedLayout(data) {
-        window.width = data.w; window.height = 640;
-        click("interface-guided");
+        window.width = data.w; window.height = data.w === 1024 ? 600 : 640;
+        switchInterface("guided");
         click("stage-" + data.stage);
         waitForRendering(window.contentItem);
+        if (data.w === 1024) compare(control("workspace-chrome").height, 96);
         const panels = [control("manualPanel"), control("programPanel"), control("toolpathPanel"), control("workspaceGuide")].filter(p => p.visible);
         for (const item of panels) {
             const p = item.mapToItem(window.contentItem, 0, 0);
-            verify(p.x >= 0 && p.y >= 144);
+            verify(p.x >= 0 && p.y >= control("workspace-chrome").height);
             verify(p.x + item.width <= window.width);
             verify(p.y + item.height <= window.height - 32);
             verify(item.width > 0 && item.height > 0);
@@ -534,7 +546,7 @@ TestCase {
                     || p.y + item.height <= q.y || q.y + other.height <= p.y);
             }
         }
-        for (const name of ["toolbar-machine.estop", "toolbar-program.stop", "interface-professional", "stage-device"]) {
+        for (const name of ["toolbar-machine.estop", "toolbar-program.stop", "open-settings", "stage-device"]) {
             const item = control(name);
             const p = item.mapToItem(window.contentItem, 0, 0);
             verify(item.visible && p.x >= 0 && p.x + item.width <= window.width);
@@ -542,7 +554,7 @@ TestCase {
         if (data.stage !== "device") {
             const next = control("guide-next");
             const p = next.mapToItem(window.contentItem, 0, 0);
-            verify(p.y >= 144 && p.y + next.height <= window.height - 32);
+            verify(p.y >= control("workspace-chrome").height && p.y + next.height <= window.height - 32);
             if (data.stage === "preview") {
                 const run = control("guide-run");
                 const q = run.mapToItem(window.contentItem, 0, 0);
@@ -550,4 +562,152 @@ TestCase {
             }
         }
     }
+    function test_cameraFocusConsumesJogKeysAndTouch() {
+        const canvas = control("toolpathCanvas"), state = control("toolpathState");
+        const before = backend.requests.length;
+        mouseClick(canvas, canvas.width / 2, canvas.height / 2);
+        keyClick(Qt.Key_Right); keyClick(Qt.Key_Up); keyClick(Qt.Key_PageUp);
+        compare(backend.requests.length, before);
+        verify(state.panX > 0 && state.panY < 0 && state.zoom > 1);
+        keyClick(Qt.Key_Home);
+        compare(state.panX, 0); compare(state.zoom, 1);
+        keyClick(Qt.Key_End);
+        compare(backend.requests.length, before);
+        let touch = touchEvent(canvas);
+        touch.press(0, canvas, 100, 80).commit(); wait(20);
+        touch.move(0, canvas, 150, 100).commit(); wait(20);
+        touch.move(0, canvas, 190, 120).commit(); wait(20);
+        touch.release(0, canvas, 190, 120).commit(); wait(20);
+        compare(backend.requests.length, before);
+    }
+    function test_viewToolbarFocusDoesNotOperateMachine() {
+        click("viewport-zoom-in");
+        const before = backend.requests.length;
+        keyClick(Qt.Key_Right); keyClick(Qt.Key_PageUp);
+        keyClick(Qt.Key_Home); keyClick(Qt.Key_End);
+        compare(backend.requests.length, before);
+        verify(!control("dialogHost").visible);
+    }
+    function test_touchJogPendingHoldCanceledByFocusLoss() {
+        const plus = control("jogPlus"), before = backend.requests.length;
+        let touch = touchEvent(plus);
+        touch.press(0, plus, 20, 20).commit(); wait(20);
+        control("toolpathCanvas").forceActiveFocus();
+        wait(350);
+        compare(backend.requests.length, before);
+        touch.release(0, plus, 20, 20).commit(); wait(20);
+    }
+    function test_touchJogTapAndSwipeDoNotStartMotion() {
+        const plus = control("jogPlus"), before = backend.requests.length;
+        verify(plus.width >= 44 && plus.height >= 44);
+        let touch = touchEvent(plus);
+        touch.press(0, plus, 20, 20).commit(); wait(20);
+        touch.release(0, plus, 20, 20).commit(); wait(20);
+        compare(backend.requests.length, before);
+        touch.press(0, plus, 20, 20).commit(); wait(20);
+        touch.move(0, plus, 20, -45).commit(); wait(20);
+        wait(350);
+        touch.release(0, plus, 20, -45).commit(); wait(20);
+        compare(backend.requests.length, before);
+    }
+    function test_touchJogHoldReleaseAndDragCancel() {
+        const plus = control("jogPlus"), before = backend.requests.length;
+        let touch = touchEvent(plus);
+        touch.press(0, plus, 20, 20).commit(); wait(20);
+        compare(backend.requests.length, before);
+        wait(350);
+        compare(backend.requests.length, before + 1);
+        compare(lastRequest().id, "jog.start");
+        const stops = backend.stopCount;
+        touch.release(0, plus, 20, 20).commit(); wait(20);
+        verify(backend.stopCount > stops);
+        touch.press(0, plus, 20, 20).commit(); wait(20);
+        wait(350);
+        compare(backend.requests.length, before + 2);
+        const stops2 = backend.stopCount;
+        touch.move(0, plus, 20, -45).commit(); wait(20);
+        verify(backend.stopCount > stops2);
+        touch.move(0, plus, 20, 20).commit(); wait(20);
+        wait(350);
+        compare(backend.requests.length, before + 2, "Canceled touch must not restart on reentry");
+        touch.release(0, plus, 20, 20).commit(); wait(20);
+    }
+
+    function test_settingsFillSmallScreenAndRestoreWorkspace() {
+        window.width = 1024; window.height = 600;
+        const view = control("toolpathState"), manual = control("manualState");
+        view.panBy(40, 25); view.zoomBy(1.5); manual.jogIncrement = 0.1;
+        backend.program.selectedLine = 3;
+        const before = backend.requests.length;
+        click("open-settings");
+        const page = control("settingsPage");
+        tryCompare(page, "width", 1024); tryCompare(page, "height", 600);
+        const origin = page.mapToItem(window.contentItem, 0, 0);
+        compare(origin.x, 0); compare(origin.y, 0);
+        verify(!control("workspace-chrome").visible);
+        verify(!control("manualPanel").visible);
+        verify(!control("toolpathPanel").visible);
+        for (const name of ["settings-back", "settings-estop", "settings-stop", "settings-tab-machine"]) {
+            const item = control(name), p = item.mapToItem(page, 0, 0);
+            verify(item.visible && item.height >= 44);
+            verify(p.x >= 0 && p.x + item.width <= 1024 && p.y + item.height <= 600);
+        }
+        click("settings-back");
+        verify(!page.visible);
+        verify(control("toolpathPanel").visible);
+        verify(control("open-settings").activeFocus);
+        compare(view.panX, 40); compare(view.panY, 25); compare(view.zoom, 1.5);
+        compare(manual.jogIncrement, 0.1); compare(backend.program.selectedLine, 3);
+        compare(backend.requests.length, before);
+    }
+    function test_settingsStopsJogAndBlocksMachineShortcuts() {
+        control("workspace").forceActiveFocus();
+        keyPress(Qt.Key_Right);
+        compare(lastRequest().id, "jog.start");
+        const stops = backend.stopCount;
+        click("open-settings"); keyRelease(Qt.Key_Right);
+        verify(backend.stopCount > stops);
+        const before = backend.requests.length;
+        for (const key of [Qt.Key_Left, Qt.Key_Right, Qt.Key_Home, Qt.Key_End, Qt.Key_R, Qt.Key_F2, Qt.Key_F3, Qt.Key_F5]) keyClick(key);
+        compare(backend.requests.length, before);
+        verify(control("settingsPage").visible);
+        verify(!control("dialogHost").visible);
+        keyClick(Qt.Key_Escape);
+        compare(lastRequest().id, "program.stop");
+        keyClick(Qt.Key_F1);
+        compare(lastRequest().id, "machine.estop");
+        click("settings-stop"); compare(lastRequest().id, "program.stop");
+        click("settings-estop"); compare(lastRequest().id, "machine.estop");
+    }
+    function test_settingsDisplayAndScrollStayLocalOffline() {
+        window.width = 1024; window.height = 600;
+        backend.update({connected: false, message: ""});
+        const before = backend.requests.length, state = control("toolpathState");
+        click("open-settings"); click("settings-tab-display");
+        const units = control("settings-units");
+        units.forceActiveFocus(); keyClick(Qt.Key_Home); keyClick(Qt.Key_Return);
+        compare(state.choices.units, "inch");
+        const scroll = control("settingsScroller"), flags = JSON.stringify(state.flags);
+        let touch = touchEvent(scroll);
+        touch.press(0, scroll, scroll.width - 40, 360).commit(); wait(20);
+        touch.move(0, scroll, scroll.width - 40, 280).commit(); wait(20);
+        touch.move(0, scroll, scroll.width - 40, 120).commit(); wait(20);
+        touch.release(0, scroll, scroll.width - 40, 120).commit(); wait(20);
+        tryVerify(() => scroll.contentY > 40);
+        compare(JSON.stringify(state.flags), flags, "Scrolling must not toggle display settings");
+        tryCompare(scroll, "moving", false);
+        const flag = control("settings-show.large");
+        flag.forceActiveFocus(Qt.TabFocusReason);
+        const scroller = control("settingsScroller");
+        tryVerify(() => flag.mapToItem(scroller, 0, 0).y >= 0 && flag.mapToItem(scroller, 0, flag.height).y <= scroller.height);
+        click("settings-show.large"); compare(state.flags["show.large"], true);
+        const clear = control("settings-clear-live"), revision = state.liveResetRevision;
+        clear.forceActiveFocus(Qt.TabFocusReason); click("settings-clear-live");
+        compare(state.liveResetRevision, revision + 1);
+        compare(backend.requests.length, before);
+        click("settings-tab-machine");
+        verify(!control("maxVelocity").enabled);
+        verify(!control("settings-program.optional").enabled);
+    }
+
 }

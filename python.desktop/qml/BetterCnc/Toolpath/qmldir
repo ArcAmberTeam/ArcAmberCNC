@@ -2,3 +2,6 @@ module BetterCnc.Toolpath
 ToolpathState 1.0 ToolpathState.qml
 ToolpathPanel 1.0 ToolpathPanel.qml
 internal ToolpathCanvas ToolpathCanvas.qml
+internal ViewportGestures ViewportGestures.qml
+internal ViewportControls ViewportControls.qml
+ToolpathSettings 1.0 ToolpathSettings.qml

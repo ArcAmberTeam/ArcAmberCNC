@@ -4,6 +4,7 @@ import QtQuick.Controls.Basic
 
 ComboBox {
     id: control
+    property int optionHeight: 30
     implicitWidth: 150
     implicitHeight: Theme.controlHeight
     leftPadding: 8
@@ -36,7 +37,7 @@ ComboBox {
         required property int index
         required property var modelData
         width: control.width
-        height: 30
+        height: control.optionHeight
         highlighted: control.highlightedIndex === index
         contentItem: UiText {
             text: control.textRole ? itemDelegate.modelData[control.textRole] : itemDelegate.modelData

@@ -85,17 +85,5 @@ Item {
             onMoved: value => { root.jogStopRequested(); root.presentation.jogVelocity = value; }
         }
 
-        UiRange {
-            objectName: "maxVelocity"
-            width: parent.width
-            height: 49
-            label: "最大速度"
-            to: Number(root.machine.maxVelocityLimit || root.machine.maxVelocity || 0) * 60
-            value: Number(root.machine.maxVelocity || 0) * 60
-            valueKnown: root.connected && typeof root.machine.maxVelocity === "number" && isFinite(root.machine.maxVelocity)
-            enabled: valueKnown && root.permitted("velocity.max")
-            unit: root.machine.linearUnits === 1 ? "毫米/分钟" : "机床单位/分钟"
-            onMoved: value => root.commandRequested("velocity.max", {value: value / 60})
-        }
     }
 }

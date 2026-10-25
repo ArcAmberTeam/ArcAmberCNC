@@ -188,7 +188,7 @@ impl Drop for PausedLauncher {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::{fs, os::unix::fs::PermissionsExt, path::Path};
+    use std::{fs, path::Path};
     fn manager(program: &Path) -> Manager {
         Manager {
             program: program.to_owned(),
@@ -198,8 +198,21 @@ mod tests {
     }
     fn executable(directory: &Path, script: &str) -> PathBuf {
         let path = directory.join("systemctl");
-        fs::write(&path, format!("#!/bin/sh\n{script}\n")).unwrap();
-        fs::set_permissions(&path, fs::Permissions::from_mode(0o700)).unwrap();
+        // A concurrent test can fork while this process holds a writable file
+        // descriptor, briefly keeping the executable busy after we close it.
+        // Create it in a child and wait: sibling test processes cannot inherit
+        // the writer, and the real executable/exit-status boundary stays intact.
+        let status = std::process::Command::new("/bin/sh")
+            .args([
+                "-c",
+                "umask 077; printf '%s\\n' '#!/bin/sh' \"$2\" > \"$1\" && chmod 700 \"$1\"",
+                "create-systemctl-fixture",
+            ])
+            .arg(&path)
+            .arg(script)
+            .status()
+            .unwrap();
+        assert!(status.success());
         path
     }
     #[test]

@@ -1,0 +1,63 @@
+# A4:        hm2_7i92.0.7i69.0.0.input-12
+# A5:        hm2_7i92.0.7i69.0.0.input-15
+# E-STOP: hm2_7i92.0.7i69.0.0.input-08
+
+##################################################
+	           
+# encoder.count	            主输出 = accum - offset（经过 reset/index 修正后的位置）
+# encoder.rawcounts	        原始累加值 accum，未经 offset 修正
+# encoder.position	        把位置按倍率转成浮点显示
+# encoder.index-enable		置 TRUE 时启用 Index 信号对位置做 PPR 周期修正
+# encoder.reset	        	置 TRUE 时把当前位置设为 0（相当于清零）
+
+
+#*********************
+#   手轮设置(MPG)
+#*********************
+loadrt mux4 count=1
+addf mux4.0 servo-thread
+
+# If your MPG outputs a quadrature signal per click set x4 to 1
+# If your MPG puts out 1 pulse per click set x4 to 0
+
+# For velocity mode, set to 1
+# In velocity mode the axis stops when the dial is stopped
+# even if that means the commanded motion is not completed,
+# For position mode (the default), set to 0
+# In position mode the axis will move exactly jog-scale
+# units for each count, regardless of how long that might take,
+setp axis.x.jog-vel-mode 1
+setp axis.y.jog-vel-mode 1
+setp axis.z.jog-vel-mode 1
+
+# This sets the scale that will be used based on the input to the mux4
+setp mux4.0.in0 0.025
+setp mux4.0.in1 0.0025
+setp mux4.0.in2 0.00025
+
+# The inputs to the mux4 component
+#倍率
+net scale1 mux4.0.sel0 <= hm2_7i92.0.7i69.0.0.input-09
+net scale2 mux4.0.sel1 <= hm2_7i92.0.7i69.0.0.input-10
+
+# The output from the mux4 is sent to each axis jog scale
+net mpg-scale <= mux4.0.out
+net mpg-scale => axis.x.jog-scale
+net mpg-scale => axis.y.jog-scale
+net mpg-scale => axis.z.jog-scale
+
+
+# The MPG inputs
+net encoder-counts     <=  hm2_7i92.0.7i69.0.0.encoder.count
+
+
+# The Axis select inputs
+#轴选
+net mpg-x axis.x.jog-enable <= hm2_7i92.0.7i69.0.0.input-14
+net mpg-y axis.y.jog-enable <= hm2_7i92.0.7i69.0.0.input-13
+net mpg-z axis.z.jog-enable <= hm2_7i92.0.7i69.0.0.input-11
+
+# The encoder output counts to the axis. Only the selected axis will move.
+net encoder-counts => axis.x.jog-counts
+net encoder-counts => axis.y.jog-counts
+net encoder-counts => axis.z.jog-counts

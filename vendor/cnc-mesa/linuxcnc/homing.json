@@ -1,0 +1,11 @@
+{
+  "search_speed_mm_s": 2.0,
+  "latch_speed_mm_s": 0.5,
+  "return_speed_mm_s": 2.0,
+  "switch_inputs_verified": false,
+  "usable_travel_from_switch_mm": {
+    "X": null,
+    "Y": null,
+    "Z": null
+  }
+}

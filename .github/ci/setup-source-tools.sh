@@ -5,7 +5,7 @@ set -euo pipefail
 : "${GITHUB_PATH:?GitHub path file is required}"
 
 # These are supplied by the ubuntu-24.04 runner image; no apt/sudo is needed.
-for tool in git python3 make shellcheck curl tar sha256sum; do
+for tool in git python3 node make shellcheck curl tar sha256sum; do
   command -v "$tool" >/dev/null || {
     echo "Required hosted-runner tool is missing: $tool" >&2
     exit 1

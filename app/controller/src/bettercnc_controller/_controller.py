@@ -193,8 +193,9 @@ class Controller:
     def _homed(self):
         return bool(
             self._config
+            and (not self._config.dedicated_homing or not self._config.homing_message)
             and (
-                self._config.no_force_homing
+                (self._config.no_force_homing and not self._config.dedicated_homing)
                 or (self._snapshot["homed"] and all(self._snapshot["homed"]))
             )
         )
@@ -532,16 +533,32 @@ class Controller:
                     "同步回零组必须使用全部回零",
                 )
             method = "home" if home else "unhome"
+            if home:
+                requested = config.home_all_joints if joints == [-1] else joints
+                self._require(
+                    config.can_home_all() if joints == [-1] else config.can_home(requested),
+                    config.homing_message or "回零未配置：所选 joint 或 HOME_SEQUENCE 集合无效",
+                )
             steps = self._mode_steps("manual", "idle") + self._motion_steps("joint", "idle")
             for joint in joints:
-                indices = list(range(self._stat.joints)) if joint == -1 else [joint]
+                indices = (
+                    list(config.home_all_joints)
+                    if joint == -1 and home
+                    else list(range(self._stat.joints))
+                    if joint == -1
+                    else [joint]
+                )
                 steps.append(
                     self._step(
                         method,
                         joint,
                         guard="idle",
-                        expected=lambda indices=indices: all(
-                            self._snapshot["homed"][j] == home for j in indices
+                        expected=lambda indices=indices: (
+                            all(self._snapshot["homed"][j] == home for j in indices)
+                            and not any(
+                                state.get("homing", False)
+                                for state in self._stat.joint[: self._stat.joints]
+                            )
                         ),
                     )
                 )
@@ -843,6 +860,11 @@ class Controller:
         idle = ready and not s["busy"] and not self._jogs
         free = not self._steps
         homed_idle = idle and self._homed()
+        home_all_ready = bool(self._config and self._config.can_home_all())
+        home_ready = bool(
+            self._config
+            and any(self._config.can_home([joint]) for joint in range(self._config.joints))
+        )
         caps = {
             "machine.estop": connected,
             "machine.debug": connected and free and not s["busy"] and not self._jogs,
@@ -865,11 +887,11 @@ class Controller:
             "motion.mode": idle and free,
             "mode.joint": idle and free,
             "mode.world": homed_idle and free,
-            "machine.home-all": idle and free,
+            "machine.home-all": idle and free and home_all_ready,
             "machine.unhome-all": idle and free,
-            "home": idle and free,
+            "home": idle and free and home_ready,
             "unhome": idle and free,
-            "machine.home": idle and free,
+            "machine.home": idle and free and home_ready,
             "machine.unhome": idle and free,
             "mdi.execute": homed_idle and free,
             "mdi.go": homed_idle and free,
@@ -903,8 +925,9 @@ class Controller:
         }
         for axis in AXES:
             mapped = bool(self._config and self._config.joint_map.get(axis))
-            caps["machine.home-" + axis] = idle and free and axis in s["axes"] and mapped
-            caps["machine.unhome-" + axis] = caps["machine.home-" + axis]
+            eligible = bool(mapped and self._config.can_home(self._config.joint_map[axis]))
+            caps["machine.home-" + axis] = idle and free and axis in s["axes"] and eligible
+            caps["machine.unhome-" + axis] = idle and free and axis in s["axes"] and mapped
         for system in (*SYSTEMS, "G92"):
             caps["machine.zero-" + system] = homed_idle and free
         caps["file.save"] = caps["file.open"]

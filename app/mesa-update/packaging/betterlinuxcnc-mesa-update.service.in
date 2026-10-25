@@ -1,0 +1,28 @@
+[Unit]
+Description=Check paired BetterLinuxCNC and Mesa releases without flashing hardware
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=linuxcnc
+Group=linuxcnc
+ExecStart=@CMAKE_INSTALL_FULL_BINDIR@/betterlinuxcnc-mesa-update check
+WorkingDirectory=/
+UMask=0077
+Environment=PATH=/usr/sbin:/usr/bin:/sbin:/bin HOME=/var/lib/betterlinuxcnc/home
+Environment=XDG_CACHE_HOME=/var/cache/betterlinuxcnc/user
+TimeoutStartSec=10min
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/cache/betterlinuxcnc/user
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+CapabilityBoundingSet=
+

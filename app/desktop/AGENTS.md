@@ -29,6 +29,7 @@
 - 正式入口为 `app/main.py` 或安装后的 `betterlinuxcnc`；它们使用真实服务。`--check-connection` 通过 `bettercnc.session.read_machine_status` 只读查询，无窗口、无控制权；退出码 0 表示机床已连接、2 表示服务可达但机床离线、1 表示端点/传输/协议错误。不要同时传 `--ini` 或 `--program`。
 - `--kiosk`/`BETTERCNC_KIOSK=1` 运行专用全屏操作界面，不提供退出到普通桌面的控制。`--kiosk-status` 是独立启动状态页，不创建控制后端或连接机床；启动器通过公开 CLI 管理其生命周期。安装版本取 `bettercnc.__version__`，不读取 LinuxCNC 核心的 `VERSION`。
 - 应用更新通过独立 `betterlinuxcnc-updater` CLI 的 JSON 行接口；Qt 只能请求无附加参数的 `install`，不能向 root 服务传入包路径、URL、版本或命令。程序选择限制在配置允许的程序/收件目录；QML 不自行操作平台文件选择器或外部编辑器。
+- Mesa 更新通过独立 `betterlinuxcnc-mesa-update status|check` JSON 接口展示。它与应用 DEB 更新分别呈现，界面检查不会下载、停机或烧录；源码发布缺少已验证位流时明确显示无固件。定时检查由系统 timer 所有，GUI 仅低频读取状态。
 - 无 LinuxCNC 环境的交互测试入口为 `app/desktop/tests/interactive/main.py`，当前仅在允许的远端验证环境执行。测试在外部注入 vendor 接口，复用正式 GUI 和服务，不在生产代码添加假状态或模拟开关；Controller 与 StatusReader 都必须注入同一测试设备。
 - `external-interface-integration` 已纳入 CTest，覆盖原始 GUI/服务端到端行为、只读诊断与已有控制会话共存、断线恢复；替身测试不等于真实解释器或运动验收。真实目标机的安装与显示验收记录见 [本机连接说明](../../docs/linuxcnc-local-connection.md)。
 

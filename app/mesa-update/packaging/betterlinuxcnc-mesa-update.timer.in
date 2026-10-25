@@ -1,0 +1,12 @@
+[Unit]
+Description=Periodically check official paired Mesa source and firmware releases
+
+[Timer]
+OnBootSec=10min
+OnUnitActiveSec=6h
+RandomizedDelaySec=10min
+Persistent=yes
+Unit=betterlinuxcnc-mesa-update.service
+
+[Install]
+WantedBy=timers.target

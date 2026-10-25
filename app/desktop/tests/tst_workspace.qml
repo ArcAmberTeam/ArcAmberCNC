@@ -1,6 +1,5 @@
 import QtQuick
 import QtTest
-import QtQuick.Dialogs as NativeDialogs
 import "../qml" as App
 
 TestCase {
@@ -57,10 +56,8 @@ TestCase {
         verify(!control("dialogHost").visible);
         compare(control("feedOverride").value, 100);
     }
-    function test_kiosk_file_dialogs_stay_in_qt_and_exit_is_disabled() {
+    function test_kiosk_uses_bounded_program_picker_and_disables_exit() {
         window.kioskMode = true;
-        compare(control("openProgramDialog").options, NativeDialogs.FileDialog.DontUseNativeDialog);
-        compare(control("saveProgramDialog").options, NativeDialogs.FileDialog.DontUseNativeDialog);
         compare(control("menu-file.quit").enabled, false);
         for (const tool of ["machine.ladder", "machine.calibration", "machine.hal-config",
                            "machine.hal-meter", "machine.hal-scope", "show.pyvcp"])
@@ -68,6 +65,12 @@ TestCase {
         keyClick(Qt.Key_O);
         tryCompare(control("programFilePicker"), "visible", true);
         compare(control("openProgramDialog").visible, false);
+        keyClick(Qt.Key_Escape);
+        tryCompare(control("programFilePicker"), "visible", false);
+        keyClick(Qt.Key_S, Qt.ControlModifier);
+        tryCompare(control("programFilePicker"), "visible", true);
+        compare(control("programFilePicker").saveMode, true);
+        compare(control("saveProgramDialog").visible, false);
         keyClick(Qt.Key_Escape);
         tryCompare(control("programFilePicker"), "visible", false);
         window.kioskMode = false;
@@ -763,6 +766,25 @@ TestCase {
         verify(update.enabled);
         compare(backend.requests.length, before);
     }
+    function test_mesaCheckIsSeparateAndSourceReleaseDoesNotOfferFlashing() {
+        window.width = 1024; window.height = 600;
+        const before = backend.requests.length;
+        click("open-settings"); click("settings-tab-about");
+        const check = control("settings-mesa-check");
+        check.forceActiveFocus(Qt.TabFocusReason);
+        const scroll = control("settingsScroller");
+        tryVerify(() => check.mapToItem(scroll, 0, check.height).y <= scroll.height);
+        click("settings-mesa-check");
+        compare(backend.mesaUpdate.checkCount, 1);
+        verify(!check.enabled);
+        compare(backend.firmwareUpdater.fetchCount, 0);
+        backend.mesaUpdate.state = {phase: "source_only", available_version: "26.10.26.1", message: "无可烧录固件"};
+        verify(check.enabled);
+        compare(control("settings-mesa-version").text, "配套版本：26.10.26.1");
+        compare(control("settings-mesa-status").text, "无可烧录固件");
+        compare(backend.requests.length, before);
+    }
+
     function test_settingsSidebarCategories_data() {
         return [{tag: "compact", width: 760, height: 640},
                 {tag: "target", width: 1024, height: 600},

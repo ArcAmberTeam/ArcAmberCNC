@@ -1,0 +1,27 @@
+[Unit]
+Description=Independently verify Mesa firmware as root (hardware writes currently blocked)
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+ExecStart=@CMAKE_INSTALL_FULL_BINDIR@/betterlinuxcnc-mesa-flash apply-system
+WorkingDirectory=/
+UMask=0077
+Environment=PATH=/usr/sbin:/usr/bin:/sbin:/bin HOME=/root
+TimeoutStartSec=10min
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/cache/betterlinuxcnc /var/lib/betterlinuxcnc
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+CapabilityBoundingSet=
+

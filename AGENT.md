@@ -2,7 +2,7 @@
 
 ## 范围与当前阶段
 
-本仓库包含 LinuxCNC 源码；`VERSION` 当前为 2.9.10。原生 Qt Quick/PySide6 界面位于 `app/desktop/`，Rust CAM 服务位于 `app/cam-link/`，Release 更新器位于 `app/updater/`，本地诊断通信位于 `tools/diagnostics/`，HAL 位于 `src/hal/`，设备驱动按设备职责归入 `src/hal/drivers/` 和 `src/hal/user_comps/`。Python 控制服务保留在 `app/controller/`，混合编译的原生核心仍在 `src/`。
+本仓库包含 LinuxCNC 源码；`VERSION` 当前为 2.9.10。原生 Qt Quick/PySide6 界面位于 `app/desktop/`，Rust CAM 服务位于 `app/cam-link/`，应用 Release 更新器位于 `app/updater/`，Mesa 检查与独立烧录门禁位于 `app/mesa-update/`，本地诊断通信位于 `tools/diagnostics/`，HAL 位于 `src/hal/`，设备驱动按设备职责归入 `src/hal/drivers/` 和 `src/hal/user_comps/`。Python 控制服务保留在 `app/controller/`，混合编译的原生核心仍在 `src/`。
 
 应用发布版本为 `26.10.26.1`，计划 Release 名称 `demo v26.10.26.1`、tag `v26.10.26.1`；它与原生核心版本独立。专用机配置工具位于 `tools/appliance/`。2026-10-26 用户明确限定：本地及目标机均禁止构建，本地 Docker 也禁止；只由 GitHub 托管 CI 构建、测试和产包。目标机下载 CI 已完成的 `.deb`，只做安装、运行与现场验收，不安装编译工具或执行源码测试。不得为恢复工作重新创建本地或目标机构建缓存。
 
@@ -36,15 +36,19 @@ Qt 目录及依赖见 [app/desktop/AGENTS.md](app/desktop/AGENTS.md)：按 `Bett
 
 根 `CMakeLists.txt` 是产品应用的构建、测试、安装与打包组合入口，各应用模块拥有自身安装内容。它不编译或安装 LinuxCNC 原生核心；原生核心仍从 `src/` 统一构建。`src/hal/`、`src/hal/drivers/` 与 `src/hal/user_comps/` 均为实体目录，取消语言分类迁移产生的兼容链接。HAL 私有头与既有运行时的耦合仍属于各模块 AGENTS 中记录的遗留边界，不因整理目录扩大公开接口。
 
+正式 DEB 通过 `BETTERCNC_BUILD_MESA_HOMING=ON` 单独构建固定的 `zhulong_homing.so`，适配层由 `tools/mesa-homing/` 拥有。它仅从当前 2.9.10 原生源码生成 headers/halcompile，不编译完整核心；vendor 输入固定在 `vendor/cnc-mesa/SOURCE.json`，不得修改快照文件。包内模块仅供上游核心版本 2.9.10，显式配置启用必须验证实际 dpkg 版本；包 CI 的 Debian 2.9.4 仅用于安装生命周期检查，不加载模块。未知三轴实测总行程时保持 inputs-only，不能自动加载 HOMEMOD 或触发 HOME。ELF、公开 API harness 和 HDL 仿真不代表机床运动验收。
+
 外部网络、文件、进程和平台接口只能由明确适配层拥有。Qt 的 `bettercnc.desktop` 向 QML 提供只读状态和操作，`bettercnc.session` 负责 socket；服务的 `bettercnc_controller` 拥有控制规则与机床文件写入，`bettercnc_preview` 拥有隔离解释。`tools/diagnostics` 独立拥有 v1 诊断传输，不嵌入 Qt 控制链路。界面组件不得直接调用 LinuxCNC、HAL、socket、HTTP 或 WebSocket。
 
 协议必须区分 joint/axis、机床/工件坐标、指令/实际位置、角度/长度单位；命令“已接受、已发送、已完成、结果未知”不得混为一谈。重连不得自动重放运动、MDI 或主轴命令。软急停 UI 不替代物理安全回路。自动化回归测试不启动模拟器或机床；使用 vendor 接口替身、真实 Unix socket 和只解释文件的 LinuxCNC `gcode` 扩展。用户授权的目标机部署与联调按下节执行，不属于 CI 或替身测试。
 
 ## 目标机与更新约定
 
-2026-10-26 用户再次明确：所有源码、配置、权限和迁移逻辑修复必须先进入仓库，通过 PR/CI/Release 后再由已发布包部署；不在目标机直接修改文件或临时打补丁。只读现场诊断可以继续。
+2026-10-26 用户再次明确：所有源码、配置、权限和迁移逻辑修复必须先进入仓库，通过 PR/CI/Release 后再由已发布包部署；不在目标机直接修改文件或临时打补丁。只读现场诊断可以继续。后续应用变更只沿现有 `kihon → main` 的 PR 流程，不新增工作分支；commit、PR 标题/正文、CI 工作流/job/step 名称和自有 CI 输出使用英文，机床文件名与已有分支引用不随语言调整改名。
 
 Git 提交身份固定为 `IwakuraTorei <IwakuraTorei@outlook.com>`。本仓库只在已有 `kihon` 分支开发并推送，再以 PR 合并到 `main`；禁止创建新分支。配套 `ArcAmberTeam/CNC-Mesa` 仓库由负责该仓库的 agent 在已有 `main` 直接提交推送。两仓库 Release 使用配套版本，目标机只消费经过 GitHub CI 验证的发布产物。
+
+CI 工作流、job、step 和自有检查输出使用英文，保留分支保护引用的 `CI Gate` 名称；提交说明、PR 标题与正文、Release 说明也统一使用英文。应用中文界面和现场中文文件名不因此改名。
 
 - 开发源码在本地修改，通过 PR 合并到 `main`；需要发布的 PR 添加 `build-release` 标签。当前禁止本地和目标机构建，源码测试交给 GitHub CI。迁移前管理入口为 `teto@192.168.109.67`，旧仓库 `/home/teto/ArcAmberCNC` 仅保留为机床迁移输入；专用策略激活后的 SSH 入口为 `cnc-maint@192.168.109.67`。用户已授权推送、PR 合并、由 CI 发布 `demo v26.10.26.1`，以及目标机下载已完成安装包、安装和图形会话切换。这不包含运动或加工验收；凭据不写入仓库、脚本、日志或文档。
 - 拉取前后核对 `git status`、当前分支、HEAD 和目标远端引用。曾出现 `origin/main` 已更新而工作分支仍停在旧提交的情况；优先快进，不用 reset/clean 丢弃目标机修改。保留本机 `launcher.json`、`configs/zhulong-v2/` 及已有 VERSION/changelog 修改，不将其混入其他提交。
@@ -78,17 +82,17 @@ Git 提交身份固定为 `IwakuraTorei <IwakuraTorei@outlook.com>`。本仓库�
 
 所有 CI 与 Release job 均运行于 GitHub 托管的 `ubuntu-24.04` runner，不依赖 PVE 自托管 runner。源码检查通过 `.github/ci/setup-source-tools.sh` 验证预装工具并下载固定版本、校验 SHA-256 的 actionlint，不调用 apt/sudo。构建及真实安装回归只发生在 GitHub 的隔离容器；流水线不 SSH 部署或安装到机床。
 
-`.github/workflows/ci.yml` 的 ArcAmberCNC Module CI 覆盖 `main`、`staging测试环境` 和 `kihon` 的 push，同时支持 PR、merge queue 与手动运行。每个模块显示独立的“语言：功能”检查结果，矩阵设置 `fail-fast: false`；统一 `CI Gate` 要求全部矩阵及正式 DEB 验收通过，名称保持不变以兼容分支保护。
+`.github/workflows/ci.yml` 的 ArcAmberCNC Module CI 覆盖 `main`、`staging测试环境` 和 `kihon` 的 push，同时支持 PR、merge queue 与手动运行。每个模块显示独立的英文“Language - Function”检查结果，矩阵设置 `fail-fast: false`；统一 `CI Gate` 要求全部矩阵及正式 DEB 验收通过，名称保持不变以兼容分支保护。
 
-`.github/workflows/release.yml` 只为已合并到 `main` 且带 `build-release` 标签的 PR 发布。它检查同一 merge SHA 的 main push CI Gate，通过只读接口取得唯一 DEB artifact；仅发布 job 有 `contents: write`，不检出或执行 PR 源码。发布前复核包版本、架构、SHA-256、源码提交及 tag，上传真实 `.deb` 和 `SHA256SUMS`，生成正式 latest Release。没有标签、CI 未通过或包缺失时不发布；源码归档不能替代 DEB。
+`.github/workflows/release.yml` 只为已合并到 `main` 且带 `build-release` 标签的 PR 发布。它检查同一 merge SHA 的 main push CI Gate，通过只读接口取得唯一 DEB artifact；仅发布 job 有 `contents: write`，不检出或执行 PR 源码。发布前复核包版本、架构、SHA-256、源码提交及 tag，并要求 `ArcAmberTeam/CNC-Mesa` 同 tag 正式 Release 的 `mesa-release.json`、来源提交、源码/集成归档摘要一致。上传真实 `.deb`、`SHA256SUMS`、清单原字节与 `CNC_MESA_PAIR.json`，生成正式 latest Release。配对缺失时可待其发布后重跑失败 job，或从 `main` 手动提供同一已合并 PR 编号重试；不需要跨仓写权限或 PAT。没有标签、CI 未通过或包缺失时不发布；源码归档不能替代 DEB。
 
 - C：HAL 抽象层、实时运动控制、硬件驱动；C++：LinuxCNC 任务层、G代码解析层、Python 扩展，共六个独立构建实例。入口为 `.github/ci/native-check.sh`，CI 专用目标文件复用原生 Makefile 依赖图，Debian 13 amd64 uspace 构建环境由 `.github/ci/native/Dockerfile` 管理。模块之间的编译依赖保留；不把独立 CI 误解成完全无依赖的库。
 - Python：独立控制服务（3.11/3.13）、预览适配、Qt 界面后端；各自安装当前源码生成的 wheel 并运行所属测试，入口为 `.github/ci/python-check.sh`。预览 job 强制要求 Debian 的真实 `gcode` 扩展存在，缺失时失败；原生 Python 扩展 job 则验证当前源码编译的扩展，不混淆两者。
 - Python 启动编排（3.11/3.13）包含 kiosk 会话与真实暂存安装回归；专用机维护策略（3.11/3.13）是独立 job，检查 `tools/appliance` 的 Ruff、格式与公开 CLI，纳入同一 `CI Gate`。
 - QML：Qt 桌面界面；执行 QML UI、qmllint、模块边界与启动检查。`app/desktop/scripts/ci-check.sh --suite desktop|qml` 为拆分入口，无参数仍运行完整 Qt 检查。
 - HAL/INI/Tcl：机床配置与模块连接；静态检查配置语法、常用 HAL 命令参数、本地文件引用和 include 环。Tcl 只检查语法完整性，不执行文件。历史诊断在 `.github/ci/config-baseline.json` 中逐项记录原因和文件 SHA-256，新增诊断、历史文件变化或已修复但未移除的记录均导致失败。
-- Rust：`tools/diagnostics` 的 v1 诊断测试，`app/cam-link` 的 CAM2 TCP/UDP、作业与点动跨进程测试，以及 `app/updater` 的 Release 校验和安装门禁测试；均运行 fmt、check、clippy，固定工具链和锁文件。Web/Tauri 构建、浏览器测试与机床部署 job 已删除。
-- Debian：根 CMake 在 Debian 13 amd64 容器构建两个真实 Rust 服务并生成完整 DEB；真实首次/重复安装检查账户、目录权限、密码和数据保留，再显式验证容器内 SSH/sudo 的有效限制。阻止依赖启动服务，不运行机床、显示会话或 SSH daemon。成功后上传以提交 SHA 命名的 DEB artifact。
+- Rust：`tools/diagnostics` 的 v1 诊断测试，`app/cam-link` 的 CAM2 TCP/UDP、作业与点动跨进程测试，`app/updater` 的 Release 校验和安装门禁，以及 `app/mesa-update` 的同版清单检查与烧录拒绝测试；均运行 fmt、check、clippy，固定工具链和锁文件。Web/Tauri 构建、浏览器测试与机床部署 job 已删除。
+- Debian：根 CMake 在 Debian 13 amd64 容器构建 CAM、应用更新、Mesa 检查、Mesa 烧录门禁四个真实 Rust 二进制并生成完整 DEB；真实首次/重复安装检查账户、目录权限、密码和数据保留，再显式验证容器内 SSH/sudo 的有效限制与私有备份轮转。阻止依赖启动服务，不运行机床、显示会话或 SSH daemon。成功后上传以提交 SHA 命名的 DEB artifact。
 
 CI 不启动 LinuxCNC、HAL 实时线程、模拟器或硬件。原生 HAL/运动/驱动以编译、链接和导出符号检查为主，任务层检查构建与动态依赖；解释器只运行独立文件解释回归。配置静态检查不能验证实际引脚存在、信号类型、单写入者、时序或机床参数正确性。原生构建仅上传日志，不发布 LinuxCNC 核心 `.deb`；Qt CI 只构建和测试并保留诊断，不打包发布或安装到目标机。构建成功不代表机床控制或目标机图形已验收。
 
@@ -101,3 +105,5 @@ Qt job 在独立 Debian 13 容器调用 `app/desktop/scripts/ci-check.sh`，Pyth
 `app/cam-link/` 替代 Python CAM Link，安装命令仍为 `betterlinuxcnc-cam-link`，启动器既有 `cam` 配置及 TCP 6522、UDP 8421 不变。网络进程通过 v2 Unix 协议接入单一 Python Controller，不引入第二个 LinuxCNC 命令写入者。构建安装步骤见 [CAM 协议与启动](docs/cam-link-protocol.md)。
 
 Release 更新器由独立 `app/updater/` 拥有。GUI 只能请求固定 `betterlinuxcnc-system-update.service` 系统服务；root 服务独立查询正式 Release、下载并校验包，确认机床空闲且未使能后协调 `linuxcnc` 用户服务正常停止，再完成配置与机床数据备份，备份失败不安装。普通用户不能向 root 传入包路径、URL、版本或命令。应用版本取根 CMake/安装包及公开 `bettercnc.__version__`，不能使用核心 `VERSION`。协议和发布包约定见 [应用更新说明](docs/firmware-updates.md)。
+
+`app/mesa-update/` 独立拥有 `betterlinuxcnc-mesa-update` 与 `betterlinuxcnc-mesa-flash`，检查/下载与 root 烧录入口分离。本版 CNC-Mesa 清单明确 `firmware.available=false`，没有新 ISE 位流，实施、时序和板上验收声明均为 false；这允许配套应用发布，但烧录入口必须拒绝实际写入。原厂 bit 不可作为更新载荷，也不能从参考源码归档提取后绕过清单。不得声称完成新的硬件验收。

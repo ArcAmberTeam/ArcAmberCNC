@@ -204,8 +204,8 @@ fn install_with_backup(
 ) -> Result<std::process::Output> {
     let mut backup = super::command("/usr/sbin/betterlinuxcnc-appliance");
     backup.arg("backup");
-    let output = execute(&mut backup)
-        .map_err(|error| format!("创建更新前备份失败，未安装更新：{error}"))?;
+    let output =
+        execute(&mut backup).map_err(|error| format!("创建更新前备份失败，未安装更新：{error}"))?;
     if !output.status.success() {
         let detail: String = String::from_utf8_lossy(&output.stderr)
             .chars()
@@ -214,7 +214,9 @@ fn install_with_backup(
         return Err(format!("创建更新前备份失败，未安装更新：{}", detail.trim()).into());
     }
     let mut install = super::command("/usr/bin/apt-get");
-    install.args(["--yes", "--no-remove", "install"]).arg(package);
+    install
+        .args(["--yes", "--no-remove", "install"])
+        .arg(package);
     Ok(execute(&mut install)?)
 }
 

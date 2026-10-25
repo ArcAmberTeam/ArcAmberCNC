@@ -7,6 +7,8 @@ Column {
     id: root
     property var machine: ({})
     property var updater: null
+    property var mesaUpdate: null
+    readonly property var mesaState: mesaUpdate ? mesaUpdate.state : ({phase: "not_checked", message: "Mesa 更新服务尚未安装"})
     readonly property var updateState: updater ? updater.state : ({phase: "idle", message: "更新服务尚未安装", progress: 0})
     readonly property bool updating: ["checking", "downloading", "verifying", "scheduled", "installing"].indexOf(updateState.phase) >= 0
     spacing: 0
@@ -42,12 +44,12 @@ Column {
         width: parent.width
         topPadding: 24
         spacing: 16
-        UiText { text: "固件更新"; font.pixelSize: 18; font.weight: Font.DemiBold }
+        UiText { text: "应用更新"; font.pixelSize: 18; font.weight: Font.DemiBold }
         Row {
             spacing: 12
             UiButton {
                 objectName: "settings-firmware-update"
-                text: root.updating ? "正在更新…" : "更新固件"
+                text: root.updating ? "正在更新…" : "检查应用更新"
                 height: 44
                 enabled: !!root.updater && !!root.updater.available && !root.updating
                 onClicked: root.updater.fetch()
@@ -76,6 +78,38 @@ Column {
             visible: text.length > 0
             text: root.updateState.message || ""
             color: root.updateState.phase === "error" ? Theme.danger : Theme.secondary
+            wrapMode: Text.Wrap
+        }
+    }
+    Column {
+        width: parent.width
+        topPadding: 28
+        spacing: 16
+        UiText { text: "Mesa 控制板更新"; font.pixelSize: 18; font.weight: Font.DemiBold }
+        UiButton {
+            objectName: "settings-mesa-check"
+            text: root.mesaState.phase === "checking" ? "正在检查…" : "检查配套更新"
+            height: 44
+            enabled: !!root.mesaUpdate && !!root.mesaUpdate.available && root.mesaState.phase !== "checking"
+            onClicked: root.mesaUpdate.check()
+        }
+        UiText {
+            objectName: "settings-mesa-version"
+            width: parent.width
+            text: "配套版本：" + (root.mesaState.available_version || "—")
+            color: Theme.secondary
+        }
+        UiText {
+            objectName: "settings-mesa-status"
+            width: parent.width
+            text: root.mesaState.message || ""
+            color: root.mesaState.phase === "error" ? Theme.danger : Theme.secondary
+            wrapMode: Text.Wrap
+        }
+        UiText {
+            width: parent.width
+            text: "系统定时检测配套版本。检查更新不会停机或烧录控制板。"
+            color: Theme.secondary
             wrapMode: Text.Wrap
         }
     }

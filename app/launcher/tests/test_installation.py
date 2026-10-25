@@ -78,7 +78,12 @@ class InstallationTests(unittest.TestCase):
             timeout=30,
         )
         self.assertEqual(result.returncode, 0, result.stderr)
-        for command in ("betterlinuxcnc-cam-link", "betterlinuxcnc-updater"):
+        for command in (
+            "betterlinuxcnc-cam-link",
+            "betterlinuxcnc-updater",
+            "betterlinuxcnc-mesa-update",
+            "betterlinuxcnc-mesa-flash",
+        ):
             with self.subTest(packaged_command=command):
                 self.assertEqual(
                     (unpacked / "usr/bin" / command).read_bytes(),
@@ -171,11 +176,16 @@ class InstallationTests(unittest.TestCase):
             retired_cam.mkdir(parents=True)
             (retired_cam / "__init__.py").write_text("# obsolete Python CAM service\n")
             build = root / "build"
-            # Reuse an explicitly built target binary for local package verification.
-            # CI leaves these unset so both Rust services build from this checkout.
+            # CI can reuse explicitly built target binaries when splitting verification.
+            # The complete package job leaves these unset and builds the checkout.
             prebuilt_services = [
                 f"-D{name}={os.environ[name]}"
-                for name in ("BETTERCNC_CAM_LINK_BINARY", "BETTERCNC_UPDATER_BINARY")
+                for name in (
+                    "BETTERCNC_CAM_LINK_BINARY",
+                    "BETTERCNC_UPDATER_BINARY",
+                    "BETTERCNC_MESA_UPDATE_BINARY",
+                    "BETTERCNC_MESA_FLASH_BINARY",
+                )
                 if os.environ.get(name)
             ]
             result = subprocess.run(
@@ -223,6 +233,13 @@ class InstallationTests(unittest.TestCase):
             )
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertIn("betterlinuxcnc-updater", result.stdout)
+            for command in ("betterlinuxcnc-mesa-update", "betterlinuxcnc-mesa-flash"):
+                binary = stage / "usr/bin" / command
+                self.assertFalse(binary.read_bytes().startswith(b"#!"))
+                result = subprocess.run(
+                    [str(binary), "--help"], capture_output=True, text=True, timeout=10
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
             python_root = stage / "usr/lib/betterlinuxcnc/python"
             for package in (
                 "bettercnc",
@@ -260,6 +277,12 @@ class InstallationTests(unittest.TestCase):
             self.assertTrue(
                 (stage / "usr/lib/systemd/system/betterlinuxcnc-system-update.service").is_file()
             )
+            for unit in (
+                "betterlinuxcnc-mesa-update.service",
+                "betterlinuxcnc-mesa-update.timer",
+                "betterlinuxcnc-mesa-flash.service",
+            ):
+                self.assertTrue((stage / "usr/lib/systemd/system" / unit).is_file())
             self.assertTrue(
                 (stage / "usr/share/polkit-1/rules.d/49-betterlinuxcnc-update.rules").is_file()
             )

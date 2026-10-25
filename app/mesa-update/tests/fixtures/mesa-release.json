@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "version": "26.10.26.1",
+  "tag_name": "v26.10.26.1",
+  "board": "zhulong-v2",
+  "variant": "PIN_ZHULONG_V2_34",
+  "fpga": "xc6slx9",
+  "package": "tqg144",
+  "physical_constraints_verified": false,
+  "source_commit": "2bb03f29755ec7ef204ec8224a5bcc7f66d85384",
+  "compatible_app_version": "26.10.26.1",
+  "firmware": {
+    "available": false,
+    "asset": null,
+    "sha256": null,
+    "size": null,
+    "origin": "unavailable",
+    "verification": {
+      "implementation": false,
+      "timing": false,
+      "board_approved": false
+    },
+    "reason": "No ISE-built and board-verified bitstream is available for this revision"
+  },
+  "artifacts": {
+    "source": {
+      "asset": "cnc-mesa-source-26.10.26.1.tar.gz",
+      "sha256": "299917ab02a34d6f909662887124d8efea47126484e86afa8bffb24df190388c",
+      "size_bytes": 35528295
+    },
+    "integration": {
+      "asset": "cnc-mesa-integration-26.10.26.1.tar.gz",
+      "sha256": "0abde89e844fa17fb37979190c4b7db4a46e0c494c2e1c6125ad7ff5b510d00c",
+      "size_bytes": 54163
+    }
+  }
+}

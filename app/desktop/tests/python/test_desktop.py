@@ -21,6 +21,61 @@ APP = QGuiApplication.instance() or QGuiApplication([])
 
 
 class DesktopTests(unittest.TestCase):
+    def mesa_peer(self, response):
+        self.backend.close()
+        calls = Path(self.temporary.name) / "mesa-calls.jsonl"
+        script = Path(self.temporary.name) / "mesa-service.py"
+        script.write_text(
+            "import json, sys, time\nfrom pathlib import Path\n"
+            f"with Path({str(calls)!r}).open('a') as f: f.write(json.dumps(sys.argv[1:]) + '\\n')\n"
+            "time.sleep(.05)\n"
+            f"print(json.dumps({response!r}), flush=True)\n",
+            encoding="utf-8",
+        )
+        self.backend = DesktopBackend(
+            socket_path=self.peer.path,
+            mesa_update_command=[sys.executable, str(script)],
+        )
+        self.addCleanup(self.backend.close)
+        return self.backend.mesaUpdate, calls
+
+    def test_mesa_source_release_is_presented_without_machine_commands(self):
+        updater, calls = self.mesa_peer(
+            dict(
+                schema_version=1,
+                component="mesa-update",
+                phase="source_only",
+                message="Source release only",
+                available_version="26.10.26.1",
+            )
+        )
+        updater.check()
+        updater.check()
+        self.wait(lambda: updater.state["phase"] == "source_only")
+        QTest.qWait(150)
+        commands = [json.loads(line) for line in calls.read_text().splitlines()]
+        self.assertEqual(commands.count(["check"]), 1)
+        self.assertTrue(all(command in (["status"], ["check"]) for command in commands))
+        self.assertEqual(updater.state["available_version"], "26.10.26.1")
+        self.assertIn("没有经过验证", updater.state["message"])
+        self.assertFalse(any(item["method"] == "command.execute" for item in self.peer.requests))
+
+    def test_mesa_adapter_rejects_wrong_component_and_invalid_version(self):
+        for response in (
+            dict(schema_version=1, component="mesa-flash", phase="source_only", message=""),
+            dict(
+                schema_version=1,
+                component="mesa-update",
+                phase="source_only",
+                message="",
+                available_version={"unexpected": "object"},
+            ),
+        ):
+            updater, _calls = self.mesa_peer(response)
+            updater.check()
+            self.wait(lambda: updater.state["phase"] == "error")
+            self.assertIn("无效状态", updater.state["message"])
+
     def update_peer(self, script):
         self.backend.close()
         path = Path(self.temporary.name) / "updater.py"

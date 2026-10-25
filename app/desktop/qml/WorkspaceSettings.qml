@@ -12,6 +12,7 @@ Rectangle {
     required property ToolpathState preview
     required property ChromeActions actions
     property var firmwareUpdater: null
+    property var mesaUpdate: null
     property string interfaceMode: "professional"
     property string section: "about"
     signal backRequested()
@@ -129,6 +130,7 @@ Rectangle {
                 width: parent.width
                 machine: root.actions.machine
                 updater: root.firmwareUpdater
+                mesaUpdate: root.mesaUpdate
             }
             SettingsInterface {
                 visible: root.section === "interface"

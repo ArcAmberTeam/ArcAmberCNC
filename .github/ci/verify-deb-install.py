@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 import pwd
+import re
 import secrets
 import stat
 import subprocess
@@ -218,6 +219,40 @@ def verify_installed_backup(version, policies):
         require(result.returncode == 1, "Non-root account can read a configuration snapshot")
 
 
+def verify_installed_homing(source, version):
+    module = Path("/usr/lib/linuxcnc/modules/zhulong_homing.so")
+    content = module.read_bytes()
+    require(
+        content[:6] == b"\x7fELF\x02\x01" and int.from_bytes(content[18:20], "little") == 62,
+        "Expected a real ELF64 amd64 homing module",
+    )
+    info = module.lstat()
+    require(
+        stat.S_ISREG(info.st_mode) and info.st_uid == info.st_gid == 0
+        and not info.st_mode & 0o6022,
+        "Unsafe installed homing module ownership or mode",
+    )
+    metadata = json.loads(Path("/usr/share/betterlinuxcnc/homing/provenance.json").read_text())
+    require(metadata["schema_version"] == 1, "Invalid homing provenance schema")
+    require(metadata["application_version"] == version, "Homing application version mismatch")
+    require(metadata["sha256"] == hashlib.sha256(content).hexdigest(), "Homing binary digest mismatch")
+    require(metadata["architecture"] == "amd64", "Homing architecture mismatch")
+    require(metadata["linuxcnc"]["version"] == (source / "VERSION").read_text().strip(), "Native core version mismatch")
+    require(metadata["linuxcnc"]["source_commit"] == os.environ["BUILD_SHA"], "Homing build revision mismatch")
+    for name in ("homing.h", "motion.h", "emcmotcfg.h", "simple_tp.h"):
+        expected = hashlib.sha256((source / "src/emc/motion" / name).read_bytes()).hexdigest()
+        require(metadata["linuxcnc"]["headers"][name] == expected, "Homing used unrelated native headers")
+    require(metadata["vendor"] == json.loads((source / "vendor/cnc-mesa/SOURCE.json").read_text()), "Vendor provenance changed")
+    api = set(re.findall(r"EXPORT_SYMBOL\((\w+)\);", (source / "vendor/cnc-mesa/homing/src/homing.c").read_text()))
+    require(len(api) == 20 and set(metadata["public_api"]) == api, "HOMEMOD public API contract changed")
+    symbols = {line.split()[-1] for line in run("nm", "-D", "--defined-only", str(module)).stdout.splitlines() if line.split()}
+    require(api <= symbols, "Installed homing module omitted public API symbols")
+    require(metadata["validation"] == {"public_api_scenarios": 27, "hardware_verified": False}, "Unexpected homing validation claim")
+    # The distribution core is installed for package lifecycle checks only.
+    # Never dlopen this module or infer ABI compatibility from successful installation.
+    print("PASS installed HOMEMOD ELF, 20 public exports and fixed source/header provenance")
+
+
 def main():
     require(os.environ.get("GITHUB_ACTIONS") == "true" and os.geteuid() == 0, "GitHub CI container required")
     package, source = map(Path, sys.argv[1:])
@@ -237,11 +272,15 @@ def main():
     require(not Path("/etc/betterlinuxcnc/launcher.json").exists(), "Package imported a machine configuration")
     require(not Path("/etc/lightdm/lightdm.conf.d/90-betterlinuxcnc.conf").exists(), "Package activated display policy")
     require("ForceCommand /usr/bin/python3 -I /usr/lib/betterlinuxcnc" not in Path("/etc/ssh/sshd_config").read_text(), "Package activated SSH policy")
-    for executable in ("betterlinuxcnc-cam-link", "betterlinuxcnc-updater"):
+    for executable in (
+        "betterlinuxcnc-cam-link", "betterlinuxcnc-updater",
+        "betterlinuxcnc-mesa-update", "betterlinuxcnc-mesa-flash",
+    ):
         require(Path("/usr/bin", executable).read_bytes().startswith(b"\x7fELF"), "Expected a real Linux Rust binary")
         run(f"/usr/bin/{executable}", "--help")
     installed_version = run("/usr/bin/python3", "-c", "import sys; sys.path.insert(0, '/usr/lib/betterlinuxcnc/python'); from bettercnc import __version__; print(__version__)").stdout.strip()
     require(installed_version == version, "Installed application version mismatch")
+    verify_installed_homing(source, version)
 
     # Exercise upgrade preservation with private, synthetic data, never machine commands.
     fixtures = {
@@ -277,9 +316,24 @@ def main():
     effective = run("/usr/sbin/sshd", "-T", "-C", "user=cnc-maint,host=localhost,addr=127.0.0.1").stdout
     for setting in ("allowusers cnc-maint", "permitrootlogin no", "permittty no", "disableforwarding yes", "forcecommand /usr/bin/python3 -I /usr/lib/betterlinuxcnc/appliance/maintenance.py"):
         require(setting in effective.splitlines(), f"Missing effective SSH restriction: {setting}")
+    sudo_rules = [
+        line.strip() for line in Path("/etc/sudoers").read_text().splitlines()
+        if line.strip() and not line.lstrip().startswith(("#", "Defaults "))
+    ]
+    require(sudo_rules == ["root ALL=(ALL:ALL) ALL"], "Unexpected ordinary-user sudo rule or include")
+    require("#include" not in Path("/etc/sudoers").read_text(), "Unexpected sudoers include")
     for account in ("linuxcnc", "cnc-maint"):
-        result = subprocess.run(["sudo", "-n", "-l", "-U", account], capture_output=True, text=True)
-        require(result.returncode != 0, f"Unexpected sudo grant: {account}")
+        # Listing as root can succeed while reporting that the selected user has no grants.
+        # Exercise actual denial from each unprivileged identity using a read-only command.
+        result = subprocess.run(
+            ["/usr/sbin/runuser", "-u", account, "--", "/usr/bin/sudo", "-n", "-k",
+             "/usr/bin/id", "-u"],
+            capture_output=True, text=True,
+        )
+        require(
+            result.returncode != 0 and result.stdout.strip() != "0",
+            f"Unexpected sudo execution by {account}: {result.stdout} {result.stderr}",
+        )
     verify_installed_backup(version, policies)
     print("DEB metadata, Rust binaries, provisioning, data retention, SSH/sudo and private backup rotation passed")
 

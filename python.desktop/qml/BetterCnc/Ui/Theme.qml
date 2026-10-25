@@ -9,7 +9,9 @@ QtObject {
     readonly property color raised: surface
     readonly property color hover: "#F1F0EC"
     readonly property color input: surface
-    readonly property color border: "#DEDCD5"
+    readonly property color border: "#E2E2DF"
+    readonly property color shadow: "#42464C"
+    readonly property color separatorShadow: "#0542464C"
     readonly property color borderControl: "#8D887E"
     readonly property color text: "#24272C"
     readonly property color secondary: "#60656D"

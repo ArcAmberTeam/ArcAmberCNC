@@ -36,11 +36,11 @@ Control {
         target: root.Window.window
         function onActiveChanged() { if (!root.Window.window.active) root.endJog(); }
     }
-    background: Rectangle {
-        radius: Theme.controlRadius
+    background: UiSurface {
+        pressed: root.engaged || touchTap.pressed
+        focusHighlighted: root.visualFocus
+        shadowStrength: root.enabled ? 1 : 0.35
         color: !root.enabled ? Theme.disabled : root.engaged ? Theme.accentSoft : root.hovered || touchTap.pressed ? Theme.hover : Theme.surface
-        border.color: !root.enabled ? Theme.border : root.engaged || root.visualFocus ? Theme.accent : Theme.borderControl
-        border.width: root.visualFocus ? 2 : 1
     }
     contentItem: UiText {
         text: root.text

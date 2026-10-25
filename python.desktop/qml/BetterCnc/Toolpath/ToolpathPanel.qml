@@ -46,8 +46,7 @@ Rectangle {
     readonly property string unit: presentation.choices.units === "mm" ? "毫米" : "英寸"
     objectName: "toolpathPanel"
     color: Theme.surface
-    radius: Theme.radius
-    border.color: Theme.border
+    radius: 0
     clip: true
 
     Rectangle {
@@ -100,11 +99,10 @@ Rectangle {
             presentation: root.presentation
             visible: root.presentation.previewTab === "preview"
         }
-        Rectangle {
+        UiDivider {
             anchors.bottom: parent.bottom
             width: parent.width
             height: 1
-            color: Theme.border
         }
     }
 
@@ -252,11 +250,10 @@ Rectangle {
                 font.pixelSize: Theme.labelSize
                 color: Theme.secondary
             }
-            Rectangle {
+            UiDivider {
                 anchors.bottom: parent.bottom
                 width: parent.width
                 height: 1
-                color: Theme.border
             }
         }
 
@@ -386,11 +383,10 @@ Rectangle {
                                 font.pixelSize: root.presentation.flags["show.large"] ? 46 : 36
                             }
                         }
-                        Rectangle {
+                        UiDivider {
                             anchors.bottom: parent.bottom
                             width: parent.width
                             height: 1
-                            color: Theme.border
                         }
                     }
                 }
@@ -413,12 +409,11 @@ Rectangle {
                             font.pixelSize: 13
                             color: Theme.secondary
                         }
-                        Rectangle {
+                        UiDivider {
                             visible: detail.modelData === ""
                             anchors.verticalCenter: parent.verticalCenter
                             width: parent.width
                             height: 1
-                            color: Theme.border
                         }
                     }
                 }

@@ -26,11 +26,11 @@ ComboBox {
         x: control.width - width - 7
         y: (control.height - height) / 2
     }
-    background: Rectangle {
-        radius: Theme.controlRadius
-        color: control.enabled ? Theme.input : Theme.disabled
-        border.color: control.visualFocus ? Theme.accent : Theme.borderControl
-        border.width: control.visualFocus ? 2 : 1
+    background: UiSurface {
+        focusHighlighted: control.visualFocus
+        pressed: control.down
+        shadowStrength: control.enabled ? 1 : 0.35
+        color: !control.enabled ? Theme.disabled : control.down || control.hovered ? Theme.hover : Theme.input
     }
     delegate: ItemDelegate {
         id: itemDelegate
@@ -60,6 +60,6 @@ ComboBox {
             currentIndex: control.highlightedIndex
             ScrollBar.vertical: UiScrollBar { }
         }
-        background: Rectangle { color: Theme.surface; radius: Theme.controlRadius; border.color: Theme.borderControl }
+        background: UiSurface { shadowStrength: 2 }
     }
 }

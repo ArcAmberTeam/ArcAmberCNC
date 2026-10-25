@@ -58,8 +58,7 @@ Rectangle {
     objectName: "manualPanel"
     implicitWidth: compact ? 280 : 304
     color: Theme.sidebar
-    radius: Theme.radius
-    border.color: Theme.border
+    radius: 0
     clip: true
 
     Connections {
@@ -150,11 +149,10 @@ Rectangle {
                     }
                 }
 
-                Rectangle {
+                UiDivider {
                     anchors.bottom: parent.bottom
                     width: parent.width
                     height: 1
-                    color: Theme.border
                 }
             }
 
@@ -223,14 +221,12 @@ Rectangle {
                                             anchors.centerIn: parent
                                             spacing: 5
 
-                                            Rectangle {
+                                            UiSurface {
                                                 width: 10
                                                 height: 10
                                                 anchors.verticalCenter: parent.verticalCenter
                                                 radius: 5
-                                                color: axisButton.checked ? Theme.accentFill : Theme.input
-                                                border.width: 1
-                                                border.color: axisButton.checked ? Theme.accent : Theme.borderControl
+                                                color: axisButton.checked ? Theme.accentFill : Theme.hover
 
                                                 Rectangle {
                                                     anchors.centerIn: parent
@@ -251,11 +247,10 @@ Rectangle {
                                         }
                                     }
 
-                                    background: Rectangle {
-                                        radius: 5
-                                        color: axisButton.checked ? Theme.accentSoft : Theme.input
-                                        border.width: axisButton.visualFocus ? 2 : 1
-                                        border.color: axisButton.visualFocus ? Theme.accent : axisButton.checked ? Theme.accent : Theme.borderControl
+                                    background: UiSurface {
+                                        focusHighlighted: axisButton.visualFocus
+                                        pressed: axisButton.down
+                                        color: axisButton.checked ? Theme.accentSoft : axisButton.hovered ? Theme.hover : Theme.input
                                     }
 
                                     onClicked: {
@@ -390,11 +385,10 @@ Rectangle {
                         width: parent.width
                         height: 120
 
-                        Rectangle {
+                        UiDivider {
                             y: 13
                             width: parent.width
                             height: 1
-                            color: Theme.border
                         }
 
                         UiText {
@@ -590,9 +584,7 @@ Rectangle {
                     width: parent.width - 36
                     height: codeText.implicitHeight + 20
                     color: Theme.input
-                    radius: 6
-                    border.color: Theme.border
-                    border.width: 1
+                    UiDivider { width: parent.width }
 
                     UiText {
                         id: codeText
@@ -617,10 +609,10 @@ Rectangle {
         }
     }
 
-    Rectangle {
+    UiDivider {
         anchors.right: parent.right
         height: parent.height
         width: 1
-        color: Theme.border
+        vertical: true
     }
 }

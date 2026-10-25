@@ -213,7 +213,7 @@ Rectangle {
             activeFocusOnTab: true
             Accessible.role: Accessible.Grip
             Accessible.name: "调整程序区高度"
-            Rectangle { width: parent.width; height: 1; color: Theme.border }
+            UiDivider { width: parent.width; height: 1 }
             Rectangle {
                 anchors.horizontalCenter: parent.horizontalCenter
                 y: 2

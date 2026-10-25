@@ -53,7 +53,7 @@ Popup {
     enter: Transition { }
     exit: Transition { }
     Overlay.modal: Rectangle { color: Theme.scrim }
-    background: Rectangle { color: Theme.raised; border.color: Theme.borderControl; radius: 16 }
+    background: UiSurface { radius: 12; shadowStrength: 3 }
 
     function openDialog(id, label, selectedAxis) {
         const item = Catalog.findItem(id);
@@ -117,7 +117,7 @@ Popup {
                 Accessible.name: "关闭对话框"
                 onClicked: root.close()
             }
-            Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.border }
+            UiDivider { anchors.bottom: parent.bottom; width: parent.width; height: 1 }
         }
         Flickable {
             id: bodyScroll

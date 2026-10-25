@@ -38,6 +38,7 @@ TestCase {
     function click(name) {
         const item = control(name);
         mouseClick(item, item.width / 2, item.height / 2);
+        waitForRendering(window.contentItem);
     }
     function switchInterface(mode) {
         click("open-settings");
@@ -683,11 +684,13 @@ TestCase {
         window.width = 1024; window.height = 600;
         backend.update({connected: false, message: ""});
         const before = backend.requests.length, state = control("toolpathState");
-        click("open-settings"); click("settings-tab-display");
+        click("open-settings"); click("settings-tab-interface");
         const units = control("settings-units");
         units.forceActiveFocus(); keyClick(Qt.Key_Home); keyClick(Qt.Key_Return);
         compare(state.choices.units, "inch");
         const scroll = control("settingsScroller"), flags = JSON.stringify(state.flags);
+        scroll.contentY = 0;
+        waitForRendering(window.contentItem);
         let touch = touchEvent(scroll);
         touch.press(0, scroll, scroll.width - 40, 360).commit(); wait(20);
         touch.move(0, scroll, scroll.width - 40, 280).commit(); wait(20);
@@ -701,6 +704,7 @@ TestCase {
         const scroller = control("settingsScroller");
         tryVerify(() => flag.mapToItem(scroller, 0, 0).y >= 0 && flag.mapToItem(scroller, 0, flag.height).y <= scroller.height);
         click("settings-show.large"); compare(state.flags["show.large"], true);
+        click("settings-tab-display");
         const clear = control("settings-clear-live"), revision = state.liveResetRevision;
         clear.forceActiveFocus(Qt.TabFocusReason); click("settings-clear-live");
         compare(state.liveResetRevision, revision + 1);
@@ -708,6 +712,46 @@ TestCase {
         click("settings-tab-machine");
         verify(!control("maxVelocity").enabled);
         verify(!control("settings-program.optional").enabled);
+    }
+
+    function test_settingsSidebarCategories_data() {
+        return [{tag: "compact", width: 760, height: 640},
+                {tag: "target", width: 1024, height: 600},
+                {tag: "large", width: 1440, height: 900}];
+    }
+    function test_settingsSidebarCategories(data) {
+        window.width = data.width; window.height = data.height;
+        click("open-settings");
+        const page = control("settingsPage"), sidebar = control("settingsSidebar");
+        const names = ["about", "interface", "display", "machine"];
+        const labels = ["关于本机", "界面与显示", "刀路与视图", "加工选型"];
+        for (let i = 0; i < names.length; ++i) {
+            const item = control("settings-tab-" + names[i]);
+            compare(item.text, labels[i]);
+            const point = item.mapToItem(sidebar, 0, 0);
+            verify(point.x >= 0 && point.x + item.width <= sidebar.width);
+            verify(point.y >= 0 && point.y + item.height <= sidebar.height);
+            item.forceActiveFocus(Qt.TabFocusReason);
+            keyClick(Qt.Key_Space);
+            compare(control("settingsSectionTitle").text, labels[i]);
+            const heading = control("settingsSectionTitle").mapToItem(page, 0, 0);
+            verify(heading.x > sidebar.width);
+        }
+        click("settings-tab-about");
+        verify(control("settings-about-机床状态").visible);
+        compare(control("settings-about-配置轴").text, backend.snapshot.axes.join(" · "));
+        control("settings-tab-about").forceActiveFocus(Qt.TabFocusReason);
+        keyClick(Qt.Key_Down);
+        verify(control("interface-guided").visible);
+        verify(control("settings-units").visible);
+        verify(!control("settings-grid").visible);
+        keyClick(Qt.Key_Down);
+        verify(control("settings-grid").visible);
+        verify(!control("settings-units").visible);
+        verify(control("settings-show.program").visible);
+        keyClick(Qt.Key_Down);
+        verify(control("settings-program.optional").visible);
+        verify(control("maxVelocity").visible);
     }
 
 }

@@ -42,7 +42,7 @@ Item {
         width: parent.width
         height: root.inlineNavigation ? 52 : 48
         color: root.inlineNavigation ? "transparent" : Theme.sidebar
-        Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.border; visible: !root.inlineNavigation }
+        UiDivider { anchors.bottom: parent.bottom; width: parent.width; height: 1; visible: !root.inlineNavigation }
         UiButton {
             id: settingsButton
             objectName: "open-settings"
@@ -99,7 +99,7 @@ Item {
         width: parent.width
         height: root.guided ? 44 : 0
         visible: root.guided
-        Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.border }
+        UiDivider { anchors.bottom: parent.bottom; width: parent.width; height: 1 }
         Row {
             visible: root.guided
             x: 12; anchors.verticalCenter: parent.verticalCenter; spacing: 4
@@ -120,7 +120,7 @@ Item {
         y: root.headerInset
         width: parent.width
         height: 52
-        Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.border }
+        UiDivider { anchors.bottom: parent.bottom; width: parent.width; height: 1 }
         Rectangle {
             anchors.right: parent.right
             width: 112; height: parent.height

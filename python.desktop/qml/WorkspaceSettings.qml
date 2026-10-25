@@ -2,7 +2,6 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Controls.Basic
 import BetterCnc.Ui 1.0
-import BetterCnc.Manual 1.0
 import BetterCnc.Toolpath 1.0
 import BetterCnc.Chrome 1.0
 
@@ -13,7 +12,7 @@ Rectangle {
     required property ToolpathState preview
     required property ChromeActions actions
     property string interfaceMode: "professional"
-    property string section: "interface"
+    property string section: "about"
     signal backRequested()
     signal interfaceModeRequested(string mode)
     signal commandRequested(string actionId, var payload)
@@ -48,88 +47,104 @@ Rectangle {
                 onClicked: root.actions.activate("program.stop")
             }
         }
-        Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.border }
+        UiDivider { anchors.bottom: parent.bottom; width: parent.width; height: 1 }
     }
-    Row {
-        id: navigation
-        x: 24; y: header.height + 12; spacing: 8
-        Repeater {
-            model: [{id: "interface", text: "界面布局"}, {id: "display", text: "刀路与坐标"}, {id: "machine", text: "加工选项"}]
-            UiButton {
-                required property var modelData
-                objectName: "settings-tab-" + modelData.id
-                text: modelData.text; width: 144; height: 44; kind: "tab"
-                selected: root.section === modelData.id
-                onClicked: root.section = modelData.id
+    readonly property var sections: [
+        {id: "about", text: "关于本机"},
+        {id: "interface", text: "界面与显示"},
+        {id: "display", text: "刀路与视图"},
+        {id: "machine", text: "加工选型"}
+    ]
+    readonly property string sectionTitle: sections.find(item => item.id === section)?.text || "设置"
+    Rectangle {
+        id: sidebar
+        objectName: "settingsSidebar"
+        y: header.height
+        width: root.width <= 900 ? 176 : 200
+        height: parent.height - y
+        color: Theme.surface
+        UiDivider { anchors.right: parent.right; width: 1; height: parent.height; vertical: true }
+        Column {
+            x: 12; y: 24; width: parent.width - 24; spacing: 8
+            Repeater {
+                id: navigation
+                model: root.sections
+                UiButton {
+                    id: category
+                    required property var modelData
+                    required property int index
+                    objectName: "settings-tab-" + modelData.id
+                    width: parent.width; height: 44; kind: "tab"
+                    text: modelData.text
+                    selected: root.section === modelData.id
+                    Accessible.role: Accessible.PageTab
+                    Accessible.name: text
+                    contentItem: UiText {
+                        text: category.text
+                        leftPadding: 12
+                        color: category.foreground
+                        font.weight: category.selected ? Font.DemiBold : Font.Normal
+                        verticalAlignment: Text.AlignVCenter
+                    }
+                    onClicked: root.section = modelData.id
+                    function selectCategory(next) {
+                        const target = (next + root.sections.length) % root.sections.length;
+                        root.section = root.sections[target].id;
+                        navigation.itemAt(target).forceActiveFocus(Qt.TabFocusReason);
+                    }
+                    Keys.onUpPressed: selectCategory(index - 1)
+                    Keys.onDownPressed: selectCategory(index + 1)
+                    Keys.onPressed: event => {
+                        if (event.key === Qt.Key_Home || event.key === Qt.Key_End) {
+                            selectCategory(event.key === Qt.Key_Home ? 0 : root.sections.length - 1);
+                            event.accepted = true;
+                        }
+                    }
+                }
             }
         }
+    }
+    UiText {
+        id: sectionHeading
+        objectName: "settingsSectionTitle"
+        x: sidebar.width + 32; y: header.height + 28
+        text: root.sectionTitle
+        font.pixelSize: 24; font.weight: Font.DemiBold
+        Accessible.role: Accessible.Heading
     }
     Flickable {
         id: scroller
         objectName: "settingsScroller"
-        x: 24; y: navigation.y + navigation.height + 16
-        width: parent.width - 48; height: parent.height - y - 16
+        x: sidebar.width + 32; y: header.height + 80
+        width: parent.width - x - 24; height: parent.height - y - 24
         contentWidth: width; contentHeight: content.height
         clip: true; boundsBehavior: Flickable.StopAtBounds
         ScrollBar.vertical: UiScrollBar { }
         Column {
             id: content
-            width: parent.width - 16; spacing: 20
-            Column {
+            width: Math.min(800, parent.width - 16); spacing: 24
+            SettingsAbout {
+                visible: root.section === "about"
+                width: parent.width
+                machine: root.actions.machine
+            }
+            SettingsInterface {
                 visible: root.section === "interface"
-                width: parent.width; spacing: 16
-                UiText { text: "选择工作界面"; font.pixelSize: 18; font.weight: Font.DemiBold }
-                UiText { width: parent.width; text: "两种布局共享程序和视图状态。选择后返回工作台继续操作。"; color: Theme.secondary; wrapMode: Text.WordWrap }
-                Row {
-                    width: parent.width; spacing: 16
-                    UiButton {
-                        objectName: "interface-guided"
-                        width: (parent.width - 16) / 2; height: 88; kind: "tab"
-                        text: "简易 · 准备 → 检查 → 加工"
-                        selected: root.interfaceMode === "guided"
-                        onClicked: root.interfaceModeRequested("guided")
-                    }
-                    UiButton {
-                        objectName: "interface-professional"
-                        width: (parent.width - 16) / 2; height: 88; kind: "tab"
-                        text: "专业 · 手动 / 刀路 / 程序同屏"
-                        selected: root.interfaceMode === "professional"
-                        onClicked: root.interfaceModeRequested("professional")
-                    }
-                }
-                UiText {
-                    width: parent.width; wrapMode: Text.WordWrap
-                    text: "显示偏好在本次运行中保留；退出程序后恢复默认。"
-                    color: Theme.secondary
-                }
+                width: parent.width
+                interfaceMode: root.interfaceMode
+                preview: root.preview
+                onInterfaceModeRequested: mode => root.interfaceModeRequested(mode)
             }
             ToolpathSettings {
                 width: parent.width
                 visible: root.section === "display"
                 presentation: root.preview
             }
-            Column {
-                width: parent.width; spacing: 16
+            SettingsMachining {
+                width: parent.width
                 visible: root.section === "machine"
-                UiText { text: "程序执行选项"; font.pixelSize: 18; font.weight: Font.DemiBold }
-                UiText { width: parent.width; wrapMode: Text.WordWrap; text: "开关状态以控制器反馈为准。设置页内不会响应点动或运行快捷键。"; color: Theme.secondary }
-                Repeater {
-                    model: [{id: "program.optional", text: "可选停止（M1）"}, {id: "program.block-delete", text: "跳过 / 标记程序行"}]
-                    UiCheckBox {
-                        required property var modelData
-                        objectName: "settings-" + modelData.id
-                        text: modelData.text; height: 44; width: parent.width
-                        checked: root.actions.isSelected({id: modelData.id})
-                        interactive: false
-                        enabled: root.actions.canActivate(modelData.id)
-                        onClicked: root.actions.activate(modelData.id)
-                    }
-                }
-                ManualSettings {
-                    width: parent.width
-                    machine: root.actions.machine
-                    onCommandRequested: (actionId, payload) => root.commandRequested(actionId, payload)
-                }
+                actions: root.actions
+                onCommandRequested: (actionId, payload) => root.commandRequested(actionId, payload)
             }
         }
     }

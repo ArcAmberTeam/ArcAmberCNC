@@ -53,7 +53,7 @@ FocusScope {
         }
     }
 
-    Rectangle { anchors.fill: parent; color: Theme.surface; radius: Theme.radius; border.color: Theme.border }
+    Rectangle { anchors.fill: parent; color: Theme.surface }
     ListView {
         id: lines
         objectName: "programLines"
@@ -180,11 +180,10 @@ FocusScope {
             font.pixelSize: Theme.labelSize
             color: Theme.secondary
         }
-        Rectangle {
+        UiDivider {
             anchors.bottom: parent.bottom
             width: parent.width
             height: 1
-            color: Theme.border
         }
         MouseArea {
             anchors.fill: parent
@@ -214,10 +213,8 @@ FocusScope {
         padding: 5
         modal: true
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
-        background: Rectangle {
-            color: Theme.surface
-            border.color: Theme.borderControl
-            border.width: 1
+        background: UiSurface {
+            shadowStrength: 2
             radius: 9
         }
         MenuItem {

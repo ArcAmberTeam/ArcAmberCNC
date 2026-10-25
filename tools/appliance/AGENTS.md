@@ -19,6 +19,10 @@ interface is `betterlinuxcnc-appliance`. The package's fixed, byte-validated
   command issues machine commands or kills LinuxCNC.
 - SSH maintenance has a fixed read-only command vocabulary. No shell, arbitrary
   paths, forwarding, file upload or generic privilege elevation.
+- `backup` accepts no paths: snapshot fixed configuration, machine state and host
+  policies into root-only recovery/snapshots. Verify hashes and persist the whole
+  snapshot before atomic publication; retain the current and two latest older
+  verified snapshots. Never prune legacy, foreign or damaged recovery entries.
 - All builds and source tests run only in GitHub CI, never locally or on the target.
   Unit tests use temporary roots and subprocess CLI checks. The isolated Debian
   package CI additionally performs first/repeated installation and explicit policy

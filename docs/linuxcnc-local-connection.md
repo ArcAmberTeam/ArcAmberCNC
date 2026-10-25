@@ -30,6 +30,7 @@
 | `/var/lib/betterlinuxcnc/{programs,inbox,machine}` | 程序、CAM 收件、可变刀具表/参数/位置，由 `linuxcnc` 写入 |
 | `/var/cache/betterlinuxcnc/user` | `linuxcnc` 私有 XDG 缓存 |
 | `/var/cache/betterlinuxcnc/update` | root 更新器私有缓存及安装日志 |
+| `/var/lib/betterlinuxcnc/recovery/snapshots` | root 私有的配置/机床数据快照，保留最近 3 份 |
 | `/var/log/betterlinuxcnc/launcher` | `linuxcnc:cnc-logs`，目录 2750；进程日志 0640 |
 | `/run/user/<linuxcnc UID>/betterlinuxcnc/control.sock` | 本次登录的私有控制端点，不固定 UID |
 
@@ -131,7 +132,37 @@ ssh cnc-maint@192.168.109.67 diagnostics
 
 维护 `status` 不读取控制 socket，不能证明机床空闲。未来常规升级由 GUI 请求固定 root 更新服务，维护账户不负责拉取源码、构建或安装包。
 
+## 更新前备份与人工恢复边界
+
+root 更新服务在正常停止启动器、确认控制 socket 和原生锁已消失后，先执行固定 `betterlinuxcnc-appliance backup`，成功后才调用 apt 安装。备份失败会阻止安装并显示错误，控制系统保持停止；不会跳过备份或自动恢复旧内容。
+
+需要单独备份时，先正常停机，在保留的可信 root 维护会话中运行：
+
+```sh
+betterlinuxcnc-appliance backup
+```
+
+命令不接受任意路径，快照固定保存在 `/var/lib/betterlinuxcnc/recovery/snapshots`，只有 root 可访问。范围为 `/etc/betterlinuxcnc`、`/var/lib/betterlinuxcnc/machine` 的参数/刀具表/位置等可变数据，以及工具管理的 LightDM、X11、logind、SSH、sudo、Polkit 和 SysRq 固定策略文件；清单记录 SHA-256、应用版本与创建时间。只有新快照创建并校验成功后才清理旧快照，保留最近 3 份。
+
+快照不包含大型程序库、CAM 收件、日志、缓存、账户密码或 SSH 私钥，也不包含整个系统镜像。它与 `activate` 保存的原登录策略清单用途不同，不会自动导入或恢复任何配置。恢复需由受控管理员先核对版本、摘要及现场状态，再决定具体恢复内容；`cnc-maint` 的固定维护命令不提供备份下载或恢复入口。
+
+这些快照与原数据位于同一块系统盘，不能防止磁盘损坏或整盘丢失。需要保留的程序、凭据及异盘备份应由现场另行管理；本功能不表示已完成灾难恢复或机床验收。
+
 ## 验收记录边界
+
+### 2026-10-26 三轴开关只读实测
+
+用户手动按压开关，通过已运行系统的 `halcmd getp` 只读采样，约每 100 ms 查询一次；未修改目标机文件、HAL 连线或机床使能，未发送运动命令。开始时原生状态为急停且未使能。
+
+| 用户确认的物理轴 | 原始输入 | 松开 | 按下 | 观察到的保持时间 |
+| --- | --- | --- | --- | --- |
+| X | `hm2_7i92.0.gpio.020.in` | FALSE | TRUE | 两次约 1.34/1.44 秒，最后一次约 6.91 秒 |
+| Y | `hm2_7i92.0.gpio.021.in` | FALSE | TRUE | 连续六次约 1.34～2.79 秒 |
+| Z | `hm2_7i92.0.gpio.022.in` | FALSE | TRUE | 两次约 1.03/1.96 秒 |
+
+三路在保持期间的采样均无中途跳变，释放后恢复 FALSE；同时捕捉到快速点按响应。用户分别确认 Y、最后一次 X 和此前两次 Z 的物理轴标识。这支持此目标机使用 `.in` 作为有效高触发源；100 ms 采样不能测量更短的机械抖动，也不能替代防抖验证。
+
+当时旧配置的 `joint.0/1/2.home-sw-in` 以及 X 负/Y 正/Z 负限位仍为 FALSE，信号没有 GPIO 写入源。因此本次仅验证开关到板卡的输入及映射，未验证 LinuxCNC 限位响应、回零运动或总行程。接线与回零模块必须在仓库完成，通过 PR/CI/Release 后部署；不能以该实测直接启用未知行程的回零。
 
 分别记录发布提交与包摘要、安装版本、配置/数据保留、账户和文件权限、SSH 正负访问结果、专用会话、日志和只读控制连接。两种 UI 布局的坐标、轴数、回零标志、程序文本应与实际状态一致。
 

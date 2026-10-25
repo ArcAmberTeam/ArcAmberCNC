@@ -11,6 +11,7 @@ from pathlib import Path
 # -I rejects caller-controlled Python paths; only installed sibling modules load.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import _accounts
+import _backup
 import _machine
 import _policy
 
@@ -24,6 +25,9 @@ def main():
     commands.add_parser(
         "provision",
         help="Idempotently create dedicated accounts and system data directories",
+    )
+    commands.add_parser(
+        "backup", help="Create a verified root-private configuration snapshot"
     )
     stage = commands.add_parser(
         "stage", help="Preview a machine import in a new staging directory"
@@ -54,6 +58,7 @@ def main():
                     "passwordInPackage": False,
                     "automaticActivation": False,
                     "automaticAccountProvisioning": True,
+                    "snapshots": _backup.SNAPSHOTS,
                 },
                 indent=2,
             )
@@ -70,6 +75,8 @@ def main():
         if Path("/run/systemd/system").is_dir():
             _accounts.run("/usr/bin/systemctl", "daemon-reload")
         print("Provisioned dedicated accounts and system data directories")
+    elif args.action == "backup":
+        print(json.dumps(_backup.backup()))
     elif args.action == "prepare":
         _accounts.prepare()
         account = pwd.getpwnam(_accounts.OPERATOR)

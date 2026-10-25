@@ -100,7 +100,8 @@ class InstallationTests(unittest.TestCase):
             "/etc/betterlinuxcnc/updater.json", (control / "conffiles").read_text().splitlines()
         )
         self.assertLessEqual(
-            {path.name for path in control.iterdir()}, {"control", "md5sums", "conffiles", "postinst"}
+            {path.name for path in control.iterdir()},
+            {"control", "md5sums", "conffiles", "postinst"},
         )
         self.assertEqual(
             (control / "postinst").read_bytes(),

@@ -10,7 +10,9 @@ from pathlib import Path
 from unittest.mock import patch
 
 MODULE = Path(__file__).resolve().parents[1]
-SPEC = importlib.util.spec_from_file_location("appliance_migration", MODULE / "_machine.py")
+SPEC = importlib.util.spec_from_file_location(
+    "appliance_migration", MODULE / "_machine.py"
+)
 MACHINE = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(MACHINE)
 
@@ -44,9 +46,20 @@ class MigrationTests(unittest.TestCase):
 
     def cli(self, destination):
         return subprocess.run(
-            [sys.executable, "-I", str(MODULE / "main.py"), "stage",
-             "--source-config", str(self.config), "--destination", str(destination)],
-            check=False, capture_output=True, text=True, timeout=20,
+            [
+                sys.executable,
+                "-I",
+                str(MODULE / "main.py"),
+                "stage",
+                "--source-config",
+                str(self.config),
+                "--destination",
+                str(destination),
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=20,
         )
 
     def assert_unpublished(self, root):
@@ -132,7 +145,9 @@ class MigrationTests(unittest.TestCase):
         destination = self.base / "preview"
         self.assertNotEqual(self.cli(destination).returncode, 0)
         self.assertFalse(destination.exists())
-        self.assertEqual((self.profile / "other/state.var").read_text(), "different state\n")
+        self.assertEqual(
+            (self.profile / "other/state.var").read_text(), "different state\n"
+        )
         ini.write_text(self.original)
         result = self.cli(destination)
         self.assertEqual(result.returncode, 0, result.stderr)
@@ -140,8 +155,10 @@ class MigrationTests(unittest.TestCase):
     def test_publication_error_restores_old_directories_and_preserves_late_writes(self):
         root = self.root()
         data = root / "var/lib/betterlinuxcnc"
-        original_inodes = {name: (data / name).stat().st_ino
-                           for name in ("programs", "machine", "inbox")}
+        original_inodes = {
+            name: (data / name).stat().st_ino
+            for name in ("programs", "machine", "inbox")
+        }
         rename = MACHINE._rename
         injected = False
 
@@ -154,9 +171,11 @@ class MigrationTests(unittest.TestCase):
                 raise OSError("injected publication failure")
             return rename(source, destination)
 
-        with patch.object(MACHINE, "_rename", side_effect=fail_once):
-            with self.assertRaisesRegex(OSError, "publication failure"):
-                MACHINE.migrate(self.config, root)
+        with (
+            patch.object(MACHINE, "_rename", side_effect=fail_once),
+            self.assertRaisesRegex(OSError, "publication failure"),
+        ):
+            MACHINE.migrate(self.config, root)
         self.assert_unpublished(root)
         for name, inode in original_inodes.items():
             self.assertEqual((data / name).stat().st_ino, inode)
@@ -184,9 +203,19 @@ module._rename = interrupted
 module.migrate(Path(sys.argv[2]), root)
 """
         result = subprocess.run(
-            [sys.executable, "-I", "-c", script, str(MODULE / "_machine.py"),
-             str(self.config), str(root)],
-            check=False, capture_output=True, text=True, timeout=20,
+            [
+                sys.executable,
+                "-I",
+                "-c",
+                script,
+                str(MODULE / "_machine.py"),
+                str(self.config),
+                str(root),
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=20,
         )
         self.assertEqual(result.returncode, 86, result.stderr)
         self.assertFalse((root / "etc/betterlinuxcnc/launcher.json").exists())

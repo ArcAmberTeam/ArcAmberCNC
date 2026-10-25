@@ -28,6 +28,8 @@
 
 `tools/appliance/` 拥有固定账户/目录配置、显式机床迁移与维护接口。DEB 的唯一固定 `postinst` 调用 `provision`，幂等创建或校验专用账户和目录，不设置密码、不导入机床配置、不激活登录策略或启动服务。`prepare` 显式复制已有机床配置到系统目录，保留原件；仅迁移后的副本调整运行数据路径、禁用外部编辑器和过滤器。`activate` 写入专用登录策略，不由安装包、GUI 或普通更新自动执行。操作账户 `linuxcnc` 与只读 SSH 维护账户 `cnc-maint` 分离，两者都不获得通用 sudo/root shell；root 仅用于显式配置和固定更新服务。密码只通过不回显的标准输入设置，不进入源码、命令参数、包、日志或文档。
 
+固定 `betterlinuxcnc-appliance backup` 仅由 root 执行，不接收任意输入或输出路径。它将 `/etc/betterlinuxcnc`、`/var/lib/betterlinuxcnc/machine` 的参数/刀具表等可变数据，以及工具管理的固定主机策略保存到 root 私有的 `/var/lib/betterlinuxcnc/recovery/snapshots`，记录 SHA-256、应用版本与时间。新快照创建并校验成功后才清理旧快照，保留最近 3 份。不备份大型程序库、收件、缓存或账户密码，不自动恢复；同盘快照不能抵御磁盘故障，也不代替独立数据备份。
+
 Qt 目录及依赖见 [app/desktop/AGENTS.md](app/desktop/AGENTS.md)：按 `BetterCnc.<Capability>` 命名模块及 `qmldir` 公开类型组织，组件通过公开状态与信号组合。Rust 的 `src/lib.rs` 为公开入口，内部通信实现私有，规范见 `tools/diagnostics/AGENTS.md`、`app/cam-link/AGENTS.md` 与 `app/updater/AGENTS.md`。跨模块和应用层只允许导入公开入口，禁止依赖环、反向依赖及生产代码引用测试夹具。
 
 自有应用集中在 `app/`，按职责命名 `desktop`、`controller`、`cam-link`、`launcher` 和 `updater`；实现语言由模块构建清单声明，不进入目录名称。独立 v1 兼容诊断库放在 `tools/diagnostics/`。`src/` 保留 LinuxCNC 原生源码与构建体系；`docs/`、`tests/`、`configs/` 及上游资源目录保持既有职责。模块内按功能、设备或总线划分，仅有实际实现差异才增加平台/CPU 子目录。目录与公开入口见 [模块地图](docs/module-map.md)。
@@ -40,10 +42,15 @@ Qt 目录及依赖见 [app/desktop/AGENTS.md](app/desktop/AGENTS.md)：按 `Bett
 
 ## 目标机与更新约定
 
+2026-10-26 用户再次明确：所有源码、配置、权限和迁移逻辑修复必须先进入仓库，通过 PR/CI/Release 后再由已发布包部署；不在目标机直接修改文件或临时打补丁。只读现场诊断可以继续。
+
+Git 提交身份固定为 `IwakuraTorei <IwakuraTorei@outlook.com>`。本仓库只在已有 `kihon` 分支开发并推送，再以 PR 合并到 `main`；禁止创建新分支。配套 `ArcAmberTeam/CNC-Mesa` 仓库由负责该仓库的 agent 在已有 `main` 直接提交推送。两仓库 Release 使用配套版本，目标机只消费经过 GitHub CI 验证的发布产物。
+
 - 开发源码在本地修改，通过 PR 合并到 `main`；需要发布的 PR 添加 `build-release` 标签。当前禁止本地和目标机构建，源码测试交给 GitHub CI。迁移前管理入口为 `teto@192.168.109.67`，旧仓库 `/home/teto/ArcAmberCNC` 仅保留为机床迁移输入；专用策略激活后的 SSH 入口为 `cnc-maint@192.168.109.67`。用户已授权推送、PR 合并、由 CI 发布 `demo v26.10.26.1`，以及目标机下载已完成安装包、安装和图形会话切换。这不包含运动或加工验收；凭据不写入仓库、脚本、日志或文档。
 - 拉取前后核对 `git status`、当前分支、HEAD 和目标远端引用。曾出现 `origin/main` 已更新而工作分支仍停在旧提交的情况；优先快进，不用 reset/clean 丢弃目标机修改。保留本机 `launcher.json`、`configs/zhulong-v2/` 及已有 VERSION/changelog 修改，不将其混入其他提交。
 - `git pull` 不更新安装文件。根 CMake/CPack 组合应用并生成 `betterlinuxcnc-qt_26.10.26.1_amd64.deb`；正式部署通过 apt/dpkg 安装，以保留包版本记录，不用源码路径或 PATH 覆盖替代安装。根 CMake 不编译或打包 LinuxCNC 核心，核心仍由独立系统包管理。Release 使用正式 latest 发布，不能标记 prerelease。
 - 迁移输入仍是现有 `configs/zhulong-v2/烛龙V2.ini` 与项目 `launcher.json`。先用 `stage` 在新临时目录审查副本，再显式 `prepare`；不会覆盖旧项目。已准备的系统配置不重复导入。普通更新保留 `/etc/betterlinuxcnc`、程序、收件、刀具表、参数与日志；详细目录见 [本机连接说明](docs/linuxcnc-local-connection.md)。
+- root 更新服务确认控制系统正常停止后、调用 apt 前，必须成功执行固定 `backup`。备份失败就拒绝安装，保留已有快照并报告错误；不以忽略备份失败或自动恢复绕过更新门禁。手工备份也应在正常停机后由可信 root 维护会话执行，`cnc-maint` 没有备份或恢复权限。
 - `linuxcnc` 的 HOME 为 `/var/lib/betterlinuxcnc/home`，缓存为 `/var/cache/betterlinuxcnc/user`，日志为 `/var/log/betterlinuxcnc/launcher`。`/var/lib/betterlinuxcnc` 与 `/var/cache/betterlinuxcnc` 顶层由 root 拥有且不可被普通用户写入。运行时端点位于 `/run/user/<linuxcnc UID>/betterlinuxcnc/control.sock`，不能沿用旧账户的 UID 1000 或 Xauthority。
 - 安装和切换会话前确认旧启动器、核心及服务已正常退出；不强杀控制核心。先核对配置，再由 LightDM 的专用 X11 会话启动用户服务。通过只读连接、私有 `state.json`、日志和实际窗口共同确认，不能只看 systemd active。`activate` 前保留已打开的 root 维护会话，在新 SSH 固定命令与图形会话验证完成前不关闭。
 - 专用 SSH 只接受无参数的 `help`、`version`、`status`、`logs`、`diagnostics`；不提供 shell、TTY、上传、转发或任意命令。`activate` 会限制原有 `teto`、`root` 和 `linuxcnc` 的 SSH 与日常提权入口，系统 root 身份仍供固定更新服务使用。恢复依赖受控本机维护与 root 私有的策略备份，不把普通 SSH 维护账户当成管理员。
@@ -93,4 +100,4 @@ Qt job 在独立 Debian 13 容器调用 `app/desktop/scripts/ci-check.sh`，Pyth
 
 `app/cam-link/` 替代 Python CAM Link，安装命令仍为 `betterlinuxcnc-cam-link`，启动器既有 `cam` 配置及 TCP 6522、UDP 8421 不变。网络进程通过 v2 Unix 协议接入单一 Python Controller，不引入第二个 LinuxCNC 命令写入者。构建安装步骤见 [CAM 协议与启动](docs/cam-link-protocol.md)。
 
-Release 更新器由独立 `app/updater/` 拥有。GUI 只能请求固定 `betterlinuxcnc-system-update.service` 系统服务；root 服务独立查询正式 Release、下载并校验包，确认机床空闲且未使能后协调 `linuxcnc` 用户服务正常停止。普通用户不能向 root 传入包路径、URL、版本或命令。应用版本取根 CMake/安装包及公开 `bettercnc.__version__`，不能使用核心 `VERSION`。协议和发布包约定见 [应用更新说明](docs/firmware-updates.md)。
+Release 更新器由独立 `app/updater/` 拥有。GUI 只能请求固定 `betterlinuxcnc-system-update.service` 系统服务；root 服务独立查询正式 Release、下载并校验包，确认机床空闲且未使能后协调 `linuxcnc` 用户服务正常停止，再完成配置与机床数据备份，备份失败不安装。普通用户不能向 root 传入包路径、URL、版本或命令。应用版本取根 CMake/安装包及公开 `bettercnc.__version__`，不能使用核心 `VERSION`。协议和发布包约定见 [应用更新说明](docs/firmware-updates.md)。

@@ -72,14 +72,14 @@ class PolicyTests(unittest.TestCase):
             {"permitrootlogin": "yes"},
             {"authenticationmethods": "any"},
         ):
-            with self.subTest(changes=changes):
-                with patch.object(
+            with (
+                self.subTest(changes=changes),
+                patch.object(
                     policy.subprocess, "run", return_value=self.result(changes)
-                ):
-                    with self.assertRaisesRegex(
-                        ValueError, "Effective SSH policy mismatch"
-                    ):
-                        policy.validate_ssh()
+                ),
+                self.assertRaisesRegex(ValueError, "Effective SSH policy mismatch"),
+            ):
+                policy.validate_ssh()
 
     def test_fixed_policy_removes_override_sources_and_preserves_original(self):
         with tempfile.TemporaryDirectory() as temporary:

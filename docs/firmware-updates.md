@@ -28,7 +28,9 @@ Qt 只调用 `betterlinuxcnc-updater fetch --current-version <版本>`、`status
 3. 系统单元以 root 运行固定 `betterlinuxcnc-updater apply-system`，只读 root 所有的 `/etc/betterlinuxcnc/updater.json`。该文件固定 `user=linuxcnc`、`config=/etc/betterlinuxcnc/launcher.json`；额外字段或其他账户、路径被拒绝。
 4. root 服务独立从正式 Release 重新下载与校验，不复用用户可写的 `.deb`、manifest 或环境代理。它核对包名、版本、架构、大小和 SHA-256，并流式检查 Debian data/control 归档：拒绝越界路径、链接、特殊文件、危险权限、非 root 所有者及未知 control 文件。维护脚本只允许内容、属主和权限完全匹配的固定 `postinst`，用于幂等 `provision`；其他脚本或脚本改动均拒绝。唯一允许的 conffile 为 `/etc/betterlinuxcnc/updater.json`，已有安装目的路径也必须可信。
 5. 通过公开 `machine.status` 只读确认最新状态。未知状态、使能、暂停、运动、主轴或待处理任务会阻止安装；不取得控制会话，不发送停机、回零、点动或其他机床命令。
-6. 下载验证后再次检查状态，按原状态正常停止 `linuxcnc` 的启动器用户服务，确认控制 socket 与原生锁消失。使用固定 `/usr/bin/apt-get --yes --no-remove install` 安装，之后核对 dpkg 实际版本。仅成功时恢复原本运行的受管启动器；失败时保持停止并报告原因，不强杀核心或启动混合版本。
+6. 下载验证后再次检查状态，按原状态正常停止 `linuxcnc` 的启动器用户服务，确认控制 socket 与原生锁消失。
+7. root 服务运行无附加参数的 `/usr/sbin/betterlinuxcnc-appliance backup`，备份当前配置、可变机床数据和固定主机策略。命令无法启动、备份或校验失败时都不调用 apt；已有快照保留，控制系统保持停止并报告失败。
+8. 备份成功后使用固定 `/usr/bin/apt-get --yes --no-remove install` 安装，之后核对 dpkg 实际版本。仅成功时恢复原本运行的受管启动器；失败时保持停止并报告原因，不强杀核心或启动混合版本。
 
 依赖包括 systemd 用户会话、Polkit、apt/dpkg 和可验证的 Debian 安装包；macOS 预览不能执行安装。root 身份仍承担包管理，操作员和 SSH 维护账户不因此获得 root shell。安装包自动 `provision` 账户和目录，保留密码与数据；普通软件更新不会运行 `prepare` 或 `activate`、修改登录策略或导入机床配置。
 
@@ -44,11 +46,16 @@ Qt 只调用 `betterlinuxcnc-updater fetch --current-version <版本>`、`status
 | `/var/cache/betterlinuxcnc/user/betterlinuxcnc/update` | 用户检查和下载缓存，不作为 root 安装输入 |
 | `/var/cache/betterlinuxcnc/update` | root 私有下载缓存与 `install.log` |
 | `/var/lib/betterlinuxcnc/update/status.json` | root 写入、用户只读的安装状态 |
+| `/var/lib/betterlinuxcnc/recovery/snapshots` | root 私有的更新前快照，成功创建并校验后保留最近 3 份 |
 | `/var/log/betterlinuxcnc/launcher` | 启动器及子进程日志；更新不清理历史日志 |
 
 `/var/lib/betterlinuxcnc` 与 `/var/cache/betterlinuxcnc` 顶层始终由 root 拥有且不可由普通用户写入；不能把整个树交给操作账户。普通用户仅拥有规定的子目录。示例配置安装到 `/usr/share/doc/betterlinuxcnc-qt/examples/launcher.example.json`，不会覆盖真实配置。
 
 GUI 退出不会终止系统更新服务；重新打开后读取系统公开状态。`cnc-maint` 的固定 `logs` 命令只读取规定的启动器进程日志，不授予读取 root 私有更新日志的权限；安装失败由受控管理员通过系统 journal 和私有 `install.log` 排查。
+
+更新前快照覆盖 `/etc/betterlinuxcnc`、`/var/lib/betterlinuxcnc/machine` 的参数/刀具表等数据，以及工具管理的固定主机策略，并记录 SHA-256、应用版本与时间。它不包含大型程序库、CAM 收件、日志、缓存、账户密码或 SSH 私钥。旧快照仅在新快照创建并校验成功后轮换；失败不能删除已有备份后继续安装。
+
+备份不自动恢复文件、不回退包版本、不修改机床状态。需要恢复时由受控管理员审查版本、摘要和现场配置，具体入口见 [备份与人工恢复边界](linuxcnc-local-connection.md#更新前备份与人工恢复边界)。同盘快照不能抵御磁盘故障，不能替代程序数据、凭据和异盘备份。
 
 ## 构建、发布与验证
 

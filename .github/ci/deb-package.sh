@@ -23,7 +23,7 @@ for module in app/cam-link app/updater; do
 done
 cmake -S /workspace -B /tmp/application-build \
   -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF \
-  -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_INSTALL_LIBDIR=lib \
+  -DCMAKE_INSTALL_PREFIX:PATH=/usr -DCMAKE_INSTALL_LIBDIR:STRING=lib \
   -DBETTERCNC_PROJECT_DIR=/etc/betterlinuxcnc \
   -DBETTERCNC_BUILD_SYSTEM_SERVICES=ON -DPython3_EXECUTABLE=/usr/bin/python3
 cmake --build /tmp/application-build --parallel 2

@@ -159,7 +159,7 @@ fn apply_locked(store: &Store) -> Result<()> {
     let original = install::preflight(&socket, &manager, uid)?;
     store.publish(&Event::new(
         "installing",
-        "正在正常停止控制系统并安装已验证更新…",
+        "正在正常停止控制系统、备份配置并安装已验证更新…",
         &staged.version,
         100,
     ))?;
@@ -170,10 +170,7 @@ fn apply_locked(store: &Store) -> Result<()> {
     // Root-only directories cannot be renamed or modified by the operator during apt.
     store.staged()?;
     verify_package(&package, &staged)?;
-    let output = super::command("/usr/bin/apt-get")
-        .args(["--yes", "--no-remove", "install"])
-        .arg(&package)
-        .output()?;
+    let output = install_with_backup(&package, std::process::Command::output)?;
     let mut log = output.stdout;
     log.extend_from_slice(&output.stderr);
     let mut file = OpenOptions::new()
@@ -199,6 +196,26 @@ fn apply_locked(store: &Store) -> Result<()> {
         &staged.version,
         100,
     ))
+}
+
+fn install_with_backup(
+    package: &Path,
+    mut execute: impl FnMut(&mut std::process::Command) -> std::io::Result<std::process::Output>,
+) -> Result<std::process::Output> {
+    let mut backup = super::command("/usr/sbin/betterlinuxcnc-appliance");
+    backup.arg("backup");
+    let output = execute(&mut backup)
+        .map_err(|error| format!("创建更新前备份失败，未安装更新：{error}"))?;
+    if !output.status.success() {
+        let detail: String = String::from_utf8_lossy(&output.stderr)
+            .chars()
+            .take(512)
+            .collect();
+        return Err(format!("创建更新前备份失败，未安装更新：{}", detail.trim()).into());
+    }
+    let mut install = super::command("/usr/bin/apt-get");
+    install.args(["--yes", "--no-remove", "install"]).arg(package);
+    Ok(execute(&mut install)?)
 }
 
 fn verify_package(path: &Path, staged: &storage::Staged) -> Result<()> {
@@ -301,6 +318,59 @@ fn running() -> Result<bool> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::os::unix::process::ExitStatusExt;
+
+    #[test]
+    fn backup_must_succeed_before_the_fixed_install_command() {
+        let package = Path::new("/var/cache/betterlinuxcnc/update/package.deb");
+        for backup_succeeds in [false, true] {
+            let mut calls = Vec::new();
+            let result = install_with_backup(package, |command| {
+                calls.push((
+                    command.get_program().to_str().unwrap().to_owned(),
+                    command
+                        .get_args()
+                        .map(|arg| arg.to_str().unwrap().to_owned())
+                        .collect::<Vec<_>>(),
+                ));
+                assert!(command
+                    .get_envs()
+                    .all(|(key, _)| key == "PATH" || key == "LANG"));
+                Ok(std::process::Output {
+                    status: std::process::ExitStatus::from_raw(if backup_succeeds {
+                        0
+                    } else {
+                        1 << 8
+                    }),
+                    stdout: Vec::new(),
+                    stderr: b"snapshot fixture failed".to_vec(),
+                })
+            });
+            assert_eq!(result.is_ok(), backup_succeeds);
+            assert_eq!(calls[0].0, "/usr/sbin/betterlinuxcnc-appliance");
+            assert_eq!(calls[0].1, ["backup"]);
+            assert_eq!(calls.len(), if backup_succeeds { 2 } else { 1 });
+            if backup_succeeds {
+                assert_eq!(calls[1].0, "/usr/bin/apt-get");
+                assert_eq!(
+                    calls[1].1,
+                    ["--yes", "--no-remove", "install", package.to_str().unwrap()]
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn inability_to_start_backup_prevents_installation() {
+        let mut calls = 0;
+        let result = install_with_backup(Path::new("/unused/package.deb"), |_| {
+            calls += 1;
+            Err(std::io::Error::from(std::io::ErrorKind::NotFound))
+        });
+        assert!(result.is_err());
+        assert_eq!(calls, 1);
+    }
+
     #[test]
     fn rejects_untrusted_configuration_and_extra_inputs() {
         for source in [

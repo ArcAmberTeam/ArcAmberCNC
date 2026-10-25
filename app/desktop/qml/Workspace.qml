@@ -299,7 +299,6 @@ Rectangle {
         title: "打开加工程序"
         nameFilters: ["加工程序 (*.ngc *.nc *.tap)", "所有文件 (*)"]
         fileMode: NativeDialogs.FileDialog.OpenFile
-        options: workspace.kioskMode ? NativeDialogs.FileDialog.DontUseNativeDialog : 0
         onAccepted: if (workspace.backend) workspace.backend.openProgram(selectedFile.toString())
     }
     ProgramFilePicker {
@@ -318,7 +317,6 @@ Rectangle {
         title: "程序另存为"
         nameFilters: ["加工程序 (*.ngc)", "所有文件 (*)"]
         fileMode: NativeDialogs.FileDialog.SaveFile
-        options: workspace.kioskMode ? NativeDialogs.FileDialog.DontUseNativeDialog : 0
         defaultSuffix: "ngc"
         onAccepted: if (workspace.backend && workspace.program)
             workspace.backend.saveProgram(selectedFile.toString(), workspace.program.text)

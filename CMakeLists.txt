@@ -3,6 +3,14 @@ project(BetterLinuxCNC VERSION 26.10.26.1 LANGUAGES CXX)
 
 # Application composition only; the native LinuxCNC core is built from src/Makefile.
 include(cmake/ApplicationInstall.cmake)
+if(NOT CMAKE_INSTALL_PREFIX STREQUAL "/usr"
+    OR NOT CMAKE_INSTALL_BINDIR STREQUAL "bin"
+    OR NOT CMAKE_INSTALL_SBINDIR STREQUAL "sbin"
+    OR NOT CMAKE_INSTALL_LIBDIR STREQUAL "lib"
+    OR NOT CMAKE_INSTALL_DATADIR STREQUAL "share"
+    OR NOT CMAKE_INSTALL_FULL_LIBDIR STREQUAL "/usr/lib")
+    message(FATAL_ERROR "The complete application requires /usr with bin, sbin, lib and share destinations. Use a fresh build directory if an earlier cache contains absolute install paths.")
+endif()
 include(CTest)
 set(BETTERCNC_PROJECT_DIR "/etc/betterlinuxcnc" CACHE PATH "Runtime project directory containing launcher.json")
 option(BETTERCNC_BUILD_SYSTEM_SERVICES "Build and install Rust system services" ON)
@@ -21,6 +29,7 @@ set(CPACK_PACKAGE_NAME "betterlinuxcnc-qt")
 set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
 set(CPACK_DEBIAN_FILE_NAME "DEB-DEFAULT")
 set(CPACK_SET_DESTDIR ON)
+set(CPACK_PACKAGING_INSTALL_PREFIX "/usr")
 set(CPACK_DEBIAN_PACKAGE_CONTROL_STRICT_PERMISSION ON)
 list(APPEND CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA
     "${CMAKE_CURRENT_SOURCE_DIR}/tools/appliance/packaging/postinst")

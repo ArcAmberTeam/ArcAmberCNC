@@ -82,7 +82,11 @@ mod tests {
         build();
         assert!(validate(&package).is_err());
         std::fs::write(source.join("DEBIAN/postinst"), POSTINST).unwrap();
-        std::fs::copy(source.join("DEBIAN/postinst"), source.join("DEBIAN/preinst")).unwrap();
+        std::fs::copy(
+            source.join("DEBIAN/postinst"),
+            source.join("DEBIAN/preinst"),
+        )
+        .unwrap();
         build();
         assert!(validate(&package).is_err());
     }

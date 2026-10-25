@@ -1,5 +1,6 @@
 """Exercise an actual DEB in the disposable GitHub CI container, never a machine."""
 
+import datetime
 import grp
 import hashlib
 import json
@@ -18,14 +19,44 @@ def run(*arguments, **kwargs):
     try:
         return subprocess.run(arguments, check=True, text=True, capture_output=True, **kwargs)
     except subprocess.CalledProcessError as error:
-        print(error.stdout, file=sys.stderr)
-        print(error.stderr, file=sys.stderr)
+        lines = ((error.stdout or "") + "\n" + (error.stderr or "")).splitlines()
+        print(f"{arguments[0]} failed with exit {error.returncode}; final diagnostics:", file=sys.stderr)
+        print("\n".join(lines[-50:])[-8000:], file=sys.stderr)
         raise
 
 
 def require(condition, message):
     if not condition:
         raise RuntimeError(message)
+
+
+def validate_deb_paths(package, source):
+    """Apply the root broker's exact archive contract before APT or postinst."""
+    validator = source / "app/updater/src/updater/package_members.py"
+    for kind, option in (("data", "--fsys-tarfile"), ("control", "--ctrl-tarfile")):
+        with tempfile.TemporaryFile() as errors:
+            process = subprocess.Popen(
+                ["/usr/bin/dpkg-deb", option, str(package)],
+                stdout=subprocess.PIPE, stderr=errors,
+            )
+            try:
+                result = subprocess.run(
+                    ["/usr/bin/python3", "-I", "-S", str(validator), kind],
+                    stdin=process.stdout, capture_output=True, text=True, timeout=60,
+                )
+                process.stdout.close()
+                require(
+                    result.returncode == 0,
+                    f"DEB {kind} archive rejected by root broker: {result.stderr[-8000:].strip()}",
+                )
+                require(process.wait(timeout=30) == 0, "dpkg-deb could not read the package archive")
+            except BaseException:
+                if process.poll() is None:
+                    process.kill()
+                process.wait()
+                raise
+            finally:
+                process.stdout.close()
 
 
 def ownership(path, user, group, mode):
@@ -64,6 +95,129 @@ def password_digest():
     return hashlib.sha256(value).digest()
 
 
+def verify_snapshot(path, version, expected_files, expected_directories):
+    snapshots = Path("/var/lib/betterlinuxcnc/recovery/snapshots")
+    require(path.parent == snapshots, "Backup returned a non-fixed destination")
+    ownership(path, "root", "root", 0o700)
+    manifest = json.loads((path / "manifest.json").read_text())
+    require(
+        set(manifest) == {
+            "format", "package", "sourceVersion", "createdUtc", "files", "directories"
+        },
+        "Unexpected snapshot manifest schema",
+    )
+    require(manifest["format"] == "betterlinuxcnc-snapshot-v1", "Snapshot format mismatch")
+    require(manifest["package"] == "betterlinuxcnc-qt", "Snapshot package mismatch")
+    require(manifest["sourceVersion"] == version, "Snapshot installed version mismatch")
+    stamp = manifest["createdUtc"]
+    datetime.datetime.strptime(stamp, "%Y%m%dT%H%M%S%fZ")
+    require(path.name == f"{stamp}-{version}", "Snapshot identity mismatch")
+    files = {item["path"]: item for item in manifest["files"]}
+    require(len(files) == len(manifest["files"]), "Duplicate snapshot source file")
+    require(set(files) == set(expected_files), "Snapshot omitted or added source files")
+    for source, item in files.items():
+        require(
+            set(item) == {"path", "mode", "uid", "gid", "size", "sha256"},
+            "Unexpected snapshot file metadata",
+        )
+        content, metadata = expected_files[source]
+        copied = path / "files" / source.lstrip("/")
+        require(copied.read_bytes() == content, "Snapshot content mismatch")
+        require(item["size"] == len(content), "Snapshot size mismatch")
+        require(item["sha256"] == hashlib.sha256(content).hexdigest(), "Snapshot hash mismatch")
+        require(
+            (item["mode"], item["uid"], item["gid"]) == metadata,
+            "Snapshot source ownership metadata mismatch",
+        )
+    directories = {item["path"]: item for item in manifest["directories"]}
+    require(len(directories) == len(manifest["directories"]), "Duplicate source directory")
+    require(set(directories) == expected_directories, "Snapshot source directories mismatch")
+    for source, item in directories.items():
+        require(set(item) == {"path", "mode", "uid", "gid"}, "Invalid directory metadata")
+        require((path / "files" / source.lstrip("/")).is_dir(), "Missing snapshot directory")
+        info = Path(source).stat()
+        require(
+            (item["mode"], item["uid"], item["gid"])
+            == (stat.S_IMODE(info.st_mode), info.st_uid, info.st_gid),
+            "Snapshot source directory metadata mismatch",
+        )
+    copied_files = set()
+    for entry in path.rglob("*"):
+        info = entry.lstat()
+        require(info.st_uid == 0 and info.st_gid == 0, "Snapshot entry is not root-owned")
+        if stat.S_ISDIR(info.st_mode):
+            require(stat.S_IMODE(info.st_mode) == 0o700, "Snapshot directory is not private")
+        else:
+            require(stat.S_ISREG(info.st_mode), "Snapshot contains a link or special file")
+            require(stat.S_IMODE(info.st_mode) == 0o600, "Snapshot file is not private")
+            copied_files.add(entry.relative_to(path).as_posix())
+    require(
+        copied_files == {"manifest.json"} | {"files" + name for name in expected_files},
+        "Snapshot contains unexpected files",
+    )
+
+
+def verify_installed_backup(version, policies):
+    snapshots = Path("/var/lib/betterlinuxcnc/recovery/snapshots")
+    require(not snapshots.exists(), "Expected a fresh CI snapshot store")
+    sources = [Path("/etc/betterlinuxcnc"), Path("/var/lib/betterlinuxcnc/machine")]
+    expected_directories = {str(source) for source in sources}
+    expected_directories.update(
+        str(entry) for source in sources for entry in source.rglob("*") if entry.is_dir()
+    )
+    source_files = [entry for source in sources for entry in source.rglob("*") if entry.is_file()]
+    source_files.extend(Path(name) for name in policies if Path(name).is_file())
+    expected = {}
+    for path in source_files:
+        info = path.stat()
+        expected[str(path)] = (
+            path.read_bytes(), (stat.S_IMODE(info.st_mode), info.st_uid, info.st_gid)
+        )
+    password = password_digest()
+    created = []
+    legacy = {}
+    for attempt in range(4):
+        result = json.loads(run("/usr/sbin/betterlinuxcnc-appliance", "backup", timeout=30).stdout)
+        require(set(result) == {"snapshot", "sourceVersion", "files"}, "Invalid backup result")
+        require(result["sourceVersion"] == version, "Backup result version mismatch")
+        require(result["files"] == len(expected), "Backup result file count mismatch")
+        current = Path(result["snapshot"])
+        require(current not in created, "Backup replaced an earlier snapshot")
+        created.append(current)
+        ownership(snapshots.parent, "root", "root", 0o700)
+        ownership(snapshots, "root", "root", 0o700)
+        verify_snapshot(current, version, expected, expected_directories)
+        if attempt == 0:
+            # Preserve both historical recovery data and an unrelated retention entry.
+            for parent in (snapshots.parent, snapshots):
+                directory = parent / "legacy-before-demo"
+                directory.mkdir(mode=0o700)
+                marker = directory / "retain.txt"
+                marker.write_bytes(b"Unrelated legacy backup must remain unchanged.\n")
+                marker.chmod(0o600)
+                legacy[marker] = marker.read_bytes()
+        present = {
+            path for path in snapshots.iterdir()
+            if path.name not in {".lock", "legacy-before-demo"}
+        }
+        require(present == set(created[-3:]), "Backup retention did not keep exactly the latest three")
+        for path in present:
+            verify_snapshot(path, version, expected, expected_directories)
+        for marker, content in legacy.items():
+            require(marker.read_bytes() == content, "Backup retention changed legacy data")
+    require(not created[0].exists(), "Fourth backup did not rotate the oldest snapshot")
+    for source, (content, _) in expected.items():
+        require(Path(source).read_bytes() == content, "Backup changed a source file")
+    require(password_digest() == password, "Backup changed maintenance credentials")
+    for account in ("linuxcnc", "cnc-maint"):
+        result = subprocess.run(
+            ["/usr/sbin/runuser", "-u", account, "--", "/usr/bin/test", "-r",
+             str(created[-1] / "manifest.json")],
+            capture_output=True, text=True,
+        )
+        require(result.returncode == 1, "Non-root account can read a configuration snapshot")
+
+
 def main():
     require(os.environ.get("GITHUB_ACTIONS") == "true" and os.geteuid() == 0, "GitHub CI container required")
     package, source = map(Path, sys.argv[1:])
@@ -71,6 +225,7 @@ def main():
     fields = {field: run("dpkg-deb", "--field", str(package), field).stdout.strip() for field in ("Package", "Version", "Architecture")}
     require(fields == {"Package": "betterlinuxcnc-qt", "Version": version, "Architecture": "amd64"}, "Incorrect package metadata")
     require(package.name == f"betterlinuxcnc-qt_{version}_amd64.deb", "Incorrect package filename")
+    validate_deb_paths(package, source)
     with tempfile.TemporaryDirectory() as temporary:
         control = Path(temporary)
         run("dpkg-deb", "--control", str(package), str(control))
@@ -125,7 +280,8 @@ def main():
     for account in ("linuxcnc", "cnc-maint"):
         result = subprocess.run(["sudo", "-n", "-l", "-U", account], capture_output=True, text=True)
         require(result.returncode != 0, f"Unexpected sudo grant: {account}")
-    print("DEB metadata, Rust binaries, first/repeated provisioning, data retention and effective SSH/sudo policy passed")
+    verify_installed_backup(version, policies)
+    print("DEB metadata, Rust binaries, provisioning, data retention, SSH/sudo and private backup rotation passed")
 
 
 if __name__ == "__main__":

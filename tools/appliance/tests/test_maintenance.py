@@ -157,7 +157,7 @@ class MaintenanceTests(unittest.TestCase):
             with self.subTest(symlink=symlink):
                 replaced = False
 
-                def replacing_open(path, flags, *args, **kwargs):
+                def replacing_open(path, flags, *args, symlink=symlink, **kwargs):
                     nonlocal replaced
                     if (
                         path == self.log.name

@@ -110,6 +110,13 @@ jobs:
             const tag = `v${version}`;
             const name = `betterlinuxcnc-qt_${version}_amd64.deb`;
             const root = 'release-artifact';
+            try {
+              const {data: latest} = await github.rest.repos.getLatestRelease(repo);
+              if (latest.tag_name !== tag) {
+                if (!/^v\d+\.\d+\.\d+\.\d+$/.test(latest.tag_name)) throw new Error('Cannot compare existing latest release version');
+                execFileSync('dpkg', ['--compare-versions', version, 'gt', latest.tag_name.slice(1)]);
+              }
+            } catch (error) { if (error.status !== 404) throw error; }
             const {data: pr} = await github.rest.pulls.get({...repo, pull_number: Number(process.env.RELEASE_PR)});
             if (!pr.merged || pr.base.ref !== 'main' || pr.merge_commit_sha !== sha || !pr.labels.some(label => label.name === 'build-release')) throw new Error('Release authorization changed');
             const files = fs.readdirSync(root).sort();

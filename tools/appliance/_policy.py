@@ -100,10 +100,16 @@ def validate_ssh(config=Path("/etc/ssh/sshd_config")):
     for user in ("cnc-maint", "linuxcnc", "teto", "root"):
         result = subprocess.run(
             [
-                "/usr/sbin/sshd", "-T", "-f", str(config), "-C",
+                "/usr/sbin/sshd",
+                "-T",
+                "-f",
+                str(config),
+                "-C",
                 f"user={user},host=localhost,addr=127.0.0.1,laddr=127.0.0.1,lport=22",
             ],
-            check=True, capture_output=True, text=True,
+            check=True,
+            capture_output=True,
+            text=True,
         )
         effective = {}
         for line in result.stdout.splitlines():
@@ -133,6 +139,11 @@ def write(path, text, mode=0o644):
             os.fsync(stream.fileno())
             os.fchmod(stream.fileno(), mode)
         os.replace(temporary, path)
+        parent = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        try:
+            os.fsync(parent)
+        finally:
+            os.close(parent)
     finally:
         if os.path.exists(temporary):
             os.unlink(temporary)
@@ -144,19 +155,29 @@ def install(root=Path("/")):
     recovery.mkdir(parents=True, mode=0o700)
     recovery.parent.chmod(0o700)
     previous = []
-    try:
-        for name, text in POLICIES.items():
-            path = root / name.lstrip("/")
-            if path.is_symlink():
-                raise ValueError(f"Existing policy is a symlink: {path}")
-            old = {
+    for name in POLICIES:
+        path = root / name.lstrip("/")
+        if path.is_symlink():
+            raise ValueError(f"Existing policy is a symlink: {path}")
+        previous.append(
+            {
                 "path": name,
                 "content": path.read_text() if path.exists() else None,
                 "mode": path.stat().st_mode & 0o777 if path.exists() else 0o644,
             }
-            previous.append(old)
+        )
+    # Complete and persist recovery data before touching any login policy.
+    write(recovery / "policies.json", json.dumps(previous, indent=2) + "\n", 0o600)
+    for directory in (recovery.parent, recovery.parent.parent):
+        descriptor = os.open(directory, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        try:
+            os.fsync(descriptor)
+        finally:
+            os.close(descriptor)
+    try:
+        for name, text in POLICIES.items():
+            path = root / name.lstrip("/")
             write(path, text, 0o440 if name == "/etc/sudoers" else 0o644)
-        write(recovery / "policies.json", json.dumps(previous, indent=2) + "\n", 0o600)
         if root == Path("/"):
             for command in (["/usr/sbin/sshd", "-t"], ["/usr/sbin/visudo", "-c"]):
                 subprocess.run(command, check=True, capture_output=True, text=True)

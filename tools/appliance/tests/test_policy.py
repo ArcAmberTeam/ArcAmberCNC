@@ -41,7 +41,9 @@ forcecommand /usr/bin/python3 -I /usr/lib/betterlinuxcnc/appliance/maintenance.p
 class PolicyTests(unittest.TestCase):
     def result(self, changes=None):
         changes = changes or {}
-        lines = [line for line in EFFECTIVE.splitlines() if line.split()[0] not in changes]
+        lines = [
+            line for line in EFFECTIVE.splitlines() if line.split()[0] not in changes
+        ]
         lines.extend(f"{key} {value}" for key, value in changes.items())
         output = "\n".join(lines)
         return subprocess.CompletedProcess([], 0, output, "")
@@ -71,8 +73,12 @@ class PolicyTests(unittest.TestCase):
             {"authenticationmethods": "any"},
         ):
             with self.subTest(changes=changes):
-                with patch.object(policy.subprocess, "run", return_value=self.result(changes)):
-                    with self.assertRaisesRegex(ValueError, "Effective SSH policy mismatch"):
+                with patch.object(
+                    policy.subprocess, "run", return_value=self.result(changes)
+                ):
+                    with self.assertRaisesRegex(
+                        ValueError, "Effective SSH policy mismatch"
+                    ):
                         policy.validate_ssh()
 
     def test_fixed_policy_removes_override_sources_and_preserves_original(self):
@@ -85,7 +91,8 @@ class PolicyTests(unittest.TestCase):
             recovery = policy.install(root)
             self.assertTrue((recovery / "policies.json").is_file())
             directives = [
-                line.split()[0].lower() for line in ssh.read_text().splitlines()
+                line.split()[0].lower()
+                for line in ssh.read_text().splitlines()
                 if line.strip() and not line.lstrip().startswith("#")
             ]
             self.assertNotIn("include", directives)

@@ -33,9 +33,9 @@
 ## 验证与本地预览
 
 ```sh
-cmake --build python.desktop/build --parallel
-ctest --test-dir python.desktop/build --output-on-failure
-python.desktop/.venv/bin/python python.desktop/tests/visual_preview.py
+cmake --build build --parallel
+ctest --test-dir build --output-on-failure
+app/desktop/.venv/bin/python app/desktop/tests/visual_preview.py
 ```
 
 最后一条打开明确标记“视觉验收 · 测试数据”的真实界面，使用 QML FakeBackend；按钮只记录请求，不连接服务或操作机床。可传 `--scenario offline` 或 `--scenario error` 查看断连与错误。
@@ -44,11 +44,11 @@ python.desktop/.venv/bin/python python.desktop/tests/visual_preview.py
 
 ```sh
 QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software \
-python.desktop/.venv/bin/python python.desktop/tests/visual_preview.py \
+app/desktop/.venv/bin/python app/desktop/tests/visual_preview.py \
   --width 1024 --height 768 --scenario offline --capture /tmp/cnc-offline.png
 ```
 
-初版白金截图位于本机 `python.desktop/artifacts/platinum/`（忽略入库），双界面当前截图位于 `python.desktop/artifacts/dual-ui/`。截图中的几何是固定测试线段，不能作为真实 G 代码解释结果。
+初版白金截图位于本机 `app/desktop/artifacts/platinum/`（忽略入库），双界面当前截图位于 `app/desktop/artifacts/dual-ui/`。截图中的几何是固定测试线段，不能作为真实 G 代码解释结果。
 
 新增布局测试验证四个窗口尺寸下的面板不重叠、预览宽度、停止入口和状态条；新增状态测试覆盖断连、急停、加工中、暂停和结果未知。原有菜单、输入、点动、文件编辑、程序选择和 Python 公共接口测试仍运行。测试行选择改用控件定位，避免依赖旧主题的固定像素坐标。
 

@@ -1,0 +1,31 @@
+cmake_minimum_required(VERSION 3.22)
+project(BetterLinuxCNC VERSION 0.2.0 LANGUAGES CXX)
+
+# Application composition only; the native LinuxCNC core is built from src/Makefile.
+include(GNUInstallDirs)
+include(CTest)
+set(BETTERCNC_PROJECT_DIR "/opt/arcambercnc" CACHE PATH "Runtime project directory containing launcher.json")
+option(BETTERCNC_BUILD_SYSTEM_SERVICES "Build and install Rust system services" ON)
+
+add_subdirectory(app/controller)
+add_subdirectory(app/launcher)
+if(BETTERCNC_BUILD_SYSTEM_SERVICES)
+    add_subdirectory(app/cam-link)
+    add_subdirectory(app/updater)
+endif()
+add_subdirectory(app/desktop)
+
+set(CPACK_PACKAGE_NAME "betterlinuxcnc-qt")
+# Application releases have their own version; VERSION tracks the native core.
+set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
+set(CPACK_DEBIAN_FILE_NAME "DEB-DEFAULT")
+set(CPACK_PACKAGE_CONTACT "BetterLinuxCNC maintainers")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Native PySide6/QML desktop for LinuxCNC")
+if(NOT BETTERCNC_BUILD_SYSTEM_SERVICES)
+    set(CPACK_DEBIAN_PACKAGE_ARCHITECTURE "all")
+endif()
+set(CPACK_DEBIAN_PACKAGE_DEPENDS "python3 (>= 3.11), python3-pyside6.qtcore (>= 6.8), python3-pyside6.qtgui, python3-pyside6.qtqml, python3-pyside6.qtquick, python3-pyside6.qtquickcontrols2, linuxcnc-uspace (>= 2.9), python3-opengl, qml6-module-qtqml, qml6-module-qtqml-models, qml6-module-qtquick, qml6-module-qtquick-window, qml6-module-qtquick-controls, qml6-module-qtquick-layouts, qml6-module-qtquick-templates, qml6-module-qtquick-shapes, qml6-module-qtquick-dialogs, qml6-module-qtqml-workerscript, fonts-noto-cjk, fonts-liberation, dbus-user-session")
+if(BETTERCNC_BUILD_SYSTEM_SERVICES)
+    string(APPEND CPACK_DEBIAN_PACKAGE_DEPENDS ", pkexec, ca-certificates, apt, dpkg")
+endif()
+include(CPack)

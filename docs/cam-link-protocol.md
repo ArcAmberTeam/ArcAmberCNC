@@ -5,20 +5,38 @@ CAM Link 使用一条完成协议握手的 TCP 长连接接收外部 CAM 生成�
 ## 模块职责
 
 ```text
-bettercnc_cam_link/
-  protocol/     帧格式、请求结构、版本和分块编码
-  receiver/     程序接收、顺序校验、暂存、摘要和接收回执
-  feedback/     响应、错误、加工状态查询与订阅推送
-  _server.py    连接生命周期、认证及三个能力的组合
+app/cam-link/src/
+  lib.rs                 系统服务公开入口
+  cam_link/
+    protocol.rs          CAM2 帧、严格 JSON、参数结构
+    inbox.rs             分块收件、摘要、私有文件与原子回执
+    control.rs           本地 v2 Unix 协议适配
+    manual.rs            XYZ 点动及 450 ms 网络租约
+    feedback.rs          状态查询、文件关联与串行发送
+    discovery.rs         UDP 广播和握手
+    session.rs           TCP 会话、请求分派及订阅
 ```
 
-三个目录通过各自 `__init__.py` 的公开入口协作。`protocol` 不依赖其他能力；`receiver` 和 `feedback` 只依赖 `protocol`。`feedback` 通过公开 Unix 协议读取 `machine.status`，文件关联和发现随机数校验能力由组合入口注入。模块不自动加载程序、不获取控制会话，也不远程启动加工。
+网络服务独立编译为 Rust 二进制，不嵌入 Python。LinuxCNC API、命令单写入者、联锁和作业持久化仍属于本地 Python Controller。启动器负责两者的启动顺序和保活。
 
 ## 启动
 
 默认使用局域网直连，不传 `--token-file`、`--cert`、`--key`；CAM 发现设备后点击连接即可。第一帧仍是 `AUTH / session.auth`，参数为 `{}`，成功返回 `authenticated:true`，仅表示握手完成。直连不进行令牌认证或链路加密；协议、SHA-256、机床联锁和点动租约检查保留。后续令牌与 TLS 说明适用于显式配置的兼容模式，不会在认证失败后降级为直连。
 
-安装 `python.service` 包后，使用 `betterlinuxcnc-cam-link` 或 `python -m bettercnc_cam_link`。运行环境为 Python 3.11+，无额外运行时依赖。
+从仓库根目录构建并安装全部模块：
+
+```sh
+cmake -S . -B build -DBUILD_TESTING=OFF -DCMAKE_INSTALL_PREFIX=/usr
+cmake --build build --parallel
+sudo cmake --install build
+betterlinuxcnc-launch --config ./launcher.json
+```
+
+构建需要 `app/cam-link/rust-toolchain.toml` 指定的 Rust 工具链。也可单独构建网络服务：`cargo build --manifest-path app/cam-link/Cargo.toml --release --locked`，二进制为 `app/cam-link/target/release/betterlinuxcnc-cam-link`。独立安装使用 `cmake -S app/cam-link -B build/services`，再 build/install。
+
+安装后继续使用 `betterlinuxcnc-cam-link`，现有 `launcher.json` 的 `cam` 配置无需改名。CMake 默认构建并安装 Rust 二进制，覆盖旧 Python CLI，同时删除安装目录内旧 `bettercnc_cam_link` 包；Python wheel 不再安装这个命令。不再支持 `python -m bettercnc_cam_link`。`BETTERCNC_CAM_LINK_BINARY` 可指定为相同目标平台预构建的二进制。只做 Qt 测试可设 `BETTERCNC_BUILD_SYSTEM_SERVICES=OFF`；该选项不用于完整安装。
+
+本地控制服务及启动器继续使用 Python；Rust 网络服务本身不需要 Python 运行时。
 
 可选认证模式准备当前用户所有、权限为 0600 的令牌文件，内容为 32 至 256 个字母、数字、下划线或短横线，可通过 `secrets.token_urlsafe(32)` 生成。令牌不作为命令行参数直接传入。
 
@@ -51,7 +69,7 @@ betterlinuxcnc-cam-link \
   --device-name CNC-01
 ```
 
-`device-id` 使用安装时为该机床分配的稳定小写 UUID，每次启动沿用。上面的 UUID 为示例，多台机床必须分配不同 ID。跨设备部署按前述方式加上 `--cert`、`--key`，CAM 按预先配置的 TLS/令牌策略认证，发现结果只作为候选连接地址。
+`device-id` 使用安装时为该机床分配的稳定小写 UUID，每次启动沿用。上面的 UUID 为示例，多台机床必须分配不同 ID。默认局域网直连保持 `tls:false`，无需证书或密钥输入。仅既有部署显式配置时启用可选 TLS/令牌模式。
 
 默认每三秒向 `255.255.255.255:8421` 广播，机床 UDP 监听端口也为 8421。CAM 监听本机 UDP `0.0.0.0:8421`，接收广播并保留 `recvfrom` 的源 IP、源 UDP 端口。IPv4 广播发送需启用 `SO_BROADCAST`；该广播地址覆盖本地网络段，不提供跨路由/VLAN 发现。[Linux ip(7)](https://man7.org/linux/man-pages/man7/ip.7.html)
 
@@ -96,7 +114,7 @@ CAM 根据确认报文的源 IP 和正文 `tcpPort` 建立 TCP 连接；确认�
 
 机床保留最近三个广播的随机数，每个有效期为三个广播间隔；过期、错误设备、格式错误和超长报文静默忽略。每秒最多确认八个有效回复；UDP 丢包或限流时，CAM 可等待下一次广播再握手。机床持续广播，可被多个 CAM 发现；完成发现不获取机床控制所有权，也不替代 TCP `session.auth`。关闭服务时停止广播并释放 UDP 端口。
 
-Python CAM 端可复用 `bettercnc_cam_link.protocol.decode_discovery`、`encode_discovery` 编解码这些报文；服务宿主可通过公开 `DiscoveryOptions` 配置发现。真实跨设备广播仍须在部署的网卡、交换机和 CAM 客户端上联调。
+CAM 客户端按上述帧格式编解码发现报文；服务通过 CLI 参数配置发现。真实跨设备广播仍须在部署的网卡、交换机和 CAM 客户端上联调。
 
 ## 帧格式
 
@@ -263,9 +281,9 @@ Controller 核对私有收件目录、UUID、普通文件、接收回执、大�
 | `jog.keepalive` | 同一 `jogId`，仅续租，不能重新启动 |
 | `jog.stop` | 同一 `jogId`，关闭本次拥有的控制会话 |
 
-`manual` 能力通过公开 Unix 协议 `session.attach` 获取独占控制会话。已有 Qt 或其他控制所有者时返回 `control_in_use`，不抢占控制权。只接受已连接且实际处于 world 模式的 XYZ 轴，不猜测 joint 映射；毫米速度按最新 `linearUnits` 转为原生单位/秒，`increment=0`。Controller 仍根据最新状态检查回零、使能、急停、忙碌状态和 INI 速度上限，不自动回零、上电或运行程序。
+`manual` 能力通过公开 Unix 协议 `cam.jog.start/keepalive/stop` 复用服务当前 Controller，与 Qt 控制会话共存；其他点动正在运行时返回 `control_in_use`，不抢占运动。只接受已连接且实际处于 world 模式的 XYZ 轴，不猜测 joint 映射；毫米速度按最新 `linearUnits` 转为原生单位/秒，`increment=0`。Controller 仍根据最新状态检查回零、使能、急停、忙碌状态和 INI 速度上限，不自动回零、上电或运行程序。
 
-CAM 按住时每 150 ms 左右续租；Python 只有收到该连接的新续租请求才调用 `session.status(jog_lease=true)`，不自行后台续租。450 ms 未续租、TCP 断开、显式停止或服务关闭，会关闭本次 Unix 控制连接，撤销待发送步骤并停止本会话点动。控制服务还有独立的 600 ms 租约。超时后续租不能恢复点动，必须松开重新按住。软件租约不是硬实时停止保证：原生 LinuxCNC/NML 调用、操作系统调度等可能延迟处理；实体安全链不由网络租约替代。
+CAM 按住时每 150 ms 左右续租；Rust 只有收到该连接的新续租请求才调用 `cam.jog.keepalive`，不自行后台续租。450 ms 未续租、TCP 断开、显式停止或服务关闭，会关闭本次 Unix 控制连接，撤销待发送步骤并停止本会话点动。控制服务还有独立的 600 ms 租约。超时后续租不能恢复点动，必须松开重新按住。软件租约不是硬实时停止保证：原生 LinuxCNC/NML 调用、操作系统调度等可能延迟处理；实体安全链不由网络租约替代。
 
 浏览器按键松开、pointercancel、丢失捕获、失焦、页面隐藏、页面退出及组件卸载均撤销当前操作。旧机床服务会返回 `unsupported_method`，必须更新后才支持遥控，不能通过发送 MDI 或 G-code 绕过。
 

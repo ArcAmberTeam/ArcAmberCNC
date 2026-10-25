@@ -4,7 +4,7 @@
 
 本仓库包含 LinuxCNC 源码；`VERSION` 当前为 2.9.10。原生 Qt Quick/PySide6 界面位于 `app/desktop/`，Rust CAM 服务位于 `app/cam-link/`，应用 Release 更新器位于 `app/updater/`，Mesa 检查与独立烧录门禁位于 `app/mesa-update/`，本地诊断通信位于 `tools/diagnostics/`，HAL 位于 `src/hal/`，设备驱动按设备职责归入 `src/hal/drivers/` 和 `src/hal/user_comps/`。Python 控制服务保留在 `app/controller/`，混合编译的原生核心仍在 `src/`。
 
-应用发布版本为 `26.10.26.1`，计划 Release 名称 `demo v26.10.26.1`、tag `v26.10.26.1`；它与原生核心版本独立。专用机配置工具位于 `tools/appliance/`。2026-10-26 用户明确限定：本地及目标机均禁止构建，本地 Docker 也禁止；只由 GitHub 托管 CI 构建、测试和产包。目标机下载 CI 已完成的 `.deb`，只做安装、运行与现场验收，不安装编译工具或执行源码测试。不得为恢复工作重新创建本地或目标机构建缓存。
+应用发布版本为 `26.10.26.2`，计划 Release 名称 `demo v26.10.26.2`、tag `v26.10.26.2`；它与原生核心版本独立。专用机配置工具位于 `tools/appliance/`。2026-10-26 用户明确限定：本地及目标机均禁止构建，本地 Docker 也禁止；只由 GitHub 托管 CI 构建、测试和产包。目标机下载 CI 已完成的 `.deb`，只做安装、运行与现场验收，不安装编译工具或执行源码测试。不得为恢复工作重新创建本地或目标机构建缓存。
 
 2026-10-08 用户决定删除 Web；2026-10-25 将应用按职责收敛到 `app/`，原生 HAL 和驱动恢复上游实体目录。**`app/desktop/` 是正式桌面入口**，Vue/Web、Tauri 桌面环境及部署脚本已删除；Web 源码及设计资料整体删除，历史内容从 Git 获取。Rust v1 诊断逻辑提取为独立 `tools/diagnostics/`，不替换现有 Python v2 控制链路。原生 AXIS 应用已删除，包括 Python 主程序、Tcl 界面、axis-remote、专属资源和构建/安装入口。LinuxCNC 控制核心、共享 Python API 和其他上游工具保留，不属于当前界面发布产物。删除边界及遗留配置说明见 [迁移记录](docs/native-axis-removal.md)，当前桌面决策见 [Qt 迁移说明](docs/qt-qml-migration.md)。
 
@@ -45,6 +45,8 @@ Qt 目录及依赖见 [app/desktop/AGENTS.md](app/desktop/AGENTS.md)：按 `Bett
 ## 目标机与更新约定
 
 2026-10-26 用户再次明确：所有源码、配置、权限和迁移逻辑修复必须先进入仓库，通过 PR/CI/Release 后再由已发布包部署；不在目标机直接修改文件或临时打补丁。只读现场诊断可以继续。后续应用变更只沿现有 `kihon → main` 的 PR 流程，不新增工作分支；commit、PR 标题/正文、CI 工作流/job/step 名称和自有 CI 输出使用英文，机床文件名与已有分支引用不随语言调整改名。
+
+首次安装完成后，用户要求后续目标机升级只能使用本项目更新功能安装 latest Release，不再手工安装应用 DEB 或复制文件替代升级。用户另行要求清理目标机旧源码、旧配置副本、预演目录和当前恢复备份；保留实际运行所需系统配置、机床参数、刀具表、程序和驱动。此清理授权不表示禁用未来更新的备份门禁。
 
 Git 提交身份固定为 `IwakuraTorei <IwakuraTorei@outlook.com>`。本仓库只在已有 `kihon` 分支开发并推送，再以 PR 合并到 `main`；禁止创建新分支。配套 `ArcAmberTeam/CNC-Mesa` 仓库由负责该仓库的 agent 在已有 `main` 直接提交推送。两仓库 Release 使用配套版本，目标机只消费经过 GitHub CI 验证的发布产物。
 

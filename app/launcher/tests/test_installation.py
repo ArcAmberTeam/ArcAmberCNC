@@ -308,7 +308,7 @@ class InstallationTests(unittest.TestCase):
             session.read(stage / "usr/share/xsessions/betterlinuxcnc-kiosk.desktop")
             self.assertEqual(
                 session["Desktop Entry"]["Exec"],
-                '"/usr/bin/betterlinuxcnc-launch" --kiosk-session',
+                "/usr/bin/betterlinuxcnc-launch --kiosk-session",
             )
             self.assertEqual(session["Desktop Entry"]["TryExec"], "/usr/bin/betterlinuxcnc-launch")
             parser.read(stage / "etc/xdg/autostart/betterlinuxcnc-autostart.desktop")

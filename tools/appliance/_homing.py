@@ -258,8 +258,7 @@ def _audit(files, ordered, startup):
                 "home_sequence" in word.lower()
                 or word.lower().startswith("ini.")
                 or word == "motion.homing-inhibit"
-                or word.startswith("debounce.")
-                or word.startswith("bettercnc-")
+                or word.startswith(("debounce.", "bettercnc-"))
                 or re.search(r"\.gpio\.0*(20|21|22)\.", word)
                 for word in words
             ):

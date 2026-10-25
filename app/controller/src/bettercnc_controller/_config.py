@@ -105,7 +105,12 @@ class Configuration:
             self.joint_map.get(axis) != [joint] for joint, axis in enumerate("XYZ")
         ):
             return "回零未配置：XYZ joint 映射或 HOME ALL 集合不匹配"
-        for joint, axis, direction in ((0, "X", -1), (1, "Y", 1), (2, "Z", -1)):
+        commissioned = self.get(section, "CONFIGURATION_REVISION") == "zhulong-xyz-20261026"
+        for joint, axis, direction in (
+            (0, "X", -1),
+            (1, "Y", -1 if commissioned else 1),
+            (2, "Z", -1),
+        ):
             travel = self.number(section, f"TRAVEL_{axis}_MM")
             if travel is None or travel <= 15:
                 return f"回零未配置：{axis} 轴缺少大于 15 mm 的实测可用总行程"

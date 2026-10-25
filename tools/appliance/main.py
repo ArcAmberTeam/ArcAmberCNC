@@ -12,6 +12,7 @@ from pathlib import Path
 # -I rejects caller-controlled Python paths; only installed sibling modules load.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import _accounts
+import _axis_upgrade
 import _backup
 import _homing
 import _machine
@@ -30,6 +31,10 @@ def main():
     )
     commands.add_parser(
         "backup", help="Create a verified root-private configuration snapshot"
+    )
+    commands.add_parser(
+        "migrate-machine",
+        help="Apply the fixed commissioned XYZ correction while stopped",
     )
     stage = commands.add_parser(
         "stage", help="Preview a machine import in a new staging directory"
@@ -111,9 +116,12 @@ def main():
         raise ValueError("Host provisioning requires a Linux root maintenance session")
     if args.action == "provision":
         _accounts.provision()
+        print("Machine axis migration: " + _axis_upgrade.upgrade())
         if Path("/run/systemd/system").is_dir():
             _accounts.run("/usr/bin/systemctl", "daemon-reload")
         print("Provisioned dedicated accounts and system data directories")
+    elif args.action == "migrate-machine":
+        print("Machine axis migration: " + _axis_upgrade.upgrade())
     elif args.action == "backup":
         print(json.dumps(_backup.backup()))
     elif args.action == "prepare":

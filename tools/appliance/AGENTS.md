@@ -10,7 +10,8 @@ interface is `betterlinuxcnc-appliance`. The package's fixed, byte-validated
 - Keep machine configuration in /etc/betterlinuxcnc, mutable machine data in
   /var/lib/betterlinuxcnc and application code in the package-managed /usr paths.
 - `provision` is idempotent: create or validate dedicated identities and fixed
-  directory ownership without changing passwords, configurations or file contents.
+  directory ownership without changing passwords. The operator-authorized fixed
+  v1 XYZ correction is the only automatic machine configuration migration.
   Restore the package-owned /usr/lib/betterlinuxcnc and /usr/share/betterlinuxcnc
   directory roots to root:root 0755; dpkg retains legacy directory modes on upgrades.
   Reject unexpected existing accounts, groups and symlinked directory parents.
@@ -35,7 +36,11 @@ interface is `betterlinuxcnc-appliance`. The package's fixed, byte-validated
 - Preparing measured travel and switch wiring does not verify physical motors.
   Always write MOTOR_MAPPING_VERIFIED=NO and MOTOR_DIRECTIONS_VERIFIED=NO and
   false manifest claims during preparation. The controller requires both explicit
-  commissioning records before dedicated homing or coordinated motion. Never infer
+  commissioning records before dedicated homing or coordinated motion. The fixed
+  `_axis_upgrade` migration may record the operator-confirmed 2026-10-26 output
+  observations for the exact captured profile; post-update motion acceptance stays
+  pending. It validates hashes, the stopped stack and installed ABI, then atomically
+  exchanges the complete machine directory. Unknown edits fail closed. Never infer
   motor identity from GPIO input labels, travel lengths, or step-generator numbers.
 - `activate` enables only the low-privilege Mesa check timer when systemd is
   running, after installing policy. Provision/postinst do not start the timer;

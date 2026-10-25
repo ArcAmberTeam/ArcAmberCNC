@@ -7,7 +7,7 @@ file(GLOB_RECURSE homing_native_headers CONFIGURE_DEPENDS
 add_custom_command(OUTPUT "${homing_output}/zhulong_homing.so" "${homing_output}/provenance.json"
     COMMAND Python3::Interpreter "${CMAKE_CURRENT_SOURCE_DIR}/build.py"
         --source "${CMAKE_SOURCE_DIR}" --output "${homing_output}"
-    DEPENDS build.py ${homing_vendor_sources} ${homing_native_headers}
+    DEPENDS build.py commissioned_profile.py ${homing_vendor_sources} ${homing_native_headers}
         "${CMAKE_SOURCE_DIR}/VERSION" "${CMAKE_SOURCE_DIR}/src/configure.ac"
         "${CMAKE_SOURCE_DIR}/src/hal/utils/halcompile.g"
         "${CMAKE_SOURCE_DIR}/src/Makefile.modinc.in"

@@ -170,6 +170,25 @@ class HomingPolicyTests(unittest.TestCase):
         self.assertEqual(vendor.calls, [("home", (0,))])
         self.assertFalse(controller.snapshot["capabilities"]["machine.home-A"])
 
+    def test_commissioned_profile_enables_home_all_with_negative_xyz_search(self):
+        vendor = FakeLinuxCNC()
+        verified_profile(vendor)
+        vendor.ini_values[("BETTERCNC_HOMING", "CONFIGURATION_REVISION")] = "zhulong-xyz-20261026"
+        for key, value in (
+            ("HOME_SEARCH_VEL", "-2"),
+            ("HOME_LATCH_VEL", "-0.5"),
+            ("HOME_OFFSET", "-5"),
+        ):
+            vendor.ini_values[("JOINT_1", key)] = value
+        for section in ("AXIS_Y", "JOINT_1"):
+            vendor.ini_values[(section, "MIN_LIMIT")] = "0"
+            vendor.ini_values[(section, "MAX_LIMIT")] = "90"
+        controller = Controller(module=vendor)
+        self.assertTrue(controller.snapshot["capabilities"]["machine.home-all"])
+        self.assertFalse(controller.dispatch("program.run"))
+        self.assertTrue(controller.dispatch("machine.home-all"))
+        self.assertEqual(vendor.calls, [("home", (-1,))])
+
     def test_unverified_motor_mapping_blocks_homing_and_coordinated_motion(self):
         vendor = FakeLinuxCNC()
         verified_profile(vendor)

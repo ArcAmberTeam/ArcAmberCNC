@@ -1,5 +1,6 @@
 """Exercise an actual DEB in the disposable GitHub CI container, never a machine."""
 
+import configparser
 import datetime
 import grp
 import hashlib
@@ -94,6 +95,29 @@ def password_digest():
     # Compare without exposing either a credential or its digest in CI output.
     value = next(line for line in Path("/etc/shadow").read_bytes().splitlines() if line.startswith(b"cnc-maint:"))
     return hashlib.sha256(value).digest()
+
+
+def verify_xsession_entry():
+    """Let Debian's real argument parser resolve the installed LightDM entry."""
+    session = configparser.ConfigParser(interpolation=None)
+    session.read("/usr/share/xsessions/betterlinuxcnc-kiosk.desktop")
+    command = session["Desktop Entry"]["Exec"]
+    # Source only the distribution's argument parser, never Xsession itself.
+    # Neither Xorg, a desktop nor the CNC launcher is started in the CI container.
+    script = r'''
+message() { printf '%s\n' "$*" >&2; exit 41; }
+errormsg() { message "$@"; }
+has_option() { return 1; }
+STARTUP=
+. /etc/X11/Xsession.d/20x11-common_process-args
+test "$STARTUP" = "$1"
+printf '%s\n' "$STARTUP"
+'''
+    result = run("/bin/sh", "-eu", "-c", script, "xsession-entry", command)
+    require(
+        result.stdout.strip() == "/usr/bin/betterlinuxcnc-launch --kiosk-session",
+        "Debian Xsession did not select the dedicated installed launcher",
+    )
 
 
 def verify_snapshot(path, version, expected_files, expected_directories):
@@ -267,7 +291,16 @@ def main():
         require({item.name for item in control.iterdir()} <= {"control", "md5sums", "conffiles", "postinst"}, "Unexpected control file")
         require((control / "postinst").read_bytes() == (source / "tools/appliance/packaging/postinst").read_bytes(), "Unexpected postinst bytes")
         require(stat.S_IMODE((control / "postinst").stat().st_mode) == 0o755, "postinst must be executable")
+    # dpkg preserves directory modes during upgrades. Older manual installations
+    # used group-writable application roots; provisioning must protect them.
+    for name in ("/usr/lib/betterlinuxcnc", "/usr/share/betterlinuxcnc"):
+        path = Path(name)
+        path.mkdir(parents=True, exist_ok=True)
+        path.chmod(0o775)
     run("apt-get", "install", "-y", "--no-install-recommends", str(package))
+    for name in ("/usr/lib/betterlinuxcnc", "/usr/share/betterlinuxcnc"):
+        ownership(name, "root", "root", 0o755)
+    verify_xsession_entry()
     require(
         run("dpkg-query", "-S", "/usr/bin/mesaflash").stdout.strip() == "mesaflash: /usr/bin/mesaflash",
         "The fixed mesaflash command must come from the distribution package",

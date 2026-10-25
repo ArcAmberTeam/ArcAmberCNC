@@ -157,6 +157,8 @@ def provision():
             run("/usr/sbin/usermod", "--groups", ",".join(groups), name)
         validate_user(name, home, groups)
     for root in (
+        "/usr/lib/betterlinuxcnc",
+        "/usr/share/betterlinuxcnc",
         "/var/lib/betterlinuxcnc",
         "/var/cache/betterlinuxcnc",
         "/var/log/betterlinuxcnc",

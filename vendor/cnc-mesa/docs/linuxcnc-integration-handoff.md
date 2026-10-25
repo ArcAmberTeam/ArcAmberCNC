@@ -73,7 +73,7 @@ make test-homing
 
 本次本地没有执行构建或源码测试。交接时结果以现有 PR 的 GitHub CI 为准；失败则修复快照/接入并重跑，不能标记为实体机验收通过。
 
-发布版本由根目录 `release.json` 定义，当前配对 `v26.10.26.1`。推送匹配版本标签后，CI 必须先通过全部检查才发布源包、最小接入包、`mesa-release.json` 和 `SHA256SUMS`。清单包括板型号、变体、源提交、应用版本、各归档摘要和固件可用状态；源码版本与应用版本不一致时拒绝生成。
+发布版本由根目录 `release.json` 定义，当前配对 `v26.10.26.2`。推送匹配版本标签后，CI 必须先通过全部检查才发布源包、最小接入包、`mesa-release.json` 和 `SHA256SUMS`。清单包括板型号、变体、源提交、应用版本、各归档摘要和固件可用状态；源码版本与应用版本不一致时拒绝生成。
 
 当前没有可证明由本次源码构建并在板验证的新位流，因此清单明确 `firmware.available=false`，`asset/sha256/size=null`，`origin=unavailable`，`verification.implementation/timing/board_approved` 均为 false。独立 Rust 更新服务可以发现/下载匹配版本的源码和元数据，必须据此判定没有可刷固件；不能从完整源码包里提取原厂参考 `.bit` 冒充新版。未来真实位流需完成 ISE 构建、约束/时序和板级验证，再制定独立的固件产物发布规则，要求 `origin=ci-build` 和相应验收字段为 true。
 

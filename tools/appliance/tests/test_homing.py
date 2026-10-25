@@ -391,7 +391,7 @@ class InstalledHomingTests(unittest.TestCase):
                             for name in HEADERS
                         },
                     },
-                    "vendor": {"commit": "2bb03f29755ec7ef204ec8224a5bcc7f66d85384"},
+                    "vendor": {"commit": "c36c3d4240474a7a1e314d90e547c8151101f149"},
                 }
             )
         )

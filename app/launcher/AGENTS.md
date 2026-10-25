@@ -11,6 +11,8 @@
 
 ## 专用机启动与历史迁移
 
+- 专用会话的 Exec 使用固定安装路径且不加 shell 引号。Debian Xsession 将整条 Exec 作为一个参数，再以第一个空格前的字符串查找程序；引号会变成文件名的一部分并触发默认桌面回退。正式 DEB CI 必须经过发行版真实参数解析脚本验证，不启动图形服务或机床。
+
 - 目标机部署已获用户授权；源码仍在本地修改并通过 Git 同步。具体环境和命令遵循 [本机连接说明](../../docs/linuxcnc-local-connection.md)，不要另建并行启动脚本或改写机床配置。
 - 应用 `26.10.26.1` 使用 `/usr` 安装前缀，CMake 的 `BETTERCNC_PROJECT_DIR` 默认并在正式发布时固定为 `/etc/betterlinuxcnc`。用户服务读取其中的 `launcher.json`；旧 `/home/teto/ArcAmberCNC/launcher.json` 仅作为显式迁移的输入，安装包不覆盖真实配置。`--check` 只验证配置和依赖，不证明机床已连接。
 - DEB 的固定 postinst 通过 `betterlinuxcnc-appliance provision` 幂等准备账户与目录；`prepare` 显式导入机床配置，`activate` 显式配置专用登录，后两者不由安装包或启动器自动执行。LightDM 以 `linuxcnc` 运行 `betterlinuxcnc-kiosk` X11 会话，由它导入实际 DISPLAY/Xauthority 并启动 `betterlinuxcnc-launcher.service`。不要复用旧账户的 UID/Xauthority，也不要同时手动启动另一套 launcher。服务 active 之后仍须检查日志、私有 `state.json` 的 ready、公开机床状态及 GUI 窗口。

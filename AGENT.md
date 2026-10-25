@@ -36,7 +36,7 @@ Qt 目录及依赖见 [app/desktop/AGENTS.md](app/desktop/AGENTS.md)：按 `Bett
 
 根 `CMakeLists.txt` 是产品应用的构建、测试、安装与打包组合入口，各应用模块拥有自身安装内容。它不编译或安装 LinuxCNC 原生核心；原生核心仍从 `src/` 统一构建。`src/hal/`、`src/hal/drivers/` 与 `src/hal/user_comps/` 均为实体目录，取消语言分类迁移产生的兼容链接。HAL 私有头与既有运行时的耦合仍属于各模块 AGENTS 中记录的遗留边界，不因整理目录扩大公开接口。
 
-正式 DEB 通过 `BETTERCNC_BUILD_MESA_HOMING=ON` 单独构建固定的 `zhulong_homing.so`，适配层由 `tools/mesa-homing/` 拥有。它仅从当前 2.9.10 原生源码生成 headers/halcompile，不编译完整核心；vendor 输入固定在 `vendor/cnc-mesa/SOURCE.json`，不得修改快照文件。包内模块仅供上游核心版本 2.9.10，显式配置启用必须验证实际 dpkg 版本；包 CI 的 Debian 2.9.4 仅用于安装生命周期检查，不加载模块。未知三轴实测总行程时保持 inputs-only，不能自动加载 HOMEMOD 或触发 HOME。ELF、公开 API harness 和 HDL 仿真不代表机床运动验收。
+正式 DEB 通过 `BETTERCNC_BUILD_MESA_HOMING=ON` 单独构建固定的 `zhulong_homing.so`，适配层由 `tools/mesa-homing/` 拥有。它仅从当前 2.9.10 原生源码生成 headers/halcompile，不编译完整核心；vendor 输入固定在 `vendor/cnc-mesa/SOURCE.json`，不得修改快照文件。包内模块仅供上游核心版本 2.9.10，显式 `prepare` 必须验证核心与开发包版本、头文件和模块摘要；包 CI 的 Debian 2.9.4 仅用于安装生命周期检查，不加载模块。用户于 2026-10-26 提供 X/Y/Z 实测总行程 420/275/90 mm，可通过显式 `--zhulong-homing-travel-mm 420 275 90 --zhulong-xyz-only` 将完整回零配置合入现有配置副本；未知行程使用互斥选项 `--zhulong-inputs-only`。用户确认本机实际仅有 XYZ，三轴选项严格移除已审查的预留 ABC 配置；不传该选项的六轴配置仍保留全部真实回零联锁。安装和更新不能自动触发 HOME。ELF、公开 API harness 和 HDL 仿真不代表机床运动验收。
 
 外部网络、文件、进程和平台接口只能由明确适配层拥有。Qt 的 `bettercnc.desktop` 向 QML 提供只读状态和操作，`bettercnc.session` 负责 socket；服务的 `bettercnc_controller` 拥有控制规则与机床文件写入，`bettercnc_preview` 拥有隔离解释。`tools/diagnostics` 独立拥有 v1 诊断传输，不嵌入 Qt 控制链路。界面组件不得直接调用 LinuxCNC、HAL、socket、HTTP 或 WebSocket。
 

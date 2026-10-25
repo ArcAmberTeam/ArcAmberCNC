@@ -1,10 +1,11 @@
-// The operator can request one fixed root service. No package or command arguments.
+// The operator can start only the two fixed update services, with no payload arguments.
 polkit.addRule(function(action, subject) {
     if (subject.user !== "linuxcnc") {
         return polkit.Result.NOT_HANDLED;
     }
     if (action.id === "org.freedesktop.systemd1.manage-units"
-        && action.lookup("unit") === "betterlinuxcnc-system-update.service"
+        && (action.lookup("unit") === "betterlinuxcnc-system-update.service"
+            || action.lookup("unit") === "betterlinuxcnc-mesa-flash.service")
         && action.lookup("verb") === "start") {
         return polkit.Result.YES;
     }

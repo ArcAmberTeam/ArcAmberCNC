@@ -24,7 +24,7 @@
 
 独立 `app/mesa-update/` 安装两个 Rust CLI：`betterlinuxcnc-mesa-update` 负责检查/状态/下载，`betterlinuxcnc-mesa-flash` 拥有独立的固定 root 服务入口。本版烧录入口拒绝实际烧录，没有通用 Polkit 授权；检查服务以 `linuxcnc` 运行，安装不会自动启动检查 timer 或烧录服务。应用 DEB 更新与控制卡烧录的权限、状态和失败结果分别处理。
 
-同版集成归档以不可变快照存放在 `vendor/cnc-mesa`，`SOURCE.json` 记录 Release、来源提交、归档/清单摘要和逐文件摘要。发布门禁还核对远端清单与应用实际编译的这份固定快照，不能只匹配版本号。DEB 内的 `zhulong_homing.so` 是 LinuxCNC HOMEMOD 软件模块，不是 FPGA 位流；它只允许配合上游核心版本 2.9.10 启用。配置激活必须验证实际 dpkg 核心版本，未知总行程继续使用 inputs-only，不能自动加载模块或触发 HOME。
+同版集成归档以不可变快照存放在 `vendor/cnc-mesa`，`SOURCE.json` 记录 Release、来源提交、归档/清单摘要和逐文件摘要。发布门禁还核对远端清单与应用实际编译的这份固定快照，不能只匹配版本号。DEB 内的 `zhulong_homing.so` 是 LinuxCNC HOMEMOD 软件模块，不是 FPGA 位流；它只允许配合上游核心版本 2.9.10 启用。显式 `prepare` 检查核心与开发包版本、头文件及模块摘要。用户确认本机实际仅有 XYZ，三轴选项严格移除已审查的预留 ABC 配置。X/Y/Z 总行程 420/275/90 mm 仅作为此机床完整迁移的输入；未知总行程继续使用 inputs-only，安装和更新不自动加载模块或触发 HOME。命令及现场验收边界见 [本机连接说明](linuxcnc-local-connection.md#显式预演准备与激活)。
 
 每个包需要 Release asset 的有效 `sha256:` digest，或同一 Release 的 `SHA256SUMS` 中唯一的对应记录。下载地址限定当前仓库并全程使用 HTTPS。Release 缺失、架构不匹配、多个候选包、版本或校验记录不合法时，界面显示原因并保留当前安装。本功能不自行创建或发布 Release。
 

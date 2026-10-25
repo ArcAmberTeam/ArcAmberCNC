@@ -109,7 +109,7 @@ fn runtime(uid: u32) -> Result<PathBuf> {
     Ok(directory.join("betterlinuxcnc/control.sock"))
 }
 
-fn root_store() -> Result<Store> {
+pub(super) fn root_store() -> Result<Store> {
     secure_directory(Path::new(CACHE), 0, true, 0o700)?;
     secure_directory(Path::new(PUBLIC), 0, true, 0o755)?;
     fs::set_permissions(CACHE, fs::Permissions::from_mode(0o700))?;
@@ -117,6 +117,15 @@ fn root_store() -> Result<Store> {
         directory: CACHE.into(),
         public_directory: Some(PUBLIC.into()),
     })
+}
+
+pub(super) fn machine_context() -> Result<(Manager, PathBuf, u32)> {
+    let config: Config = serde_json::from_slice(&trusted_read(Path::new(CONFIG))?)?;
+    validate_config(&config)?;
+    let _launcher_config = trusted_read(&config.config)?;
+    let uid = uid(&config.user)?;
+    let socket = runtime(uid)?;
+    Ok((Manager::account(&config.user, uid), socket, uid))
 }
 
 pub(super) fn apply() -> Result<()> {
@@ -140,12 +149,7 @@ fn apply_locked(store: &Store) -> Result<()> {
         "",
         0,
     ))?;
-    let config: Config = serde_json::from_slice(&trusted_read(Path::new(CONFIG))?)?;
-    validate_config(&config)?;
-    let _launcher_config = trusted_read(&config.config)?;
-    let uid = uid(&config.user)?;
-    let socket = runtime(uid)?;
-    let manager = Manager::account(&config.user, uid);
+    let (manager, socket, uid) = machine_context()?;
     install::preflight(&socket, &manager, uid)?;
     // Never use a user's downloaded payload or manifest, even when the GUI says ready.
     release::fetch(store, "0")?;

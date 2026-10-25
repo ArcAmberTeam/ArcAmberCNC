@@ -2,6 +2,8 @@
 //! Release downloads never authorize a hardware write.
 
 mod contract;
+mod guard;
+mod hardware;
 mod platform;
 mod release;
 mod service;
@@ -37,7 +39,7 @@ enum UpdateCommand {
 #[command(
     name = "betterlinuxcnc-mesa-flash",
     version,
-    about = "Independent root Mesa firmware verifier; hardware flashing remains blocked"
+    about = "Independent, guarded Mesa firmware flashing service"
 )]
 struct FlashCli {
     #[command(subcommand)]
@@ -48,8 +50,14 @@ struct FlashCli {
 enum FlashCommand {
     /// Read the root service's public result; never reads the user's download cache.
     Status,
-    /// Root-only independent release verification; no hardware writes are enabled.
+    /// Request the one fixed root service; no firmware or hardware parameters are accepted.
+    Request,
+    /// Root-only official verification and controlled maintenance operation.
     ApplySystem,
+    #[command(hide = true)]
+    PrepareSystem,
+    #[command(hide = true)]
+    WriteSystem,
 }
 
 /// Run the unprivileged updater's fixed command interface.
@@ -65,7 +73,10 @@ pub fn run_update() -> ExitCode {
 pub fn run_flash() -> ExitCode {
     finish(match FlashCli::parse().command {
         FlashCommand::Status => service::flash_status(),
+        FlashCommand::Request => service::request(),
         FlashCommand::ApplySystem => service::apply_system(),
+        FlashCommand::PrepareSystem => service::prepare_system(),
+        FlashCommand::WriteSystem => service::write_system(),
     })
 }
 

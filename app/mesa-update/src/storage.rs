@@ -124,7 +124,28 @@ impl Store {
     }
 
     pub(crate) fn read_status(&self) -> Result<Option<Vec<u8>>> {
-        let name = CString::new("status.json")?;
+        let Some(file) = self.open_record("status.json")? else {
+            return Ok(None);
+        };
+        let mut bytes = Vec::new();
+        file.take(1024 * 1024 + 1).read_to_end(&mut bytes)?;
+        if bytes.len() > 1024 * 1024 {
+            return Err("Mesa status exceeds size limit".into());
+        }
+        Ok(Some(bytes))
+    }
+
+    pub(crate) fn modified(&self, name: &str) -> Result<Option<std::time::SystemTime>> {
+        self.open_record(name)?
+            .map(|file| Ok(file.metadata()?.modified()?))
+            .transpose()
+    }
+
+    fn open_record(&self, name: &str) -> Result<Option<File>> {
+        if !crate::contract::valid_asset(name) {
+            return Err("Invalid storage record name".into());
+        }
+        let name = CString::new(name)?;
         let fd = unsafe {
             libc::openat(
                 self.directory.as_raw_fd(),
@@ -140,12 +161,7 @@ impl Store {
         }
         let file = unsafe { File::from_raw_fd(fd) };
         self.validate_file(&file, self.public)?;
-        let mut bytes = Vec::new();
-        file.take(1024 * 1024 + 1).read_to_end(&mut bytes)?;
-        if bytes.len() > 1024 * 1024 {
-            return Err("Mesa status exceeds size limit".into());
-        }
-        Ok(Some(bytes))
+        Ok(Some(file))
     }
 
     pub(crate) fn write(&self, name: &str, bytes: &[u8]) -> Result<()> {

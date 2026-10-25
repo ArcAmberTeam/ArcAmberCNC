@@ -168,6 +168,23 @@ mod tests {
     }
 
     #[test]
+    fn published_manifest_fixture_is_kept_byte_for_byte() {
+        use sha2::{Digest, Sha256};
+        let bytes = include_bytes!("../tests/fixtures/mesa-release.json");
+        assert_eq!(
+            format!("{:x}", Sha256::digest(bytes)),
+            "97c042995e2649836f7a1ed75bea42f59b3206470c0842da5e72491374f69624"
+        );
+        let manifest: Manifest = serde_json::from_slice(bytes).unwrap();
+        manifest.validate("26.10.26.1").unwrap();
+        assert_eq!(
+            manifest.source_commit,
+            "2bb03f29755ec7ef204ec8224a5bcc7f66d85384"
+        );
+        assert!(!manifest.firmware.available);
+    }
+
+    #[test]
     fn original_or_unverified_bits_cannot_be_advertised_as_ready() {
         let mut manifest = fixture();
         manifest.firmware.available = true;

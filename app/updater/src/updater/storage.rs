@@ -50,8 +50,16 @@ impl Store {
             .create(true)
             .truncate(false)
             .mode(0o600)
-            .custom_flags(libc::O_NOFOLLOW)
+            .custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK)
             .open(self.directory.join("update.lock"))?;
+        let info = file.metadata()?;
+        if !info.is_file()
+            || info.uid() != unsafe { libc::getuid() }
+            || info.nlink() != 1
+            || info.mode() & 0o077 != 0
+        {
+            return Err("更新互斥锁不是可信私有文件".into());
+        }
         if unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) } != 0 {
             return Err("已有更新任务正在运行".into());
         }

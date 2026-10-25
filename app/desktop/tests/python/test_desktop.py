@@ -28,9 +28,12 @@ class DesktopTests(unittest.TestCase):
             script = Path(self.temporary.name) / (phase + "-flash.py")
             script.write_text(
                 "import json, sys, time\nfrom pathlib import Path\n"
-                f"with Path({str(calls)!r}).open('a') as f: f.write(json.dumps(sys.argv[1:]) + '\\n')\n"
+                f"with Path({str(calls)!r}).open('a') as f:\n"
+                "    f.write(json.dumps(sys.argv[1:]) + '\\n')\n"
                 "time.sleep(.15)\n"
-                f"print(json.dumps(dict(schema_version=1, component='mesa-flash', phase={phase!r}, message='')))\n",
+                "record = dict(schema_version=1, component='mesa-flash', message='')\n"
+                f"record['phase'] = {phase!r}\n"
+                "print(json.dumps(record))\n",
                 encoding="utf-8",
             )
             self.backend = DesktopBackend(
@@ -54,9 +57,12 @@ class DesktopTests(unittest.TestCase):
         script = Path(self.temporary.name) / "flash-service.py"
         script.write_text(
             "import json, sys\nfrom pathlib import Path\n"
-            f"with Path({str(calls)!r}).open('a') as f: f.write(json.dumps(sys.argv[1:]) + '\\n')\n"
-            "phase = 'scheduled' if sys.argv[1] == 'request' else 'not_checked'\n"
-            "print(json.dumps(dict(schema_version=1, component='mesa-flash', phase=phase, message='')))\n",
+            f"with Path({str(calls)!r}).open('a') as f:\n"
+            "    f.write(json.dumps(sys.argv[1:]) + '\\n')\n"
+            "phase = 'host_restarted_board_unconfirmed'\n"
+            "if sys.argv[1] == 'request': phase = 'scheduled'\n"
+            "record = dict(schema_version=1, component='mesa-flash', phase=phase, message='')\n"
+            "print(json.dumps(record))\n",
             encoding="utf-8",
         )
         self.backend = DesktopBackend(
@@ -65,6 +71,7 @@ class DesktopTests(unittest.TestCase):
         )
         self.addCleanup(self.backend.close)
         flash = self.backend.mesaFlash
+        self.wait(lambda: flash.state["phase"] == "host_restarted_board_unconfirmed")
         flash.request()
         flash.request()
         self.wait(lambda: flash.state["phase"] == "scheduled" and calls.exists())

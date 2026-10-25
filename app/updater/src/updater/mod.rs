@@ -1,5 +1,6 @@
 mod broker;
 mod install;
+mod maintenance;
 mod package;
 mod release;
 mod storage;
@@ -37,6 +38,9 @@ enum Action {
     Install,
     #[command(hide = true)]
     ApplySystem,
+    /// Fixed root-only guard for the independent Mesa flashing process.
+    #[command(hide = true)]
+    MesaMaintenance,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
@@ -71,6 +75,9 @@ pub(super) fn run() -> Result<()> {
     if matches!(options.command, Action::ApplySystem) {
         return broker::apply();
     }
+    if matches!(options.command, Action::MesaMaintenance) {
+        return maintenance::run();
+    }
     let store = storage::Store::open()?;
     if matches!(options.command, Action::Status) {
         if let Some(status) = broker::visible_status(&store)? {
@@ -99,6 +106,7 @@ pub(super) fn run() -> Result<()> {
             broker::schedule(&store)
         }
         Action::ApplySystem => unreachable!(),
+        Action::MesaMaintenance => unreachable!(),
         Action::Status => unreachable!(),
     };
     if let Err(error) = &result {

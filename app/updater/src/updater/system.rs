@@ -165,6 +165,11 @@ impl PausedLauncher {
         }
         Ok(())
     }
+    pub fn retain_stop_mask(mut self) {
+        // Firmware changes require a supervised power cycle. Keep the mask we
+        // introduced across both success and failure; never restart the core.
+        self.masked = false;
+    }
 }
 
 impl Drop for PausedLauncher {
@@ -303,6 +308,22 @@ mod tests {
         let calls = fs::read_to_string(&log).unwrap();
         assert!(calls.contains("--user daemon-reload"));
         assert!(calls.contains("unmask"));
+        assert!(!calls.contains("start"));
+    }
+
+    #[test]
+    fn firmware_maintenance_retains_the_runtime_mask_without_restarting() {
+        let directory = tempfile::tempdir().unwrap();
+        let log = directory.path().join("calls");
+        let script = format!("echo \"$*\" >> '{}'\nif [ \"$2\" = show ]; then printf 'LoadState=masked\\nActiveState=inactive\\n'; fi", log.display());
+        let program = executable(directory.path(), &script);
+        PausedLauncher::stop(manager(&program), UnitState::Running)
+            .unwrap()
+            .retain_stop_mask();
+        let calls = fs::read_to_string(log).unwrap();
+        assert!(calls.contains("--user mask --runtime"));
+        assert!(calls.contains("--user stop"));
+        assert!(!calls.contains("unmask"));
         assert!(!calls.contains("start"));
     }
 }

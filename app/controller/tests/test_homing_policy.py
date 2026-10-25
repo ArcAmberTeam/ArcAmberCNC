@@ -164,6 +164,24 @@ class HomingPolicyTests(unittest.TestCase):
         self.assertEqual(vendor.calls, [("home", (0,))])
         self.assertFalse(controller.snapshot["capabilities"]["machine.home-A"])
 
+    def test_actual_three_axis_profile_authorizes_motion_only_after_xyz_are_homed(self):
+        vendor = FakeLinuxCNC()
+        verified_profile(vendor)
+        vendor.ini_values[("KINS", "KINEMATICS")] = "trivkins coordinates=XYZ"
+        for joint in range(3):
+            vendor.ini_values[(f"JOINT_{joint}", "HOME_SEQUENCE")] = str(joint + 1)
+        vendor.status.homed = [0, 0, 0]
+        controller = Controller(module=vendor)
+        self.assertTrue(controller.dispatch("machine.home-all"))
+        vendor.confirm(apply=False)
+        vendor.status.homed = [1, 1, 1]
+        snapshot = controller.poll()
+        self.assertEqual(snapshot["commandState"], "completed")
+        self.assertTrue(snapshot["capabilities"]["mdi.execute"])
+        self.assertTrue(snapshot["capabilities"]["program.run"])
+        self.assertTrue(snapshot["capabilities"]["mode.world"])
+        self.assertEqual(snapshot["homed"], [True, True, True])
+
     def test_kiosk_legacy_instant_homing_and_no_force_bypass_are_blocked(self):
         with patch.dict(os.environ, {"BETTERCNC_KIOSK": "1"}):
             vendor = FakeLinuxCNC()

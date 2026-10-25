@@ -69,7 +69,8 @@ root ALL=(ALL:ALL) ALL
     "/etc/polkit-1/rules.d/00-betterlinuxcnc-isolation.rules": """polkit.addRule(function(action, subject) {
     if (subject.user !== "linuxcnc" && subject.user !== "cnc-maint" && subject.user !== "teto") return;
     if (subject.user === "linuxcnc" && action.id === "org.freedesktop.systemd1.manage-units"
-        && action.lookup("unit") === "betterlinuxcnc-system-update.service"
+        && (action.lookup("unit") === "betterlinuxcnc-system-update.service"
+            || action.lookup("unit") === "betterlinuxcnc-mesa-flash.service")
         && action.lookup("verb") === "start") return polkit.Result.YES;
     return polkit.Result.NO;
 });

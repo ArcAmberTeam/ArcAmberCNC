@@ -17,6 +17,22 @@ interface is `betterlinuxcnc-appliance`. The package's fixed, byte-validated
 - `prepare` migrates copies and preserves originals; `activate` changes login
   policy only after the operator has verified the prepared installation. Neither
   command issues machine commands or kills LinuxCNC.
+- `stage` and `prepare` accept the mutually exclusive explicit options
+  `--zhulong-inputs-only` and `--zhulong-homing-travel-mm X Y Z`. Selectively merge
+  the reviewed GPIO020/021/022 active-high, five-cycle debounce profile, preserving
+  unrelated tuning and opposite limits. Reject dynamic HAL and conflicting wiring.
+  Inputs-only inhibits homing. Measured travel enables only the pinned HOMEMOD;
+  prepare verifies installed core/development versions, module provenance/hash and
+  six ABI header hashes before account or configuration changes. Stage requires
+  no local LinuxCNC installation and records that verification is still pending.
+  The explicit `--zhulong-xyz-only` option additionally removes only the complete
+  reviewed inactive ABC configuration and wiring, retaining XYZ tuning, spindle,
+  I/O and board step-generator capacity. It requires measured homing travel.
+  Retain parameter/tool files; the changed machine coordinates require an onsite
+  check of work offsets after actual homing, not an automatic offset rewrite.
+- `activate` enables only the low-privilege Mesa check timer when systemd is
+  running, after installing policy. Provision/postinst do not start the timer;
+  no activation path enables the independent root flash service.
 - SSH maintenance has a fixed read-only command vocabulary. No shell, arbitrary
   paths, forwarding, file upload or generic privilege elevation.
 - `backup` accepts no paths: snapshot fixed configuration, machine state and host

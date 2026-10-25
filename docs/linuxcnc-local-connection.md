@@ -23,6 +23,8 @@
 | `/usr/bin/betterlinuxcnc*` | 应用 CLI，由包管理，root 所有 |
 | `/usr/sbin/betterlinuxcnc-appliance` | 显式主机配置工具，管理操作要求 root |
 | `/usr/lib/betterlinuxcnc`、`/usr/share/betterlinuxcnc` | 应用模块、维护工具、QML，普通用户不可写 |
+| `/usr/lib/linuxcnc/modules/zhulong_homing.so` | 固定 HOMEMOD；仅通过匹配的 2.9.10 核心及头文件验证后显式启用 |
+| `/usr/share/betterlinuxcnc/homing/provenance.json` | HOMEMOD 摘要、核心头文件摘要、源码提交和软件验证记录 |
 | `/etc/betterlinuxcnc/launcher.json`、`machine/` | 迁移后的启动配置、INI/HAL 和相关配置副本，root 所有 |
 | `/etc/betterlinuxcnc/updater.json` | 固定 root 更新配置，Debian conffile |
 | `/usr/share/doc/betterlinuxcnc-qt/examples/launcher.example.json` | 示例；不覆盖现场配置 |
@@ -65,15 +67,24 @@ sudo apt-get install ./betterlinuxcnc-qt_26.10.26.1_amd64.deb
 betterlinuxcnc-appliance plan
 betterlinuxcnc-appliance stage \
   --source-config /home/teto/ArcAmberCNC/launcher.json \
-  --destination /var/tmp/betterlinuxcnc-import-v26.10.26.1
+  --destination /var/tmp/betterlinuxcnc-import-v26.10.26.1 \
+  --zhulong-homing-travel-mm 420 275 90 --zhulong-xyz-only
 ```
 
 `stage` 的目标目录必须尚不存在，只生成可审查副本，不改账户或系统登录策略。核对迁移后的 INI、HAL 引用、程序目录、刀具表、参数、位置文件和 CAM 收件目录。仅 G-code 程序扩展名被导入程序库；符号链接、特殊文件、INI include 与 CAM 私钥/令牌路径需要先单独审查。副本禁用外部编辑器和过滤器，原文件保持原样。
 
+`420 275 90` 是用户于 2026-10-26 提供的 X/Y/Z 实测总行程，单位 mm；不可用于其他机床。此选项只将已审查的开关和回零配置合入现有机床副本，不用参考配置替换整套 INI。`stage` 标记安装验证待完成；正式 `prepare` 必须验证 `linuxcnc-uspace` 与 `linuxcnc-uspace-dev` 均为上游 2.9.10、已安装头文件摘要、HOMEMOD 来源及二进制摘要。缺少匹配的预编译开发包时停止，不能用 Debian 2.9.4 头文件或目标机构建绕过。
+
+若只需接入开关，可在两条命令中改用互斥选项 `--zhulong-inputs-only`，保持 `motion.homing-inhibit=true`。不传这两项时保留原迁移语义。用户已确认本机实际仅有 XYZ，故上述命令同时指定 `--zhulong-xyz-only`，严格移除已审查的预留 ABC 配置和 HAL 连线，将实际 joint 数改为 3；主轴、其他 IO 和板卡六路 stepgen 能力保留。若不指定此选项，仍保留 ABC 的真实回零联锁；不得用伪造 homed 绕过。本工具不触发 HOME 或其他运动。
+
+本次回零后的软限位为 X 0～410、Y −265～0、Z 0～80 mm；两端各留 5 mm。已有参数与刀具表保留，现场首次回零后必须核对工件坐标（如 G54）和刀长，旧坐标不能当作已验证可直接加工。
+
 审核后首次准备：
 
 ```sh
-betterlinuxcnc-appliance prepare --source-config /home/teto/ArcAmberCNC/launcher.json
+betterlinuxcnc-appliance prepare \
+  --source-config /home/teto/ArcAmberCNC/launcher.json \
+  --zhulong-homing-travel-mm 420 275 90 --zhulong-xyz-only
 systemd-ask-password '设置专用维护账户密码' | betterlinuxcnc-appliance set-maintenance-password
 runuser -u linuxcnc -- env HOME=/var/lib/betterlinuxcnc/home \
   XDG_CACHE_HOME=/var/cache/betterlinuxcnc/user \
@@ -93,7 +104,7 @@ betterlinuxcnc-appliance activate
 
 激活将固定 LightDM/X11/logind、SSH、sudo、Polkit 与 SysRq 策略写入系统。SSH 由工具管理完整 `/etc/ssh/sshd_config`，不依赖可被其他 Include/Match 覆盖的 drop-in；sudo 主配置仅保留 root 规则，不再通过旧授权授予普通账户 sudo。旧策略内容、权限及恢复记录存入 root 私有的 `/var/lib/betterlinuxcnc/recovery/<时间>/policies.json`。
 
-`activate` 不自动 reload/restart 服务或重启主机。先检查 `sshd -T` 的有效配置与 `visudo` 结果，再由保留的 root 会话按部署窗口重载 SSH，验证新的 `cnc-maint` 连接。LightDM、X11、logind 和内核策略在受控重启后验收；必须确认机床已停机，并保留现场恢复途径。全部验证完成前不要关闭既有 root 会话。没有通用 SSH 管理 shell 时，策略恢复由受控本机管理员处理，不通过维护命令绕过限制。
+`activate` 仅启用无写卡权限的 Mesa 自动检查 timer，不重载 SSH、重启图形会话或重启主机。先检查 `sshd -T` 的有效配置与 `visudo` 结果，再由保留的 root 会话按部署窗口重载 SSH，验证新的 `cnc-maint` 连接。LightDM、X11、logind 和内核策略在受控重启后验收；必须确认机床已停机，并保留现场恢复途径。全部验证完成前不要关闭既有 root 会话。没有通用 SSH 管理 shell 时，策略恢复由受控本机管理员处理，不通过维护命令绕过限制。
 
 ## 专用会话与只读连接验收
 
@@ -162,7 +173,7 @@ betterlinuxcnc-appliance backup
 
 三路在保持期间的采样均无中途跳变，释放后恢复 FALSE；同时捕捉到快速点按响应。用户分别确认 Y、最后一次 X 和此前两次 Z 的物理轴标识。这支持此目标机使用 `.in` 作为有效高触发源；100 ms 采样不能测量更短的机械抖动，也不能替代防抖验证。
 
-当时旧配置的 `joint.0/1/2.home-sw-in` 以及 X 负/Y 正/Z 负限位仍为 FALSE，信号没有 GPIO 写入源。因此本次仅验证开关到板卡的输入及映射，未验证 LinuxCNC 限位响应、回零运动或总行程。接线与回零模块必须在仓库完成，通过 PR/CI/Release 后部署；不能以该实测直接启用未知行程的回零。
+当时旧配置的 `joint.0/1/2.home-sw-in` 以及 X 负/Y 正/Z 负限位仍为 FALSE，信号没有 GPIO 写入源。因此开关采样仅验证开关到板卡的输入及映射，未验证 LinuxCNC 限位响应或回零运动。用户随后另行提供 X/Y/Z 总行程 420/275/90 mm，作为完整配置迁移的输入。接线与回零模块仍须通过 PR/CI/Release 后部署，行程输入和软件测试都不等于现场运动验收。
 
 分别记录发布提交与包摘要、安装版本、配置/数据保留、账户和文件权限、SSH 正负访问结果、专用会话、日志和只读控制连接。两种 UI 布局的坐标、轴数、回零标志、程序文本应与实际状态一致。
 

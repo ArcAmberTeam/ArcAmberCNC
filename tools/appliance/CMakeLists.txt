@@ -7,7 +7,7 @@ endif()
 configure_file(packaging/betterlinuxcnc-appliance.in betterlinuxcnc-appliance @ONLY)
 install(PROGRAMS "${CMAKE_CURRENT_BINARY_DIR}/betterlinuxcnc-appliance"
     DESTINATION "${CMAKE_INSTALL_SBINDIR}")
-install(FILES main.py maintenance.py _accounts.py _policy.py _machine.py _backup.py
+install(FILES main.py maintenance.py _accounts.py _policy.py _machine.py _backup.py _homing.py
     DESTINATION "${CMAKE_INSTALL_LIBDIR}/betterlinuxcnc/appliance")
 install(DIRECTORY templates/
     DESTINATION "${CMAKE_INSTALL_LIBDIR}/betterlinuxcnc/appliance/templates" OPTIONAL)

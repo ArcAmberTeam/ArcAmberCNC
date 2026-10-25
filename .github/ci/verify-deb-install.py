@@ -268,6 +268,11 @@ def main():
         require((control / "postinst").read_bytes() == (source / "tools/appliance/packaging/postinst").read_bytes(), "Unexpected postinst bytes")
         require(stat.S_IMODE((control / "postinst").stat().st_mode) == 0o755, "postinst must be executable")
     run("apt-get", "install", "-y", "--no-install-recommends", str(package))
+    require(
+        run("dpkg-query", "-S", "/usr/bin/mesaflash").stdout.strip() == "mesaflash: /usr/bin/mesaflash",
+        "The fixed mesaflash command must come from the distribution package",
+    )
+    require(Path("/usr/bin/mesaflash").read_bytes().startswith(b"\x7fELF"), "Missing real mesaflash dependency")
     identities = accounts_and_paths()
     require(not Path("/etc/betterlinuxcnc/launcher.json").exists(), "Package imported a machine configuration")
     require(not Path("/etc/lightdm/lightdm.conf.d/90-betterlinuxcnc.conf").exists(), "Package activated display policy")

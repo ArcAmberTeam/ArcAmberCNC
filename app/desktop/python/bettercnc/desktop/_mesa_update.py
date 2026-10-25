@@ -161,7 +161,8 @@ class MesaFlash(_MesaProcess):
         "verifying_identity": "正在核对控制板身份，请勿断电",
         "writing": "正在写入控制板，请勿断电",
         "verifying": "正在回读验证，请勿断电",
-        "programmed_pending_power_cycle": "回读验证成功，控制保持停止。请在现场完成受控断电重启后验收",
+        "programmed_pending_power_cycle": "回读验证成功，控制已停止。请现场断电重启并验收",
+        "host_restarted_board_unconfirmed": "主机已重启，尚未确认控制板运行新固件",
         "blocked": "烧录条件不满足，详情请查看维护日志",
         "error": "烧录维护未完成，请查看维护日志并现场排查",
     }

@@ -229,8 +229,11 @@ class InstallationTests(unittest.TestCase):
                 checked.write_text(
                     unit.read_text().replace('"/usr/bin/betterlinuxcnc-launch"', '"/bin/true"')
                 )
+                runtime = root / "runtime"
+                runtime.mkdir(mode=0o700)
                 result = subprocess.run(
                     [analyzer, "--user", "verify", str(checked)],
+                    env=dict(os.environ, XDG_RUNTIME_DIR=str(runtime)),
                     capture_output=True,
                     text=True,
                     timeout=20,

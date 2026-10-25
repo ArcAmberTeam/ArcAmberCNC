@@ -145,7 +145,8 @@ jobs:
         run: |
           for module in app/cam-link app/updater; do
             version=$(python3 -c 'import sys, tomllib; print(tomllib.load(open(sys.argv[1], "rb"))["toolchain"]["channel"])' "$module/rust-toolchain.toml")
-            rustup toolchain install "$version" --profile minimal
+            # Both crate manifests request these components; preinstall them before parallel builds.
+            rustup toolchain install "$version" --profile minimal --component rustfmt --component clippy
           done
       - name: Verify installed standard-library launcher without starting LinuxCNC
         run: bash .github/ci/python-check.sh launcher

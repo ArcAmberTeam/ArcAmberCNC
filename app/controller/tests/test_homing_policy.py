@@ -174,6 +174,8 @@ class HomingPolicyTests(unittest.TestCase):
         vendor = FakeLinuxCNC()
         verified_profile(vendor)
         vendor.ini_values[("BETTERCNC_HOMING", "CONFIGURATION_REVISION")] = "zhulong-xyz-20261026"
+        for joint in range(3):
+            vendor.ini_values[(f"JOINT_{joint}", "HOME_SEQUENCE")] = str(joint + 1)
         for key, value in (
             ("HOME_SEARCH_VEL", "-2"),
             ("HOME_LATCH_VEL", "-0.5"),
@@ -184,7 +186,7 @@ class HomingPolicyTests(unittest.TestCase):
             vendor.ini_values[(section, "MIN_LIMIT")] = "0"
             vendor.ini_values[(section, "MAX_LIMIT")] = "90"
         controller = Controller(module=vendor)
-        self.assertTrue(controller.snapshot["capabilities"]["machine.home-all"])
+        self.assertTrue(controller.poll()["capabilities"]["machine.home-all"])
         self.assertFalse(controller.dispatch("program.run"))
         self.assertTrue(controller.dispatch("machine.home-all"))
         self.assertEqual(vendor.calls, [("home", (-1,))])

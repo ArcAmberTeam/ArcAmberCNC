@@ -3,12 +3,12 @@
 import configparser
 import hashlib
 import json
-from pathlib import Path
 import shutil
 import subprocess
 import sys
 import tempfile
 import unittest
+from pathlib import Path
 
 MODULE = Path(__file__).resolve().parents[1]
 FIXTURE = Path(__file__).parent / "fixtures/zhulong-installed-v1.json"
@@ -123,6 +123,7 @@ class AxisUpgradeTests(unittest.TestCase):
             ],
             capture_output=True,
             text=True,
+            check=False,
         )
 
     def contents(self):

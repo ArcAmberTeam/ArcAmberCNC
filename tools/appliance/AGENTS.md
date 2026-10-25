@@ -32,6 +32,11 @@ interface is `betterlinuxcnc-appliance`. The package's fixed, byte-validated
   I/O and board step-generator capacity. It requires measured homing travel.
   Retain parameter/tool files; the changed machine coordinates require an onsite
   check of work offsets after actual homing, not an automatic offset rewrite.
+- Preparing measured travel and switch wiring does not verify physical motors.
+  Always write MOTOR_MAPPING_VERIFIED=NO and MOTOR_DIRECTIONS_VERIFIED=NO and
+  false manifest claims during preparation. The controller requires both explicit
+  commissioning records before dedicated homing or coordinated motion. Never infer
+  motor identity from GPIO input labels, travel lengths, or step-generator numbers.
 - `activate` enables only the low-privilege Mesa check timer when systemd is
   running, after installing policy. Provision/postinst do not start the timer;
   no activation path enables the independent root flash service.

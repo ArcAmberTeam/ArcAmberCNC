@@ -30,6 +30,8 @@ def verified_profile(vendor):
     vendor.ini_values[("TRAJ", "LINEAR_UNITS")] = "mm"
     vendor.ini_values[("BETTERCNC_HOMING", "PROFILE")] = "zhulong-v2"
     vendor.ini_values[("BETTERCNC_HOMING", "SWITCH_INPUTS_VERIFIED")] = "YES"
+    vendor.ini_values[("BETTERCNC_HOMING", "MOTOR_MAPPING_VERIFIED")] = "YES"
+    vendor.ini_values[("BETTERCNC_HOMING", "MOTOR_DIRECTIONS_VERIFIED")] = "YES"
     for joint, axis, direction in ((0, "X", -1), (1, "Y", 1), (2, "Z", -1)):
         vendor.ini_values[("BETTERCNC_HOMING", f"TRAVEL_{axis}_MM")] = "100"
         values = {
@@ -129,6 +131,10 @@ class HomingPolicyTests(unittest.TestCase):
             (("BETTERCNC_HOMING", "TRAVEL_Y_MM"), "5"),
             (("BETTERCNC_HOMING", "TRAVEL_Z_MM"), "15"),
             (("BETTERCNC_HOMING", "SWITCH_INPUTS_VERIFIED"), "NO"),
+            (("BETTERCNC_HOMING", "MOTOR_MAPPING_VERIFIED"), None),
+            (("BETTERCNC_HOMING", "MOTOR_MAPPING_VERIFIED"), "NO"),
+            (("BETTERCNC_HOMING", "MOTOR_DIRECTIONS_VERIFIED"), None),
+            (("BETTERCNC_HOMING", "MOTOR_DIRECTIONS_VERIFIED"), "NO"),
             (("EMCMOT", "HOMEMOD"), "homemod"),
             (("TRAJ", "LINEAR_UNITS"), "inch"),
             (("JOINT_0", "HOME_OFFSET"), "0"),
@@ -163,6 +169,35 @@ class HomingPolicyTests(unittest.TestCase):
         self.assertTrue(controller.dispatch("machine.home-X"))
         self.assertEqual(vendor.calls, [("home", (0,))])
         self.assertFalse(controller.snapshot["capabilities"]["machine.home-A"])
+
+    def test_unverified_motor_mapping_blocks_homing_and_coordinated_motion(self):
+        vendor = FakeLinuxCNC()
+        verified_profile(vendor)
+        del vendor.ini_values[("BETTERCNC_HOMING", "MOTOR_MAPPING_VERIFIED")]
+        controller = Controller(module=vendor)
+        for action, payload in (
+            ("machine.home-all", {}),
+            ("home", {"joint": 0}),
+            ("mdi.execute", {"text": "G0 X1"}),
+            ("program.run", {}),
+        ):
+            self.assertFalse(controller.dispatch(action, payload))
+        self.assertIn("电机通道", controller.snapshot["homeAllUnavailableReason"])
+        self.assertEqual(vendor.calls, [])
+
+    def test_home_all_reason_tracks_estop_power_and_pending_commands(self):
+        vendor = FakeLinuxCNC()
+        controller = Controller(module=vendor)
+        self.assertEqual(controller.poll()["homeAllUnavailableReason"], "")
+        vendor.status.estop = True
+        self.assertIn("急停", controller.poll()["homeAllUnavailableReason"])
+        vendor.status.estop = False
+        vendor.status.enabled = False
+        self.assertIn("未使能", controller.poll()["homeAllUnavailableReason"])
+        vendor.status.enabled = True
+        self.assertTrue(controller.dispatch("machine.home-all"))
+        self.assertIn("等待命令", controller.snapshot["homeAllUnavailableReason"])
+        self.assertEqual(vendor.calls, [("home", (-1,))])
 
     def test_actual_three_axis_profile_authorizes_motion_only_after_xyz_are_homed(self):
         vendor = FakeLinuxCNC()

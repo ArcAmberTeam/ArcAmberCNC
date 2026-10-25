@@ -97,6 +97,10 @@ class Configuration:
             return "回零未配置：烛龙回零配置要求毫米机床单位"
         if (self.get(section, "SWITCH_INPUTS_VERIFIED") or "").upper() != "YES":
             return "回零未配置：必须确认三轴开关输入与极性"
+        if (self.get(section, "MOTOR_MAPPING_VERIFIED") or "").upper() != "YES":
+            return "回零未配置：XYZ 电机通道与实机轴尚未核验；开关验证不能代替电机验证"
+        if (self.get(section, "MOTOR_DIRECTIONS_VERIFIED") or "").upper() != "YES":
+            return "回零未配置：电机方向尚未核验；实机应为 X 向后、Y 向左、Z 向下"
         if self.home_all_joints != [0, 1, 2] or any(
             self.joint_map.get(axis) != [joint] for joint, axis in enumerate("XYZ")
         ):

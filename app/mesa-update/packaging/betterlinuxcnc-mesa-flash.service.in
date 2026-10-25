@@ -26,3 +26,4 @@ RestrictSUIDSGID=yes
 LockPersonality=yes
 # runuser drops to the fixed operating account; backup reads its private data.
 CapabilityBoundingSet=CAP_SETUID CAP_SETGID CAP_DAC_READ_SEARCH
+AmbientCapabilities=CAP_SETUID CAP_SETGID CAP_DAC_READ_SEARCH

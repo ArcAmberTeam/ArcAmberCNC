@@ -12,5 +12,6 @@
 - 测试从公开对象、安装后的 CLI 和 socket 观察行为；允许注入 vendor 模块、时钟和预览进程工厂，不导入私有文件。真实 gcode 测试仅解释临时程序，不启动模拟器或硬件。
 - 连接检查使用未附着的 `machine.status`，不能为了诊断获取现有 GUI 的控制权、读取错误通道或续租点动。必须保留“socket 可达但 LinuxCNC 离线”的反馈，不把服务就绪当作核心就绪。外部接口集成测试同时给 Controller 和 StatusReader 注入同一 vendor；只替换命令接口会使观察者误读真实或缺失的 LinuxCNC 模块。
 - 修改后运行 Ruff 检查、格式检查、安装包构建和 `unittest`；涉及协议时还运行 Rust 跨进程集成测试。
+- 专用机回零分别要求开关输入、电机通道对应实机轴、电机正负方向已核验；`MOTOR_MAPPING_VERIFIED` 和 `MOTOR_DIRECTIONS_VERIFIED` 缺失或非 YES 时拒绝回零及依赖回零的联动运动。准备工具不得自动声称已完成物理电机验收。公开 `homeAllUnavailableReason` 随 capability 提供禁用原因，GUI 只展示，不自行放宽条件。
 
 - 用户要求局域网一键连接：不传 token 时 `session.auth` 使用空参数握手，传入 token 时仍校验令牌；不得自动回退或移除机床联锁、文件摘要和点动租约。

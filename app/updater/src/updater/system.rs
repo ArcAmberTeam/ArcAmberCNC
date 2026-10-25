@@ -93,7 +93,13 @@ fn query(manager: &Manager, unit: &str) -> Result<UnitState> {
     let load = fields
         .get("LoadState")
         .copied()
-        .ok_or("systemd 未返回加载状态")?;
+        .ok_or_else(|| {
+            let detail: String = String::from_utf8_lossy(&output.stderr)
+                .chars()
+                .take(512)
+                .collect();
+            format!("无法查询用户服务，systemd 未返回加载状态：{}", detail.trim())
+        })?;
     let active = fields
         .get("ActiveState")
         .copied()
@@ -254,7 +260,10 @@ mod tests {
             directory.path(),
             "echo 'Failed to connect to bus' >&2; exit 1",
         );
-        assert!(query(&manager(&path), LAUNCHER).is_err());
+        assert!(query(&manager(&path), LAUNCHER)
+            .unwrap_err()
+            .to_string()
+            .contains("Failed to connect to bus"));
         let path = executable(
             directory.path(),
             "printf 'LoadState=loaded\\nActiveState=unknown\\n'",

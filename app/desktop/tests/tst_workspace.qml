@@ -782,7 +782,32 @@ TestCase {
         verify(check.enabled);
         compare(control("settings-mesa-version").text, "配套版本：26.10.26.1");
         compare(control("settings-mesa-status").text, "无可烧录固件");
+        verify(!control("settings-mesa-flash").visible);
+        compare(backend.mesaFlash.requestCount, 0);
         compare(backend.requests.length, before);
+    }
+
+    function test_verifiedMesaFirmwareUsesIndependentMaintenanceRequest() {
+        window.width = 1024; window.height = 600;
+        backend.update({connected: true, powered: true, busy: false});
+        backend.mesaUpdate.state = {
+            phase: "release_available", installed_app_version: "26.10.26.1",
+            manifest: {compatible_app_version: "26.10.26.1", firmware: {available: true}}
+        };
+        click("open-settings"); click("settings-tab-about");
+        const flash = control("settings-mesa-flash");
+        verify(flash.visible && !flash.enabled);
+        backend.update({powered: false, busy: true}); verify(!flash.enabled);
+        backend.update({busy: false}); verify(flash.enabled);
+        const before = backend.requests.length;
+        flash.forceActiveFocus(Qt.TabFocusReason);
+        const scroll = control("settingsScroller");
+        tryVerify(() => flash.mapToItem(scroll, 0, flash.height).y <= scroll.height);
+        click("settings-mesa-flash");
+        compare(backend.mesaFlash.requestCount, 1);
+        verify(!flash.enabled);
+        compare(backend.requests.length, before);
+        compare(backend.firmwareUpdater.installCount, 0);
     }
 
     function test_settingsSidebarCategories_data() {

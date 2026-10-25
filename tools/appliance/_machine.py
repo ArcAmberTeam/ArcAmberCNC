@@ -78,7 +78,10 @@ def _copy_children(descriptor, destination, programs_only):
             finally:
                 os.close(child)
         elif programs_only and Path(name).suffix.lower() not in (
-            ".ngc", ".nc", ".tap", ".gcode"
+            ".ngc",
+            ".nc",
+            ".tap",
+            ".gcode",
         ):
             continue
         else:
@@ -87,7 +90,9 @@ def _copy_children(descriptor, destination, programs_only):
             )
             with os.fdopen(handle, "rb") as stream:
                 if not stat.S_ISREG(os.fstat(handle).st_mode):
-                    raise ValueError(f"Migration refuses links or special files: {name}")
+                    raise ValueError(
+                        f"Migration refuses links or special files: {name}"
+                    )
                 _copy_stream(stream, target)
 
 
@@ -98,7 +103,7 @@ def resolve(value, base):
     return Path(os.path.abspath(result if result.is_absolute() else base / result))
 
 
-def _build(source, config_dir, data_dir):
+def _build(source, config_dir, data_dir, configure_profile=None):
     source = Path(os.path.abspath(source))
     with _file(source) as stream:
         config = json.load(stream)
@@ -152,6 +157,8 @@ def _build(source, config_dir, data_dir):
         else:
             output.append(line)
     (target / ini.name).write_text("".join(output))
+    if configure_profile is not None:
+        configure_profile(target / ini.name)
     config["ini"] = str(CONFIG / "machine" / ini.name)
     if config.get("cam"):
         inbox = resolve(config["cam"]["inbox"], source.parent)
@@ -242,13 +249,15 @@ def _recover(config_dir, data_dir):
     journal = stages["config"] / "transaction.json"
     records = json.loads(journal.read_text()) if journal.exists() else []
     allowed = [("data", name) for name in _NAMES] + [
-        ("config", "machine"), ("config", "launcher.json")
+        ("config", "machine"),
+        ("config", "launcher.json"),
     ]
     if records and [(r["area"], r["name"]) for r in records] != allowed:
-        raise ValueError("Unrecognized migration recovery record; preserve it for review")
+        raise ValueError(
+            "Unrecognized migration recovery record; preserve it for review"
+        )
     committed = (
-        bool(records)
-        and _identity(config_dir / "launcher.json") == records[-1]["new"]
+        bool(records) and _identity(config_dir / "launcher.json") == records[-1]["new"]
     )
     exposed = committed or any(record.get("publishing") for record in records)
     if not committed:
@@ -283,7 +292,7 @@ def _recover(config_dir, data_dir):
         shutil.rmtree(stages["config"])
 
 
-def migrate(source, root=Path("/"), owner=None):
+def migrate(source, root=Path("/"), owner=None, configure_profile=None):
     """Publish copies; launcher.json is the final, durable commit marker."""
     root = Path(os.path.abspath(root))
     _parents(root)
@@ -316,19 +325,29 @@ def migrate(source, root=Path("/"), owner=None):
                 stage.mkdir(mode=0o700)
                 (stage / "new").mkdir(mode=0o700)
                 (stage / "old").mkdir(mode=0o700)
-            _build(source, stages["config"] / "new", stages["data"] / "new")
+            _build(
+                source,
+                stages["config"] / "new",
+                stages["data"] / "new",
+                configure_profile,
+            )
             _protect_staged(stages["config"] / "new", stages["data"] / "new", owner)
             records = []
             for area, names in (
-                ("data", _NAMES), ("config", ("machine", "launcher.json"))
+                ("data", _NAMES),
+                ("config", ("machine", "launcher.json")),
             ):
                 parent = data_dir if area == "data" else config_dir
                 for name in names:
-                    records.append({
-                        "area": area, "name": name, "old": _identity(parent / name),
-                        "new": _identity(stages[area] / "new" / name),
-                        "publishing": False,
-                    })
+                    records.append(
+                        {
+                            "area": area,
+                            "name": name,
+                            "old": _identity(parent / name),
+                            "new": _identity(stages[area] / "new" / name),
+                            "publishing": False,
+                        }
+                    )
             journal = stages["config"] / "transaction.json"
             _journal(journal, records)
             for record in records:
@@ -350,7 +369,7 @@ def migrate(source, root=Path("/"), owner=None):
     return config_dir / "machine"
 
 
-def stage(source, destination):
+def stage(source, destination, configure_profile=None):
     """Expose a complete preview, or remove only the empty reservation we made."""
     destination = Path(os.path.abspath(destination))
     parent = destination.parent
@@ -369,7 +388,7 @@ def stage(source, destination):
         temporary = Path(tempfile.mkdtemp(prefix=".bettercnc-stage-", dir=parent))
         (temporary / CONFIG.relative_to("/")).mkdir(parents=True)
         (temporary / DATA.relative_to("/")).mkdir(parents=True)
-        migrate(source, temporary)
+        migrate(source, temporary, configure_profile=configure_profile)
         if _identity(destination) != reservation:
             raise ValueError("Staging destination changed; refusing to replace it")
         _rename(temporary, destination)

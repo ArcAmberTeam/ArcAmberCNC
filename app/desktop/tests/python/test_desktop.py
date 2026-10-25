@@ -21,6 +21,59 @@ APP = QGuiApplication.instance() or QGuiApplication([])
 
 
 class DesktopTests(unittest.TestCase):
+    def test_mesa_pending_request_rechecks_the_latest_root_status(self):
+        for phase in ("verifying_identity", "writing", "programmed_pending_power_cycle"):
+            self.backend.close()
+            calls = Path(self.temporary.name) / (phase + "-calls.jsonl")
+            script = Path(self.temporary.name) / (phase + "-flash.py")
+            script.write_text(
+                "import json, sys, time\nfrom pathlib import Path\n"
+                f"with Path({str(calls)!r}).open('a') as f: f.write(json.dumps(sys.argv[1:]) + '\\n')\n"
+                "time.sleep(.15)\n"
+                f"print(json.dumps(dict(schema_version=1, component='mesa-flash', phase={phase!r}, message='')))\n",
+                encoding="utf-8",
+            )
+            self.backend = DesktopBackend(
+                socket_path=self.peer.path,
+                mesa_flash_command=[sys.executable, str(script)],
+            )
+            self.addCleanup(self.backend.close)
+            flash = self.backend.mesaFlash
+            self.wait(lambda calls=calls: calls.exists())
+            flash.request()
+            self.wait(lambda flash=flash, phase=phase: flash.state["phase"] == phase)
+            QTest.qWait(100)
+            self.assertEqual(
+                [json.loads(line) for line in calls.read_text().splitlines()], [["status"]]
+            )
+            self.assertNotEqual(flash.state["phase"], "error")
+
+    def test_mesa_flash_request_uses_a_separate_fixed_cli_without_hardware_arguments(self):
+        self.backend.close()
+        calls = Path(self.temporary.name) / "flash-calls.jsonl"
+        script = Path(self.temporary.name) / "flash-service.py"
+        script.write_text(
+            "import json, sys\nfrom pathlib import Path\n"
+            f"with Path({str(calls)!r}).open('a') as f: f.write(json.dumps(sys.argv[1:]) + '\\n')\n"
+            "phase = 'scheduled' if sys.argv[1] == 'request' else 'not_checked'\n"
+            "print(json.dumps(dict(schema_version=1, component='mesa-flash', phase=phase, message='')))\n",
+            encoding="utf-8",
+        )
+        self.backend = DesktopBackend(
+            socket_path=self.peer.path,
+            mesa_flash_command=[sys.executable, str(script)],
+        )
+        self.addCleanup(self.backend.close)
+        flash = self.backend.mesaFlash
+        flash.request()
+        flash.request()
+        self.wait(lambda: flash.state["phase"] == "scheduled" and calls.exists())
+        QTest.qWait(100)
+        commands = [json.loads(line) for line in calls.read_text().splitlines()]
+        self.assertEqual(commands.count(["request"]), 1)
+        self.assertTrue(all(command in (["status"], ["request"]) for command in commands))
+        self.assertFalse(any(item["method"] == "command.execute" for item in self.peer.requests))
+
     def mesa_peer(self, response):
         self.backend.close()
         calls = Path(self.temporary.name) / "mesa-calls.jsonl"
@@ -73,7 +126,7 @@ class DesktopTests(unittest.TestCase):
         ):
             updater, _calls = self.mesa_peer(response)
             updater.check()
-            self.wait(lambda: updater.state["phase"] == "error")
+            self.wait(lambda updater=updater: updater.state["phase"] == "error")
             self.assertIn("无效状态", updater.state["message"])
 
     def update_peer(self, script):

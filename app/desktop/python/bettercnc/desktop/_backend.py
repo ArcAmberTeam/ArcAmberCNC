@@ -25,7 +25,7 @@ from PySide6.QtCore import (
 )
 from PySide6.QtGui import QGuiApplication
 
-from ._mesa_update import MesaUpdate
+from ._mesa_update import MesaFlash, MesaUpdate
 from ._program import ProgramModel
 from ._program_files import ProgramFiles
 from ._updater import FirmwareUpdater
@@ -66,6 +66,7 @@ class DesktopBackend(QObject):
         kiosk=False,
         program_roots=None,
         mesa_update_command=None,
+        mesa_flash_command=None,
     ):
         super().__init__(parent)
         self._snapshot = {
@@ -85,6 +86,7 @@ class DesktopBackend(QObject):
         self._program_files = ProgramFiles(self, roots=program_roots)
         self._firmware_updater = FirmwareUpdater(self, command=updater_command)
         self._mesa_update = MesaUpdate(self, command=mesa_update_command)
+        self._mesa_flash = MesaFlash(self, command=mesa_flash_command)
         self._settings = settings if settings is not None else QSettings()
         self._history = self._settings.value("mdi/history", [], type=list) or []
         self._recent = self._settings.value("program/recent", [], type=list) or []
@@ -127,6 +129,7 @@ class DesktopBackend(QObject):
     programFiles = Property(QObject, lambda self: self._program_files, constant=True)
     firmwareUpdater = Property(QObject, lambda self: self._firmware_updater, constant=True)
     mesaUpdate = Property(QObject, lambda self: self._mesa_update, constant=True)
+    mesaFlash = Property(QObject, lambda self: self._mesa_flash, constant=True)
     history = Property("QStringList", lambda self: self._history, notify=historyChanged)
     recentFiles = Property("QStringList", lambda self: self._recent, notify=recentFilesChanged)
     toolTable = Property("QVariantList", lambda self: self._tool_rows, notify=toolTableChanged)
@@ -527,6 +530,7 @@ class DesktopBackend(QObject):
         self._closed = True
         self._firmware_updater.close()
         self._mesa_update.close()
+        self._mesa_flash.close()
         self._heartbeat.stop()
         self._program.cancel()
         self.shutdownRequested.emit()

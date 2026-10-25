@@ -2,6 +2,15 @@ import QtQml
 
 // Explicit test fixture: records requested actions without operating a controller.
 QtObject {
+    property QtObject mesaFlash: QtObject {
+        property bool available: true
+        property var state: ({phase: "not_checked", message: ""})
+        property int requestCount: 0
+        function request() {
+            requestCount++;
+            state = {phase: "scheduled", message: "烧录维护请求已提交"};
+        }
+    }
     property QtObject mesaUpdate: QtObject {
         property bool available: true
         property var state: ({phase: "not_checked", message: "尚未检查 Mesa 配套更新"})

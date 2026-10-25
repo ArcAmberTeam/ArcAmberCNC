@@ -281,6 +281,7 @@ Rectangle {
         actions: chromeActions
         firmwareUpdater: workspace.backend && workspace.backend.firmwareUpdater ? workspace.backend.firmwareUpdater : null
         mesaUpdate: workspace.backend && workspace.backend.mesaUpdate ? workspace.backend.mesaUpdate : null
+        mesaFlash: workspace.backend && workspace.backend.mesaFlash ? workspace.backend.mesaFlash : null
         onBackRequested: workspace.closeSettings()
         onInterfaceModeRequested: mode => workspace.interfaceMode = mode
         onCommandRequested: (actionId, payload) => workspace.requestCommand(actionId, payload)

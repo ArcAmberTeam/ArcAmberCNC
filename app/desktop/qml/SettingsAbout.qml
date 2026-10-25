@@ -8,7 +8,13 @@ Column {
     property var machine: ({})
     property var updater: null
     property var mesaUpdate: null
+    property var mesaFlash: null
     readonly property var mesaState: mesaUpdate ? mesaUpdate.state : ({phase: "not_checked", message: "Mesa 更新服务尚未安装"})
+    readonly property var flashState: mesaFlash ? mesaFlash.state : ({phase: "not_checked", message: ""})
+    readonly property bool flashing: ["scheduled", "checking", "verified", "verifying_identity", "writing", "verifying", "programmed_pending_power_cycle"].indexOf(flashState.phase) >= 0
+    readonly property bool hasFirmware: ["release_available", "downloaded"].indexOf(mesaState.phase) >= 0
+        && !!mesaState.manifest && mesaState.manifest.firmware?.available === true
+        && !!mesaState.installed_app_version && mesaState.manifest.compatible_app_version === mesaState.installed_app_version
     readonly property var updateState: updater ? updater.state : ({phase: "idle", message: "更新服务尚未安装", progress: 0})
     readonly property bool updating: ["checking", "downloading", "verifying", "scheduled", "installing"].indexOf(updateState.phase) >= 0
     spacing: 0
@@ -98,6 +104,23 @@ Column {
             width: parent.width
             text: "配套版本：" + (root.mesaState.available_version || "—")
             color: Theme.secondary
+        }
+        UiButton {
+            objectName: "settings-mesa-flash"
+            text: "停机并烧录控制板"
+            height: 44
+            visible: root.hasFirmware
+            enabled: !!root.mesaFlash && !!root.mesaFlash.available && !root.flashing
+                && !root.updating && !!root.machine.connected && !root.machine.busy && !root.machine.powered
+            onClicked: root.mesaFlash.request()
+        }
+        UiText {
+            objectName: "settings-mesa-flash-status"
+            width: parent.width
+            visible: text.length > 0
+            text: root.flashState.message || ""
+            color: root.flashState.phase === "error" ? Theme.danger : Theme.secondary
+            wrapMode: Text.Wrap
         }
         UiText {
             objectName: "settings-mesa-status"

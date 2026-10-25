@@ -7,22 +7,12 @@ import sys
 from PySide6.QtCore import Property, QObject, QProcess, QTimer, Signal, Slot
 
 
-class MesaUpdate(QObject):
+class _MesaProcess(QObject):
     changed = Signal()
-    _messages = {
-        "not_checked": "尚未检查 Mesa 配套更新",
-        "checking": "正在检查 Mesa 配套更新…",
-        "version_mismatch": "应用与 Mesa 最新版本尚未配对，请稍后重试",
-        "source_only": "配套源码已发布；本版本没有经过验证的可烧录固件",
-        "release_available": "发现经过验证的配套固件，请先安装对应应用版本",
-        "downloaded": "固件已下载并校验，控制板尚未烧录",
-        "firmware_unavailable": "当前应用版本没有经过验证的可烧录固件",
-        "error": "Mesa 更新检查失败，请重试或查看维护日志",
-    }
 
     def __init__(self, parent=None, *, command=None):
         super().__init__(parent)
-        self._command = command or [shutil.which("betterlinuxcnc-mesa-update") or ""]
+        self._command = command or [shutil.which("betterlinuxcnc-" + self._component) or ""]
         self._available = bool(self._command[0]) and (
             sys.platform == "linux" or command is not None
         )
@@ -39,7 +29,7 @@ class MesaUpdate(QObject):
         self._buffer = b""
         self._seen = False
         self._invalid = False
-        self._pending = False
+        self._pending = None
         self._closed = False
         self._operation = ""
         self._timer = QTimer(self)
@@ -79,7 +69,7 @@ class MesaUpdate(QObject):
                     not isinstance(record, dict)
                     or type(record.get("schema_version")) is not int
                     or record["schema_version"] != 1
-                    or record.get("component") != "mesa-update"
+                    or record.get("component") != self._component
                     or record.get("phase") not in self._messages
                     or not isinstance(record.get("message"), str)
                     or any(
@@ -106,25 +96,34 @@ class MesaUpdate(QObject):
         self._read()
         if not self._invalid and (code != 0 or not self._seen or self._buffer):
             self._error("Mesa 更新服务未正常完成，请查看维护日志")
-        pending, self._pending = self._pending, False
+        active = self._state["phase"] in (
+            "scheduled",
+            "verified",
+            "verifying_identity",
+            "writing",
+            "verifying",
+        )
+        active = active or (self._component == "mesa-flash" and self._state["phase"] == "checking")
+        self._timer.setInterval(1500 if active else 60000)
+        pending, self._pending = self._pending, None
         if pending and not self._closed:
-            QTimer.singleShot(0, self.check)
+            # Re-enter the public action so the newly read state can veto it.
+            QTimer.singleShot(0, self.check if pending[0] == "check" else self.request)
 
     def _failed(self, error):
         if error == QProcess.FailedToStart:
             self._error("无法启动 Mesa 更新服务，请检查安装是否完整")
 
-    @Slot()
-    def check(self):
+    def _request(self, operation, phase):
         if self._process.state() != QProcess.NotRunning:
             if self._operation == "status":
-                self._pending = True
+                self._pending = (operation, phase)
             return
         if not self._available or self._closed:
             return
-        self._state = {"phase": "checking", "message": self._messages["checking"]}
+        self._state = {"phase": phase, "message": self._messages[phase]}
         self.changed.emit()
-        self._start("check")
+        self._start(operation)
 
     def close(self):
         self._closed = True
@@ -132,3 +131,51 @@ class MesaUpdate(QObject):
         if self._process.state() != QProcess.NotRunning:
             self._process.kill()
             self._process.waitForFinished(1500)
+
+
+class MesaUpdate(_MesaProcess):
+    _component = "mesa-update"
+    _messages = {
+        "not_checked": "尚未检查 Mesa 配套更新",
+        "checking": "正在检查 Mesa 配套更新…",
+        "version_mismatch": "应用与 Mesa 最新版本尚未配对，请稍后重试",
+        "source_only": "配套源码已发布；本版本没有经过验证的可烧录固件",
+        "release_available": "发现经过验证的配套固件，请先安装对应应用版本",
+        "downloaded": "固件已下载并校验，控制板尚未烧录",
+        "firmware_unavailable": "当前应用版本没有经过验证的可烧录固件",
+        "error": "Mesa 更新检查失败，请重试或查看维护日志",
+    }
+
+    @Slot()
+    def check(self):
+        self._request("check", "checking")
+
+
+class MesaFlash(_MesaProcess):
+    _component = "mesa-flash"
+    _messages = {
+        "not_checked": "",
+        "scheduled": "烧录维护请求已提交，正在等待安全检查",
+        "checking": "正在独立校验官方固件和机床状态",
+        "verified": "固件验证通过，准备停止控制并备份",
+        "verifying_identity": "正在核对控制板身份，请勿断电",
+        "writing": "正在写入控制板，请勿断电",
+        "verifying": "正在回读验证，请勿断电",
+        "programmed_pending_power_cycle": "回读验证成功，控制保持停止。请在现场完成受控断电重启后验收",
+        "blocked": "烧录条件不满足，详情请查看维护日志",
+        "error": "烧录维护未完成，请查看维护日志并现场排查",
+    }
+
+    @Slot()
+    def request(self):
+        if self._state["phase"] in (
+            "scheduled",
+            "checking",
+            "verified",
+            "verifying_identity",
+            "writing",
+            "verifying",
+            "programmed_pending_power_cycle",
+        ):
+            return
+        self._request("request", "scheduled")

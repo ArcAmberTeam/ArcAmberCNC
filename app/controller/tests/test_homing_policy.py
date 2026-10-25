@@ -4,8 +4,9 @@ import os
 import unittest
 from unittest.mock import patch
 
-from bettercnc_controller import Controller
 from test_controller import FakeLinuxCNC
+
+from bettercnc_controller import Controller
 
 
 def six_joint_vendor():

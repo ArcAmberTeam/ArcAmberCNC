@@ -172,6 +172,7 @@ class HomingPolicyTests(unittest.TestCase):
 
     def test_commissioned_profile_enables_home_all_with_negative_xyz_search(self):
         vendor = FakeLinuxCNC()
+        vendor.status.homed = [0, 0, 0]
         verified_profile(vendor)
         vendor.ini_values[("BETTERCNC_HOMING", "CONFIGURATION_REVISION")] = "zhulong-xyz-20261026"
         for joint in range(3):

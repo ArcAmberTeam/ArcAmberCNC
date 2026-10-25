@@ -2,7 +2,7 @@
 
 端点使用 AF_UNIX stream。父目录为同一用户所有的 0700 目录，socket 为 0600；服务不覆盖已有 socket。每帧为四字节大端无符号长度，随后 UTF-8 JSON，正文最大 65,536 字节。重复 JSON 字段、非有限数、非法版本、未知字段、无效参数与超长帧拒绝处理。
 
-v1 保持 `{version:1, request_id, method:"health"}` 的旧格式，返回历史诊断结果和 `machine_connected:false`。它不获取控制会话，也不代表实际机床状态；由独立 `rust.diagnostics` 库保留兼容。
+v1 保持 `{version:1, request_id, method:"health"}` 的旧格式，返回历史诊断结果和 `machine_connected:false`。它不获取控制会话，也不代表实际机床状态；由独立 `tools/diagnostics` 库保留兼容。
 
 v2 请求：
 
@@ -25,6 +25,8 @@ v2 请求：
 除 `machine.status` 和 `session.attach` 外，每个 v2 方法都要求当前连接持有会话。`machine.status` 通过独立 `StatusReader` 在工作线程读取 `linuxcnc.stat`，不建立 command/error 通道，不获取控制所有权，也不续租点动；没有桌面控制会话时仍可查询。服务最多一个控制所有者，一个预览任务归属于该连接；控制连接断开释放所有权、取消预览和未发送的后续命令。观察者断开不改变机床状态。其他 LinuxCNC 工具不受此 socket 所有权约束，应在部署时协调。
 
 `machine.status` 中 `currentLine` 仅来自 `motion_line`，`taskLine` 来自任务层的 `current_line`，`readLine` 来自解释器预读的 `read_line`；这些位置分别返回，不能用任务行或预读行替代运动执行行。`progressPercent` 保持 null；循环、子程序和各段耗时不同，行号不能表示准确完成比例。`programState` 为 idle/running/paused/busy/estop/off/unknown；idle 不能证明某项作业已成功完成。详细外部接口见 [CAM 联动协议](cam-link-protocol.md)。
+
+`machine.status` 还返回 `busy`（解释器、执行状态或队列尚未静止）、`velocity`（原生单位/秒；缺失或非有限值为 null）与 `nativeCommandState`（NML `stat.state` 的 RCS_DONE/RCS_EXEC/RCS_ERROR 分别归一为 done/executing/error，其余为 unknown）。`nativeCommandState` 仅表示原生通道观察值，不表示某个 GUI 请求已经完成。服务若仍跟踪 accepted/pending/sent/unknown 的桌面命令，会额外返回该请求的 `commandState`；不要将两者混同。更新器必须同时确认新鲜原生状态、队列和请求状态可停止，并由启动器正常退出；只读观察不能替代机床物理联锁。
 
 ## 状态与操作
 

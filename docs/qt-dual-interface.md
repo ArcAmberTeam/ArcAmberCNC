@@ -32,8 +32,8 @@
 无需 LinuxCNC 的交互窗口：
 
 ```sh
-python.desktop/.venv/bin/python python.desktop/tests/visual_preview.py --interface guided
-python.desktop/.venv/bin/python python.desktop/tests/visual_preview.py --interface professional
+app/desktop/.venv/bin/python app/desktop/tests/visual_preview.py --interface guided
+app/desktop/.venv/bin/python app/desktop/tests/visual_preview.py --interface professional
 ```
 
 还可使用 `--stage preview`、`--stage device`、`--scenario offline` 或 `--scenario error`。这是明确标注“测试数据”的 FakeBackend，按钮记录请求，不控制硬件，也不自动模拟真实机床状态变化。两种模式的切换在同一个窗口内完成。
@@ -42,11 +42,11 @@ python.desktop/.venv/bin/python python.desktop/tests/visual_preview.py --interfa
 
 ```sh
 QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software \
-python.desktop/.venv/bin/python python.desktop/tests/visual_preview.py \
+app/desktop/.venv/bin/python app/desktop/tests/visual_preview.py \
   --interface guided --stage preview --width 760 --height 640 --capture /tmp/guided.png
 ```
 
-本地截图保存在忽略入库的 `python.desktop/artifacts/dual-ui/`。固定测试线段不代表实际 G 代码解释结果。
+本地截图保存在忽略入库的 `app/desktop/artifacts/dual-ui/`。固定测试线段不代表实际 G 代码解释结果。
 
 ## 验证
 
@@ -81,7 +81,7 @@ macOS 无屏与本地窗口检查不能替代 Debian 13 / Intel 核显或真实�
 使用原界面、原桌面后端及原控制服务，只从外部注入 LinuxCNC 接口替身的入口：
 
 ```sh
-python.desktop/.venv/bin/python python.desktop/tests/interactive/main.py
+app/desktop/.venv/bin/python app/desktop/tests/interactive/main.py
 ```
 
 QML 测试通过鼠标、键盘和 `touchEvent()` 注入覆盖平移、旋转、锚点缩放、双指转换、双点复位、焦点隔离及点动取消。Qt Quick Test 的鼠标释放会人为推进 500 毫秒事件时间戳，因此双点识别测试使用触摸事件，避免把测试框架的间隔当作产品行为。参考 [Qt TapHandler](https://doc.qt.io/qt-6/qml-qtquick-taphandler.html) 和 [Qt Quick Test 事件实现](https://github.com/qt/qtdeclarative/blob/dev/src/qmltest/quicktestevent.cpp)。macOS 上的注入测试不代表实体触摸屏、Debian 图形驱动或真实机床已验收。

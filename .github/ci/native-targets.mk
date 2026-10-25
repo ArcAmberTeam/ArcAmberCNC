@@ -9,7 +9,7 @@ CI_DRIVER_MODULES := $(foreach module,$(obj-m),$(if $(filter hal/drivers/%,$($(m
 ifeq ($(strip $(CI_DRIVER_MODULES)),)
 $(error No native driver modules selected)
 endif
-# Include the relocated C and C++ userspace device capabilities when enabled.
+# Include C and C++ userspace device capabilities when enabled.
 CI_USER_DRIVER_NAMES := mb2hal hy_vfd gs2_vfd hy_gt_vfd svd-ps_vfd \
     vfs11_vfd vfdb_vfd wj200_vfd pi500_vfd shuttle xhc-hb04 xhc-whb04b-6
 CI_USER_DRIVERS := $(filter $(addprefix ../bin/,$(CI_USER_DRIVER_NAMES)),$(TARGETS))

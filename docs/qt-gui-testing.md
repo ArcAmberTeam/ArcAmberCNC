@@ -1,13 +1,13 @@
 # 无 LinuxCNC 的 GUI 回归测试
 
-GUI 测试使用 Qt Quick Test 加载真实 QML 窗口，并注入 `python.desktop/tests/FakeBackend.qml`。该替身提供确定的状态快照、程序文本和请求记录，不连接 socket、不启动 LinuxCNC 或模拟器，也不会执行机床操作。生产启动器不加载该替身。
+GUI 测试使用 Qt Quick Test 加载真实 QML 窗口，并注入 `app/desktop/tests/FakeBackend.qml`。该替身提供确定的状态快照、程序文本和请求记录，不连接 socket、不启动 LinuxCNC 或模拟器，也不会执行机床操作。生产启动器不加载该替身。
 
 ## 交互式手动测试
 
 在仓库根目录执行：
 
 ```sh
-python.desktop/.venv/bin/python python.desktop/tests/interactive/main.py
+app/desktop/.venv/bin/python app/desktop/tests/interactive/main.py
 ```
 
 同时打开标有“交互测试”的真实 GUI 和独立测试控制台。此入口只需 PySide6，不需要先编译 C++ 测试启动器。关闭任一窗口会退出整套交互测试。
@@ -26,12 +26,12 @@ python.desktop/.venv/bin/python python.desktop/tests/interactive/main.py
 从仓库根目录运行，按本机安装位置调整 Qt 和 Python 路径：
 
 ```sh
-cmake -S python.desktop -B python.desktop/build -G Ninja \
+cmake -S . -B build -G Ninja \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_PREFIX_PATH="$HOME/Qt/6.12.0/macos" \
-  -DPython3_EXECUTABLE="$PWD/python.desktop/.venv/bin/python"
-cmake --build python.desktop/build --parallel
-ctest --test-dir python.desktop/build -R '^qml-ui$' --output-on-failure
+  -DPython3_EXECUTABLE="$PWD/app/desktop/.venv/bin/python"
+cmake --build build --parallel
+ctest --test-dir build -R '^qml-ui$' --output-on-failure
 ```
 
 CTest 自动设置 `QT_QPA_PLATFORM=offscreen`、`QT_QUICK_BACKEND=software` 和 Basic 控件样式，不需要手动打开 GUI 或运行控制服务。
@@ -39,7 +39,7 @@ CTest 自动设置 `QT_QPA_PLATFORM=offscreen`、`QT_QUICK_BACKEND=software` 和
 同时检查模块边界、生产 QML 静态检查、Python 公共接口和离线启动：
 
 ```sh
-ctest --test-dir python.desktop/build \
+ctest --test-dir build \
   -R '^(qml-ui|module-boundaries|qml-lint|python-integration|desktop-startup)$' \
   --output-on-failure
 ```

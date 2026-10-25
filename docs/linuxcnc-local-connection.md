@@ -18,7 +18,7 @@ Python 控制服务 → LinuxCNC。SSH 仅用于维护，不参与机床命令�
 - 安装前后 `launcher.json` 和机床 INI 摘要相同；原有 VERSION、debian/changelog 修改与未跟踪机床配置目录保留。
 
 现有 GUI 后端已经支持真实 v2 控制会话，无需新增网络控制层。交互测试通过外部
-注入接口替身；正式入口 `python.desktop/app/main.py` 和 `betterlinuxcnc` 不加载替身。
+注入接口替身；正式入口 `app/desktop/app/main.py` 和 `betterlinuxcnc` 不加载替身。
 
 ## 拉取后先检查连接
 
@@ -31,7 +31,7 @@ Python 控制服务 → LinuxCNC。SSH 仅用于维护，不参与机床命令�
 
 ```sh
 cd ~/ArcAmberCNC
-/usr/bin/python3 python.desktop/app/main.py --check-connection \
+/usr/bin/python3 app/desktop/app/main.py --check-connection \
   --socket /run/user/1000/betterlinuxcnc/control.sock
 ```
 
@@ -49,20 +49,20 @@ cd ~/ArcAmberCNC
 
 ```sh
 cd ~/ArcAmberCNC
-cmake -S python.desktop -B python.desktop/build-target \
+cmake -S . -B build-target \
   -DBUILD_TESTING=OFF \
   -DCMAKE_INSTALL_PREFIX=/usr \
   -DCMAKE_INSTALL_LIBDIR=lib \
   -DBETTERCNC_PROJECT_DIR="$PWD" \
   -DPython3_EXECUTABLE=/usr/bin/python3
-cmake --build python.desktop/build-target
+cmake --build build-target
 ```
 
 以上仅在目标机准备安装文件。先确认机床已按正常流程停机，旧启动器、LinuxCNC 与控制服务均已退出，
 再执行安装及重新启动。不要在旧 GUI/控制服务仍使用文件时覆盖安装，也不要以强杀进程代替正常停机。
 
 ```sh
-sudo cmake --install python.desktop/build-target
+sudo cmake --install build-target
 systemctl --user daemon-reload
 betterlinuxcnc-launch --config "$HOME/ArcAmberCNC/launcher.json" --check
 export DISPLAY=:0
@@ -75,7 +75,7 @@ systemctl --user start betterlinuxcnc-launcher.service
 `sudo` 仅用于安装，运行程序仍使用普通用户。安装更新 GUI、控制服务、CAM、启动器及已有
 自动启动入口，不覆盖 `launcher.json`、机床 INI/HAL，也不安装 LinuxCNC 核心。
 `--check` 只输出计划，不启动进程；启动用户服务才会加载真实机床配置。
-上述安装和 systemd 启动流程已在目标机实际执行。用户服务独立于 SSH 会话，断开 SSH 后继续运行。
+systemd 启动流程已在目标机实际执行；上述构建命令已更新为目录整理后的根 CMake 入口，新目录版本仍需随实际部署另行验收。用户服务独立于 SSH 会话，断开 SSH 后继续运行。
 需要直接在图形终端运行时，也可使用 `betterlinuxcnc-launch --config ./launcher.json`，但不能与用户服务并行启动。
 
 原有启动器按顺序启动控制服务、LinuxCNC（由其启动 DISPLAY），在读取到真实状态后启动 CAM。
@@ -103,7 +103,7 @@ systemd 的 active 只代表启动器仍在运行；继续读取本次启动目�
 
 ```sh
 cd ~/ArcAmberCNC
-/usr/bin/python3 python.desktop/app/main.py \
+/usr/bin/python3 app/desktop/app/main.py \
   --ini "$HOME/ArcAmberCNC/configs/zhulong-v2/烛龙V2.ini" \
   --socket /run/user/1000/betterlinuxcnc/control.sock
 ```

@@ -1,0 +1,25 @@
+[package]
+name = "betterlinuxcnc-services"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.97"
+license = "GPL-2.0-or-later"
+description = "Independent LinuxCNC system services and CAM control adapter"
+
+[[bin]]
+name = "betterlinuxcnc-cam-link"
+path = "src/main.rs"
+
+[dependencies]
+base64 = "0.22"
+clap = { version = "4", features = ["derive"] }
+libc = "0.2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+subtle = "2"
+tempfile = "3"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "io-util", "time", "sync", "signal"] }
+tokio-rustls = { version = "0.26", default-features = false, features = ["ring", "tls12"] }
+rustls-pemfile = "2"
+uuid = { version = "1", features = ["v4"] }

@@ -1,0 +1,19 @@
+# 由PNCconf在Sun Jul 12 13:03:57 2026生成
+# 使用的 LinuxCNC 版本:  Master (2.9)
+# 如果您对此文件进行了更改，那么
+# 再次运行PNCconf时会被覆盖
+
+#  ---手动换刀信号发送到 gmoccapy对话窗---
+
+net tool-change-request    => gmoccapy.toolchange-change
+net tool-change-confirmed  <= gmoccapy.toolchange-changed
+net tool-number            => gmoccapy.toolchange-number
+
+#  ---signals to show tool offset in the GUI---
+
+net tooloffset-x  => gmoccapy.tooloffset-x
+net tooloffset-z  => gmoccapy.tooloffset-z
+
+#  ---spindle-at-speed indicator---
+
+net spindle-at-speed => gmoccapy.spindle_at_speed_led

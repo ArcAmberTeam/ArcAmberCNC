@@ -1,0 +1,24 @@
+[Unit]
+Description=Verified ArcAmberCNC system update
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=exec
+User=root
+Group=root
+ExecStart=@CMAKE_INSTALL_FULL_BINDIR@/betterlinuxcnc-updater apply-system
+WorkingDirectory=/
+UMask=0077
+Environment=PATH=/usr/sbin:/usr/bin:/sbin:/bin
+Environment=HOME=/root
+TimeoutStartSec=infinity
+# The broker must see the real native lock and use apt/dpkg's system paths.
+PrivateTmp=no
+ProtectHome=read-only
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+NoNewPrivileges=yes
+LockPersonality=yes

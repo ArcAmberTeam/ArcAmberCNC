@@ -1,3 +1,5 @@
 *.po merge=pofile
 *.pot merge=pofile
 .github/ export-ignore
+# Preserve the byte-verified upstream release snapshot, including original CRLF.
+vendor/cnc-mesa/** -text -whitespace

@@ -1,0 +1,232 @@
+name: ArcAmberCNC Release
+
+on:
+  workflow_run:
+    workflows: [ArcAmberCNC Module CI]
+    branches: [main]
+    types: [completed]
+  pull_request_target:
+    branches: [main]
+    types: [closed, labeled]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: Already merged main PR with the build-release label
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+  pull-requests: read
+
+concurrency:
+  group: release-main
+  cancel-in-progress: false
+
+jobs:
+  resolve:
+    name: Resolve a labeled, merged PR and its successful CI artifact
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      ready: ${{ steps.candidate.outputs.ready }}
+      sha: ${{ steps.candidate.outputs.sha }}
+      run-id: ${{ steps.candidate.outputs.run-id }}
+      artifact-id: ${{ steps.candidate.outputs.artifact-id }}
+      version: ${{ steps.candidate.outputs.version }}
+      pr: ${{ steps.candidate.outputs.pr }}
+    steps:
+      # Never check out or run PR code in this privileged event workflow.
+      - uses: actions/github-script@v8
+        id: candidate
+        with:
+          script: |
+            const repo = context.repo;
+            let sha;
+            let candidates;
+            if (context.eventName === 'pull_request_target' || context.eventName === 'workflow_dispatch') {
+              let number = context.payload.pull_request?.number;
+              if (context.eventName === 'workflow_dispatch') {
+                if (context.ref !== 'refs/heads/main') throw new Error('Release retries must run from main');
+                const input = context.payload.inputs?.pr_number;
+                if (!/^[1-9][0-9]{0,9}$/.test(input || '')) throw new Error('Expected a merged PR number');
+                number = Number(input);
+              }
+              const {data: pr} = await github.rest.pulls.get({...repo, pull_number: number});
+              if (!pr.merged || pr.base.ref !== 'main' || !pr.labels.some(label => label.name === 'build-release')) return;
+              sha = pr.merge_commit_sha;
+              candidates = [pr];
+            } else {
+              const eventRun = context.payload.workflow_run;
+              if (eventRun.event !== 'push' || eventRun.head_branch !== 'main' || eventRun.conclusion !== 'success') return;
+              sha = eventRun.head_sha;
+              const associated = await github.paginate(github.rest.repos.listPullRequestsAssociatedWithCommit, {...repo, commit_sha: sha, per_page: 100});
+              candidates = await Promise.all(associated.map(async item => (await github.rest.pulls.get({...repo, pull_number: item.number})).data));
+            }
+            if (!/^[0-9a-f]{40}$/.test(sha)) throw new Error('Invalid merge commit');
+            const eligible = candidates.filter(pr => pr.merged && pr.base.ref === 'main' && pr.base.repo.full_name === `${repo.owner}/${repo.repo}` && pr.merge_commit_sha === sha && pr.labels.some(label => label.name === 'build-release'));
+            if (eligible.length !== 1) return;
+            const pr = eligible[0];
+            const {data: comparison} = await github.rest.repos.compareCommitsWithBasehead({...repo, basehead: `${sha}...main`});
+            if (!['ahead', 'identical'].includes(comparison.status)) throw new Error('Release commit is not on main');
+            const {data: workflow} = await github.rest.actions.getWorkflow({...repo, workflow_id: 'ci.yml'});
+            const {data: runs} = await github.rest.actions.listWorkflowRuns({...repo, workflow_id: workflow.id, branch: 'main', event: 'push', head_sha: sha, per_page: 100});
+            const run = runs.workflow_runs.find(item => item.head_sha === sha && item.head_branch === 'main' && item.event === 'push' && item.status === 'completed' && item.conclusion === 'success');
+            // A later workflow_run event retries automatically when CI is still running.
+            if (!run) { core.info('Waiting for the main push CI run to succeed.'); return; }
+            const jobs = await github.paginate(github.rest.actions.listJobsForWorkflowRun, {...repo, run_id: run.id, filter: 'latest', per_page: 100});
+            if (!jobs.some(job => job.name === 'CI Gate' && job.conclusion === 'success')) throw new Error('CI Gate did not pass');
+            const artifacts = await github.paginate(github.rest.actions.listWorkflowRunArtifacts, {...repo, run_id: run.id, per_page: 100});
+            const matches = artifacts.filter(item => !item.expired && item.name === `betterlinuxcnc-deb-${sha}`);
+            if (matches.length !== 1) throw new Error('Expected exactly one verified DEB artifact');
+            const {data: metadata} = await github.rest.repos.getContent({...repo, path: 'app/desktop/pyproject.toml', ref: sha});
+            const match = Buffer.from(metadata.content, 'base64').toString('utf8').match(/^version\s*=\s*"(\d+\.\d+\.\d+\.\d+)"\s*$/m);
+            if (!match) throw new Error('Expected a four-part application release version');
+            core.setOutput('ready', 'true');
+            core.setOutput('sha', sha);
+            core.setOutput('run-id', String(run.id));
+            core.setOutput('artifact-id', String(matches[0].id));
+            core.setOutput('version', match[1]);
+            core.setOutput('pr', String(pr.number));
+
+  publish:
+    name: Publish the verified DEB as the latest formal Release
+    needs: resolve
+    if: needs.resolve.outputs.ready == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      actions: read
+      pull-requests: read
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          artifact-ids: ${{ needs.resolve.outputs.artifact-id }}
+          run-id: ${{ needs.resolve.outputs.run-id }}
+          github-token: ${{ github.token }}
+          path: release-artifact
+      - uses: actions/github-script@v8
+        env:
+          RELEASE_SHA: ${{ needs.resolve.outputs.sha }}
+          RELEASE_VERSION: ${{ needs.resolve.outputs.version }}
+          RELEASE_PR: ${{ needs.resolve.outputs.pr }}
+        with:
+          script: |
+            const fs = require('node:fs');
+            const crypto = require('node:crypto');
+            const {execFileSync} = require('node:child_process');
+            const repo = context.repo;
+            const sha = process.env.RELEASE_SHA;
+            const version = process.env.RELEASE_VERSION;
+            const tag = `v${version}`;
+            const name = `betterlinuxcnc-qt_${version}_amd64.deb`;
+            const root = 'release-artifact';
+            const mesa = {owner: 'ArcAmberTeam', repo: 'CNC-Mesa'};
+            async function verifyMesaRelease() {
+              // Public, read-only cross-repository requests need no PAT or dispatch permission.
+              const {data: paired} = await github.rest.repos.getReleaseByTag({...mesa, tag});
+              if (paired.tag_name !== tag || paired.draft || paired.prerelease || !paired.published_at) throw new Error('CNC-Mesa must publish the matching formal release first; retry this workflow afterward');
+              const assets = await github.paginate(github.rest.repos.listReleaseAssets, {...mesa, release_id: paired.id, per_page: 100});
+              const manifests = assets.filter(asset => asset.name === 'mesa-release.json');
+              if (manifests.length !== 1) throw new Error('Expected one CNC-Mesa mesa-release.json asset');
+              const asset = manifests[0];
+              if (asset.state !== 'uploaded' || asset.size < 1 || asset.size > 65536 || !/^sha256:[0-9a-f]{64}$/.test(asset.digest || '')) throw new Error('Invalid CNC-Mesa manifest asset metadata');
+              const expectedUrl = `https://github.com/${mesa.owner}/${mesa.repo}/releases/download/${tag}/mesa-release.json`;
+              if (asset.browser_download_url !== expectedUrl) throw new Error('Unexpected CNC-Mesa manifest URL');
+              const response = await fetch(expectedUrl, {signal: AbortSignal.timeout(20000)});
+              const finalUrl = new URL(response.url);
+              if (!response.ok || finalUrl.protocol !== 'https:' || !['github.com', 'release-assets.githubusercontent.com', 'objects.githubusercontent.com'].includes(finalUrl.hostname)) throw new Error('CNC-Mesa manifest download failed or left GitHub');
+              const chunks = [];
+              let length = 0;
+              for await (const chunk of response.body) {
+                length += chunk.length;
+                if (length > 65536) throw new Error('CNC-Mesa manifest exceeds the size limit');
+                chunks.push(chunk);
+              }
+              const bytes = Buffer.concat(chunks);
+              const digest = crypto.createHash('sha256').update(bytes).digest('hex');
+              if (bytes.length !== asset.size || `sha256:${digest}` !== asset.digest) throw new Error('CNC-Mesa manifest digest or size mismatch');
+              const manifest = JSON.parse(bytes.toString('utf8'));
+              if (manifest.schema_version !== 1 || manifest.version !== version || manifest.tag_name !== tag || manifest.compatible_app_version !== version || manifest.board !== 'zhulong-v2' || manifest.variant !== 'PIN_ZHULONG_V2_34' || manifest.fpga !== 'xc6slx9' || manifest.package !== 'tqg144' || manifest.physical_constraints_verified !== false || !/^[0-9a-f]{40}$/.test(manifest.source_commit || '')) throw new Error('CNC-Mesa manifest does not match this application release');
+              // This release has no newly implemented or board-approved bitstream.
+              // Extra metadata is allowed; these update and verification claims are fixed.
+              if (manifest.firmware?.available !== false || !['asset', 'sha256', 'size'].every(key => manifest.firmware[key] === null) || manifest.firmware.origin !== 'unavailable') throw new Error('This release must not advertise an installable Mesa bitstream');
+              if (!['implementation', 'timing', 'board_approved'].every(key => manifest.firmware.verification?.[key] === false)) throw new Error('Unexpected Mesa hardware verification claim');
+              if (assets.some(item => /\.(bit|bin|mcs)$/i.test(item.name))) throw new Error('Unavailable firmware release must not attach a flash payload');
+              for (const kind of ['source', 'integration']) {
+                const record = manifest.artifacts?.[kind];
+                const archiveName = `cnc-mesa-${kind}-${version}.tar.gz`;
+                const matches = assets.filter(item => item.name === archiveName);
+                if (!record || record.asset !== archiveName || !/^[0-9a-f]{64}$/.test(record.sha256 || '') || !Number.isSafeInteger(record.size_bytes) || record.size_bytes < 1 || matches.length !== 1) throw new Error(`Invalid CNC-Mesa ${kind} archive metadata`);
+                if (matches[0].state !== 'uploaded' || matches[0].size !== record.size_bytes || matches[0].digest !== `sha256:${record.sha256}`) throw new Error(`CNC-Mesa ${kind} archive differs from its manifest`);
+              }
+              const {data: provenance} = await github.rest.repos.getContent({...repo, path: 'vendor/cnc-mesa/SOURCE.json', ref: sha});
+              const pinned = JSON.parse(Buffer.from(provenance.content, 'base64').toString('utf8'));
+              if (pinned.repository !== `https://github.com/${mesa.owner}/${mesa.repo}` || pinned.release !== tag || pinned.commit !== manifest.source_commit || pinned.manifest_sha256 !== digest || pinned.archive !== manifest.artifacts.integration.asset || pinned.sha256 !== manifest.artifacts.integration.sha256) throw new Error('CNC-Mesa release does not match the source snapshot compiled into this application');
+              let object = (await github.rest.git.getRef({...mesa, ref: `tags/${tag}`})).data.object;
+              for (let depth = 0; object.type === 'tag' && depth < 8; depth++) object = (await github.rest.git.getTag({...mesa, tag_sha: object.sha})).data.object;
+              if (object.type !== 'commit' || object.sha !== manifest.source_commit) throw new Error('CNC-Mesa tag does not identify its manifest source commit');
+              const {data: ancestry} = await github.rest.repos.compareCommitsWithBasehead({...mesa, basehead: `${object.sha}...main`});
+              if (!['ahead', 'identical'].includes(ancestry.status)) throw new Error('CNC-Mesa source commit is not on main');
+              const evidence = {
+                schema_version: 1,
+                app: {repository: `${repo.owner}/${repo.repo}`, tag, source_commit: sha},
+                mesa: {repository: `${mesa.owner}/${mesa.repo}`, tag, release_id: paired.id, source_commit: object.sha, manifest_asset: asset.name, manifest_asset_id: asset.id, manifest_sha256: digest, firmware_available: false}
+              };
+              return {bytes, evidence: Buffer.from(JSON.stringify(evidence, null, 2) + '\n')};
+            }
+            const paired = await verifyMesaRelease();
+            try {
+              const {data: latest} = await github.rest.repos.getLatestRelease(repo);
+              if (latest.tag_name !== tag) {
+                if (!/^v\d+\.\d+\.\d+\.\d+$/.test(latest.tag_name)) throw new Error('Cannot compare existing latest release version');
+                execFileSync('dpkg', ['--compare-versions', version, 'gt', latest.tag_name.slice(1)]);
+              }
+            } catch (error) { if (error.status !== 404) throw error; }
+            const {data: pr} = await github.rest.pulls.get({...repo, pull_number: Number(process.env.RELEASE_PR)});
+            if (!pr.merged || pr.base.ref !== 'main' || pr.merge_commit_sha !== sha || !pr.labels.some(label => label.name === 'build-release')) throw new Error('Release authorization changed');
+            const files = fs.readdirSync(root).sort();
+            if (JSON.stringify(files) !== JSON.stringify(['SHA256SUMS', 'SOURCE_COMMIT', name].sort())) throw new Error('Unexpected artifact files');
+            for (const file of files) if (!fs.lstatSync(`${root}/${file}`).isFile()) throw new Error('Artifact must contain only regular files');
+            if (fs.readFileSync(`${root}/SOURCE_COMMIT`, 'utf8').trim() !== sha) throw new Error('Artifact commit mismatch');
+            const data = fs.readFileSync(`${root}/${name}`);
+            const digest = crypto.createHash('sha256').update(data).digest('hex');
+            if (fs.readFileSync(`${root}/SHA256SUMS`, 'utf8') !== `${digest}  ${name}\n`) throw new Error('Package checksum mismatch');
+            for (const [field, expected] of Object.entries({Package: 'betterlinuxcnc-qt', Version: version, Architecture: 'amd64'})) {
+              const actual = execFileSync('dpkg-deb', ['--field', `${root}/${name}`, field], {encoding: 'utf8'}).trim();
+              if (actual !== expected) throw new Error(`Package ${field} mismatch`);
+            }
+            try {
+              const {data: reference} = await github.rest.git.getRef({...repo, ref: `tags/${tag}`});
+              let object = reference.object;
+              while (object.type === 'tag') object = (await github.rest.git.getTag({...repo, tag_sha: object.sha})).data.object;
+              if (object.type !== 'commit' || object.sha !== sha) throw new Error('Existing tag points to another commit');
+            } catch (error) { if (error.status !== 404) throw error; }
+            let release;
+            try { release = (await github.rest.repos.getReleaseByTag({...repo, tag})).data; }
+            catch (error) { if (error.status !== 404) throw error; }
+            if (!release) {
+              release = (await github.rest.repos.createRelease({...repo, tag_name: tag, target_commitish: sha, name: `demo ${tag}`, draft: true, prerelease: false, body: `Built and installation-tested by GitHub CI from ${sha}.\n\nMerged PR #${pr.number}. Install the Debian package; source archives are not installation packages.\n\nPaired with [CNC-Mesa ${tag}](https://github.com/${mesa.owner}/${mesa.repo}/releases/tag/${tag}); mesa-release.json and CNC_MESA_PAIR.json record the source commit and manifest digest. Firmware is unavailable: this release provides no new ISE bitstream and authorizes no board flashing. Factory bitstreams are not update payloads. Implementation, timing and board validation remain unverified.`})).data;
+            }
+            if (release.draft && release.target_commitish !== sha) throw new Error('Existing draft targets another commit');
+            for (const [assetName, content] of [[name, data], ['SHA256SUMS', fs.readFileSync(`${root}/SHA256SUMS`)], ['mesa-release.json', paired.bytes], ['CNC_MESA_PAIR.json', paired.evidence]]) {
+              const existing = release.assets.find(asset => asset.name === assetName);
+              const expected = `sha256:${crypto.createHash('sha256').update(content).digest('hex')}`;
+              if (existing) {
+                if (existing.digest !== expected) throw new Error(`Existing asset differs: ${assetName}`);
+              } else {
+                if (!release.draft) throw new Error('Refusing to add assets to an already published release');
+                await github.rest.repos.uploadReleaseAsset({...repo, release_id: release.id, name: assetName, data: content, headers: {'content-type': 'application/octet-stream', 'content-length': content.length}});
+              }
+            }
+            const rechecked = await verifyMesaRelease();
+            if (!rechecked.bytes.equals(paired.bytes) || !rechecked.evidence.equals(paired.evidence)) throw new Error('CNC-Mesa release changed during publication; leave the application release unpublished');
+            if (!release.draft) {
+              if (release.prerelease || release.name !== `demo ${tag}`) throw new Error('Existing release metadata differs');
+              core.notice(`Release ${tag} already contains these verified assets; leaving it unchanged.`);
+              return;
+            }
+            await github.rest.repos.updateRelease({...repo, release_id: release.id, name: `demo ${tag}`, draft: false, prerelease: false, make_latest: 'true'});
+            core.notice(`Published demo ${tag} from verified commit ${sha}`);

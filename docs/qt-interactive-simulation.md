@@ -3,7 +3,7 @@
 在仓库根目录运行：
 
 ```sh
-python.desktop/.venv/bin/python python.desktop/tests/interactive/main.py
+app/desktop/.venv/bin/python app/desktop/tests/interactive/main.py
 ```
 
 无需安装、启动或连接真实 LinuxCNC、HAL、虚拟机及硬件。这个入口只用于测试，生产入口仍维持原来的行为。
@@ -39,9 +39,9 @@ NML 断开模拟状态/命令通道不可用，socket 服务本身仍在线。�
 可选参数：
 
 ```sh
-python.desktop/.venv/bin/python python.desktop/tests/interactive/main.py \
+app/desktop/.venv/bin/python app/desktop/tests/interactive/main.py \
   --interface professional \
-  --report python.desktop/artifacts/simulation/interface-interaction.json
+  --report app/desktop/artifacts/simulation/interface-interaction.json
 ```
 
 `--program /绝对路径/示例.ngc` 加载另一份受支持的程序副本；`--capture /tmp/interface.png` 在启动后截取主窗口并退出。报告保留原桌面快照、接口命令序号、延迟回执和故障注入事件，最近最多 500 条事件。
@@ -68,10 +68,10 @@ python.desktop/.venv/bin/python python.desktop/tests/interactive/main.py \
 | `tests/test_simulation.py` | 原 Controller 的确定性测试及原 DesktopBackend + 原服务的 socket 集成测试 |
 | `tests/programs/rectangle-demo.ngc` | 矩形演示加工程序 |
 
-表中路径相对于 `python.desktop/`。
+表中路径相对于 `app/desktop/`。
 
 ```sh
-QT_QPA_PLATFORM=offscreen python.desktop/.venv/bin/python python.desktop/tests/test_simulation.py -v
+QT_QPA_PLATFORM=offscreen app/desktop/.venv/bin/python app/desktop/tests/test_simulation.py -v
 ```
 
-测试使用公开接口，不读取生产对象的私有字段。覆盖延迟回执、回零状态、几何及拒绝不支持程序、暂停/继续/停止/完成、单段、外部急停、断线不重放、点动停止、倍率、错误通道，以及真实 socket 上的准备→运行→暂停→继续→完成→断线恢复。原项目回归仍使用 `ctest --test-dir python.desktop/build --output-on-failure`；本测试独立执行，不更改生产构建入口。
+测试使用公开接口，不读取生产对象的私有字段。覆盖延迟回执、回零状态、几何及拒绝不支持程序、暂停/继续/停止/完成、单段、外部急停、断线不重放、点动停止、倍率、错误通道，以及真实 socket 上的准备→运行→暂停→继续→完成→断线恢复。原项目回归仍使用 `ctest --test-dir build --output-on-failure`；本测试独立执行，不更改生产构建入口。

@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=BetterLinuxCNC Appliance
+Comment=Dedicated full-screen machine-control session
+Exec="@CMAKE_INSTALL_FULL_BINDIR@/betterlinuxcnc-launch" --kiosk-session
+TryExec=@CMAKE_INSTALL_FULL_BINDIR@/betterlinuxcnc-launch
+DesktopNames=BetterLinuxCNC

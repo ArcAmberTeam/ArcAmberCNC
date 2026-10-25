@@ -1,0 +1,43 @@
+# 原生 Qt Quick 界面规范
+
+先遵循根目录 [AGENT.md](../../AGENT.md)。本目录 `app/desktop/` 是原生桌面入口，使用 PySide6、Python 3.11+、CMake 和 Qt 6.8+；C++17 只用于 UI 测试启动器。Web 界面与 Tauri 桌面环境已移除。本目录先按功能划分，仅在存在实际差异时再按平台或 CPU 架构分层。
+
+## 模块与公开入口
+
+- `app/` 只拥有应用启动和 QML 引擎配置；`qml/Main.qml` 与 `qml/Workspace.qml` 组合窗口和功能模块，不拥有机床规则。
+- `qml/BetterCnc/<Capability>/qmldir` 声明模块的公开类型；跨模块使用 `import BetterCnc.<Capability> 1.0`，不得使用相对路径、JavaScript 文件或 `internal` 类型绕过入口。
+- `Ui` 拥有颜色、字体、图标绘制和通用控件；`Catalog` 拥有菜单/工具栏元数据、中文文案及有出处的资源。两者不依赖功能模块，也不互相依赖；历史样例不可作为生产状态。
+- `Manual` 拥有手动/MDI、选轴和倍率；`Toolpath` 展示服务解释的线段、实际轨迹及坐标数显；`Program` 展示真实程序文本、选中行及执行行。三者只依赖 `Ui` 和 `Catalog`，通过注入的公开数据接口观察机床及程序。
+- `Chrome` 拥有菜单、工具栏和说明对话框，可依赖 `Ui`、`Catalog` 及 `ManualState`、`ToolpathState` 的公开展示接口，不导入其他功能模块的面板或私有类型。
+- `Workspace` 组装功能面板、共享展示状态与快捷键。不得建立全局 `utils`、`stores`、`shared`、万能 action 分发器或机床状态桶。模块依赖必须无环。
+- CMake 的资源列表、`qmldir` 与 `scripts/check_boundaries.py` 一起维护；新增模块先明确所有权及依赖，再更新检查，不通过忽略规则消除违规。
+- Python 公开入口为 `bettercnc.desktop`、`bettercnc.session` 和应用版本元数据 `bettercnc.__version__`；下划线文件为私有实现。desktop 只跨模块导入 session 与版本元数据的公开入口；session 只依赖标准库。Qt 进程不得导入 `linuxcnc`、`gcode`、`hal` 或 `app/controller/` 中的服务包。
+
+## 展示与系统边界
+
+- 视觉采用 [白金界面说明](../../docs/qt-platinum-ui.md) 与 `Ui/Theme.qml` 的集中变量。保留动作 ID、快捷键、焦点与可编辑输入行为；视觉与布局按用户明确需求调整，大窗口、紧凑断点及最小窗口均须验收。
+- `ManualState`、`ToolpathState` 和组件内属性只保存展示状态。坐标、主轴和运行状态从服务只读快照更新，发出命令不代表动作完成。
+- `DesktopBackend` 通过专用 QThread 的 socket 客户端接收状态及提交命令；桌面不启动 LinuxCNC 或 Python 服务。点动使用 GUI 心跳、服务租约和释放/失焦停止；重连只恢复状态读取，不重放命令。
+- QML 组件不得直接访问平台、网络、文件、进程或 LinuxCNC。桌面可读程序文件，程序和刀具表写入必须经服务在最新状态下校验。独立服务保留规则与唯一命令写入口，LinuxCNC 保留实时职责。
+- Qt 使用现有 Python v2 控制会话；独立 `tools/diagnostics/` 通信库保留 v1 `health` 诊断，尚未接入 Qt。服务可达与机床连接分别表示。
+- 静态资源全部本地提供，保留许可证与出处，不加载 CDN、外部字体或遥测。服务在独立进程解释刀路，通过有界分页传输；几何图层不能随每次坐标快照完整重绘。
+
+## 界面与连接约定
+
+- 主要目标窗口为 1024×600；同时保留业余用户的引导布局和专业用户布局，通过公开模块复用机床操作与状态。低频选项放入占满应用窗口的设置页，主界面保留常用操作、急停和停止。紧凑标题区域不显示 BetterLinuxCNC 品牌，窗口标题显示程序文件名或“未打开程序”。
+- 3D 旋转、平移、缩放与视角设置仅改变展示状态。触屏点动使用长按启动，释放、拖动取消、失焦和隐藏均须停止；预览键盘操作不能落入机床点动或回零快捷键。布局修改继续检查触控目标和最小窗口，不能只验收大屏。
+- 正式入口为 `app/main.py` 或安装后的 `betterlinuxcnc`；它们使用真实服务。`--check-connection` 通过 `bettercnc.session.read_machine_status` 只读查询，无窗口、无控制权；退出码 0 表示机床已连接、2 表示服务可达但机床离线、1 表示端点/传输/协议错误。不要同时传 `--ini` 或 `--program`。
+- `--kiosk`/`BETTERCNC_KIOSK=1` 运行专用全屏操作界面，不提供退出到普通桌面的控制。`--kiosk-status` 是独立启动状态页，不创建控制后端或连接机床；启动器通过公开 CLI 管理其生命周期。安装版本取 `bettercnc.__version__`，不读取 LinuxCNC 核心的 `VERSION`。
+- 应用更新通过独立 `betterlinuxcnc-updater` CLI 的 JSON 行接口；Qt 只能请求无附加参数的 `install`，不能向 root 服务传入包路径、URL、版本或命令。程序选择限制在配置允许的程序/收件目录；QML 不自行操作平台文件选择器或外部编辑器。
+- Mesa 更新通过独立 `betterlinuxcnc-mesa-update status|check` JSON 接口展示。它与应用 DEB 更新分别呈现，界面检查不会下载、停机或烧录；源码发布缺少已验证位流时明确显示无固件。定时检查由系统 timer 所有，GUI 仅低频读取状态。未来已验证且与安装版本配对的位流可通过另一个 `betterlinuxcnc-mesa-flash request` 零参数 CLI 显式申请维护；root 服务拥有独立验证、停机、备份、烧录与回读门禁。请求不表示已完成，界面不向服务传入 URL、文件、板卡地址或命令。
+- 无 LinuxCNC 环境的交互测试入口为 `app/desktop/tests/interactive/main.py`，当前仅在允许的远端验证环境执行。测试在外部注入 vendor 接口，复用正式 GUI 和服务，不在生产代码添加假状态或模拟开关；Controller 与 StatusReader 都必须注入同一测试设备。
+- `external-interface-integration` 已纳入 CTest，覆盖原始 GUI/服务端到端行为、只读诊断与已有控制会话共存、断线恢复；替身测试不等于真实解释器或运动验收。真实目标机的安装与显示验收记录见 [本机连接说明](../../docs/linuxcnc-local-connection.md)。
+
+## 验证与 CI
+
+- 修改后只在 GitHub CI 运行 CMake 配置/构建、CTest 及受影响 QML 的 qmllint；当前用户禁止本地及目标机构建、源码测试，包括本地 Docker。目标机只安装 CI 的完整 DEB 并做实际运行验收。测试使用公开模块和可观察 UI，不跨模块导入内部实现。
+- 新建或修改依赖规则时，临时加入非法导入，确认失败，删除反例，再确认正常代码通过。
+- 公共 UI 测试以 `objectName`、键盘和鼠标操作观察行为；Python 测试经公开接口与真实 Unix socket，使用受控服务替身。不得为测试暴露私有实现，不启动模拟器或机床。
+- macOS 构建和无屏测试不能替代 Debian 13、Intel 核显、中文字体、缩放与窗口生命周期验收。容器构建不表示目标机图形或机床已验证。
+- `.github/workflows/ci.yml` 分别显示“Python：Qt 界面后端”和“QML：Qt 桌面界面”。`scripts/ci-check.sh --suite desktop` 验证安装后的 Python 包，`--suite qml` 执行 QML、模块边界与启动检查；不带 `--suite` 仍执行完整测试。desktop 套件仅在隔离测试环境安装待测 wheel；正式 DEB 由根构建和独立 CI job 负责，Release 规则遵循根 AGENT，不部署到目标机。
+- 构建、启动及验收步骤见 [Qt 迁移说明](../../docs/qt-qml-migration.md)。所有 README 仅由人工维护。

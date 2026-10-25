@@ -1,0 +1,6 @@
+component zhulong_homing "Zhulong XYZ double-touch homing with a measured retreat";
+pin out bit is_module=1;
+license "GPL";
+option homemod;
+;;
+#include "homing.c"

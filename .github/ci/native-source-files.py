@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""List existing checkout files for native CI archives, preserving symlink seams."""
+"""List existing checkout files for native CI archives, preserving source symlinks."""
 
 import os
 from pathlib import Path

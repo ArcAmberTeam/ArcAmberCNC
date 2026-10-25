@@ -1,0 +1,28 @@
+[Unit]
+Description=Independently verify and perform guarded Mesa firmware writes
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+ExecStart=@CMAKE_INSTALL_FULL_BINDIR@/betterlinuxcnc-mesa-flash apply-system
+WorkingDirectory=/
+UMask=0077
+Environment=PATH=/usr/sbin:/usr/bin:/sbin:/bin HOME=/root
+TimeoutStartSec=infinity
+NoNewPrivileges=yes
+# The maintenance guard must see the real native LinuxCNC lock.
+PrivateTmp=no
+PrivateDevices=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/cache/betterlinuxcnc /var/lib/betterlinuxcnc
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+# runuser drops to the fixed operating account; backup reads its private data.
+CapabilityBoundingSet=CAP_SETUID CAP_SETGID CAP_DAC_READ_SEARCH

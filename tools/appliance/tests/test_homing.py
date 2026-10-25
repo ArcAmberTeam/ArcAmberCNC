@@ -395,7 +395,13 @@ class InstalledHomingTests(unittest.TestCase):
                             for name in HEADERS
                         },
                     },
-                    "vendor": {"commit": "38d5beaded8db4540ffcce1b102e0e072da8c376"},
+                    "vendor": {
+                        "commit": json.loads(
+                            (
+                                MODULE.parents[1] / "vendor/cnc-mesa/SOURCE.json"
+                            ).read_text()
+                        )["commit"]
+                    },
                 }
             )
         )

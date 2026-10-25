@@ -21,4 +21,6 @@ ProtectKernelModules=yes
 ProtectControlGroups=yes
 RestrictSUIDSGID=yes
 NoNewPrivileges=yes
+# Preserve the fixed broker's ability to drop UID/GID under the unit sandbox.
+AmbientCapabilities=CAP_SETUID CAP_SETGID
 LockPersonality=yes

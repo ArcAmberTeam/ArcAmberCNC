@@ -11,7 +11,7 @@ import subprocess
 from pathlib import Path
 
 PROFILE = "zhulong-v2"
-VENDOR_COMMIT = "c36c3d4240474a7a1e314d90e547c8151101f149"
+VENDOR_COMMIT = "38d5beaded8db4540ffcce1b102e0e072da8c376"
 AXES = (("X", 0, 20, "neg", -1), ("Y", 1, 21, "pos", 1), ("Z", 2, 22, "neg", -1))
 BEGIN = "# BEGIN BetterLinuxCNC Zhulong inputs v1\n"
 END = "# END BetterLinuxCNC Zhulong inputs v1\n"
@@ -627,6 +627,9 @@ def prepare(ini, travel=None, installation_verified=False, xyz_only=False):
     changes = {
         ("BETTERCNC_HOMING", "PROFILE"): PROFILE,
         ("BETTERCNC_HOMING", "SWITCH_INPUTS_VERIFIED"): "YES",
+        # Preparing software and switch inputs is not physical motor commissioning.
+        ("BETTERCNC_HOMING", "MOTOR_MAPPING_VERIFIED"): "NO",
+        ("BETTERCNC_HOMING", "MOTOR_DIRECTIONS_VERIFIED"): "NO",
     }
     if xyz_only:
         changes.update(
@@ -675,6 +678,8 @@ def prepare(ini, travel=None, installation_verified=False, xyz_only=False):
                 "mode": "homing" if travel else "inputs-only",
                 "activeAxes": "XYZ" if xyz_only else "XYZABC",
                 "switchInputsVerified": True,
+                "motorMappingVerified": False,
+                "motorDirectionsVerified": False,
                 "travelMm": dict(zip("XYZ", travel, strict=True)) if travel else None,
                 "installedModuleVerified": installation_verified if travel else False,
                 "installationCheck": (

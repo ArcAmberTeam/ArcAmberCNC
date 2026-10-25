@@ -89,6 +89,19 @@ TestCase {
         keyClick(Qt.Key_R);
         compare(backend.requests.length, before);
     }
+    function test_homingDisabledReasonIsVisibleWithoutEnablingTheButton() {
+        backend.update({
+            capabilities: {"machine.home-all": false},
+            homeAllUnavailableReason: "回零未配置：XYZ 电机通道与实机轴尚未核验"
+        });
+        tryCompare(control("homeAll"), "enabled", false);
+        tryCompare(control("homingUnavailableReason"), "visible", true);
+        compare(control("homingUnavailableReason").text, backend.snapshot.homeAllUnavailableReason);
+        backend.update({homeAllUnavailableReason: "回零不可用：急停未解除"});
+        tryCompare(control("homingUnavailableReason"), "text", "回零不可用：急停未解除");
+        backend.update({homeAllUnavailableReason: ""});
+        tryCompare(control("homingUnavailableReason"), "visible", false);
+    }
     function test_unknownOverrideValuesAreNotPresentedAsZero_data() {
         return [
             {tag: "feed", name: "feedOverride", value: 1, displayed: "100"},

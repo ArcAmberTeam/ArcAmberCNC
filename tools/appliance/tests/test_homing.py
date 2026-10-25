@@ -331,6 +331,10 @@ class HomingMigrationTests(unittest.TestCase):
             (self.output() / "betterlinuxcnc-homing.json").read_text()
         )
         self.assertEqual(manifest["activeAxes"], "XYZ")
+        self.assertFalse(manifest["motorMappingVerified"])
+        self.assertFalse(manifest["motorDirectionsVerified"])
+        self.assertEqual(after["BETTERCNC_HOMING"]["MOTOR_MAPPING_VERIFIED"], "NO")
+        self.assertEqual(after["BETTERCNC_HOMING"]["MOTOR_DIRECTIONS_VERIFIED"], "NO")
 
     def test_xyz_only_rejects_missing_or_additional_abc_wiring_without_publication(
         self,
@@ -391,7 +395,7 @@ class InstalledHomingTests(unittest.TestCase):
                             for name in HEADERS
                         },
                     },
-                    "vendor": {"commit": "c36c3d4240474a7a1e314d90e547c8151101f149"},
+                    "vendor": {"commit": "38d5beaded8db4540ffcce1b102e0e072da8c376"},
                 }
             )
         )

@@ -27,7 +27,8 @@ fn start_python(socket: &Path) -> Process {
             .expect("start Python 3.11+ service"),
     );
     let deadline = Instant::now() + Duration::from_secs(5);
-    while !socket.exists() {
+    // bind() creates the path before asyncio starts listening on it.
+    while std::os::unix::net::UnixStream::connect(socket).is_err() {
         assert!(process.0.try_wait().unwrap().is_none(), "service exited");
         assert!(Instant::now() < deadline, "service startup timed out");
         std::thread::sleep(Duration::from_millis(10));

@@ -4,7 +4,7 @@
 
 本仓库包含 LinuxCNC 源码；`VERSION` 当前为 2.9.10。原生 Qt Quick/PySide6 界面位于 `app/desktop/`，Rust CAM 服务位于 `app/cam-link/`，应用 Release 更新器位于 `app/updater/`，Mesa 检查与独立烧录门禁位于 `app/mesa-update/`，本地诊断通信位于 `tools/diagnostics/`，HAL 位于 `src/hal/`，设备驱动按设备职责归入 `src/hal/drivers/` 和 `src/hal/user_comps/`。Python 控制服务保留在 `app/controller/`，混合编译的原生核心仍在 `src/`。
 
-应用发布版本为 `26.10.26.2`，计划 Release 名称 `demo v26.10.26.2`、tag `v26.10.26.2`；它与原生核心版本独立。专用机配置工具位于 `tools/appliance/`。2026-10-26 用户明确限定：本地及目标机均禁止构建，本地 Docker 也禁止；只由 GitHub 托管 CI 构建、测试和产包。目标机下载 CI 已完成的 `.deb`，只做安装、运行与现场验收，不安装编译工具或执行源码测试。不得为恢复工作重新创建本地或目标机构建缓存。
+应用发布版本为 `26.10.26.4`，计划 Release 名称 `demo v26.10.26.4`、tag `v26.10.26.4`；它与原生核心版本独立。专用机配置工具位于 `tools/appliance/`。2026-10-26 用户明确限定：本地及目标机均禁止构建，本地 Docker 也禁止；只由 GitHub 托管 CI 构建、测试和产包。目标机下载 CI 已完成的 `.deb`，只做安装、运行与现场验收，不安装编译工具或执行源码测试。不得为恢复工作重新创建本地或目标机构建缓存。
 
 2026-10-08 用户决定删除 Web；2026-10-25 将应用按职责收敛到 `app/`，原生 HAL 和驱动恢复上游实体目录。**`app/desktop/` 是正式桌面入口**，Vue/Web、Tauri 桌面环境及部署脚本已删除；Web 源码及设计资料整体删除，历史内容从 Git 获取。Rust v1 诊断逻辑提取为独立 `tools/diagnostics/`，不替换现有 Python v2 控制链路。原生 AXIS 应用已删除，包括 Python 主程序、Tcl 界面、axis-remote、专属资源和构建/安装入口。LinuxCNC 控制核心、共享 Python API 和其他上游工具保留，不属于当前界面发布产物。删除边界及遗留配置说明见 [迁移记录](docs/native-axis-removal.md)，当前桌面决策见 [Qt 迁移说明](docs/qt-qml-migration.md)。
 
@@ -43,6 +43,14 @@ Qt 目录及依赖见 [app/desktop/AGENTS.md](app/desktop/AGENTS.md)：按 `Bett
 协议必须区分 joint/axis、机床/工件坐标、指令/实际位置、角度/长度单位；命令“已接受、已发送、已完成、结果未知”不得混为一谈。重连不得自动重放运动、MDI 或主轴命令。软急停 UI 不替代物理安全回路。自动化回归测试不启动模拟器或机床；使用 vendor 接口替身、真实 Unix socket 和只解释文件的 LinuxCNC `gcode` 扩展。用户授权的目标机部署与联调按下节执行，不属于 CI 或替身测试。
 
 ## 目标机与更新约定
+
+2026-10-26 用户最新安排：先完成 v26.10.26.4 发布，由用户手动更新目标机；不继续代为部署。用户反馈休眠/待机恢复后界面不显示，此项记录为后续调查，等待用户测试反馈后才安排 v5，不混入当前 v4，也不提前开始 v5。
+
+2026-10-26 用户已现场确认：原 joint 0 / stepgen.00 为实机 Y，正向向右；原 joint 1 / stepgen.01 为实机 X，正向向前；原 joint 2 / stepgen.02 为 Z，正向向下。v4 交换 XY 全部电机输出/反馈/使能与参数通道，Z STEP_SCALE 改为 -200，修正后 X+向前、Y+向右、Z+向上。回零为 X向后420mm、Y向左275mm、Z向下90mm，GPIO020/021/022；三轴搜索方向均为负，软限位分别0～410、0～265、0～80，回零完成仍需用户实机验收。
+
+固定 `provision` 新增已授权的单机配置升级：只接受 `tools/appliance/_axis_upgrade.py` 中逐文件 SHA-256 匹配的已安装 v1 机床配置，并要求控制 socket/原生锁已消失、安装模块 ABI 和方向适配来源有效；完整目录通过 renameat2 原子交换。匹配新修订后幂等复核摘要；未知改动拒绝，不覆盖其他机床、参数、刀具表、程序、坐标偏置。维护脚本字节保持不变，以兼容旧更新器。普通 prepare 仍不猜测电机映射；只有这次现场观察对应的固定迁移记录电机核验标记，运动验收仍标 pending-after-update。v4 要启用自动回零入口，不能以禁用版冒充完成。
+
+Mesa v4 发布快照保持不变，应用构建适配器 `tools/mesa-homing/commissioned_profile.py` 在临时构建目录中使 HOMEMOD 从 HOME_OFFSET 符号取得预期方向与对侧限位，仍验证搜索/定位方向一致。原参考及当前全负向配置各27个公开API场景都在CI测试，provenance记录适配器摘要，不能伪称模块二进制完全等同上游发布。
 
 2026-10-26 用户再次明确：所有源码、配置、权限和迁移逻辑修复必须先进入仓库，通过 PR/CI/Release 后再由已发布包部署；不在目标机直接修改文件或临时打补丁。只读现场诊断可以继续。后续应用变更只沿现有 `kihon → main` 的 PR 流程，不新增工作分支；commit、PR 标题/正文、CI 工作流/job/step 名称和自有 CI 输出使用英文，机床文件名与已有分支引用不随语言调整改名。
 

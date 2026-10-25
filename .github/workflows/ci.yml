@@ -310,6 +310,8 @@ jobs:
       - uses: actions/checkout@v6
         with:
           persist-credentials: false
+      - name: Verify maintenance privilege drop under the packaged systemd sandbox
+        run: python3 .github/ci/check-maintenance-units.py
       - name: Build and install the real application in an isolated Debian 13 container
         run: |
           mkdir -p release-artifacts

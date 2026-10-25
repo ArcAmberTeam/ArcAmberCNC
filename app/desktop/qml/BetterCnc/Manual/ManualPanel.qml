@@ -365,9 +365,16 @@ Rectangle {
                         }
                     }
 
-                    Item {
-                        width: 1
-                        height: 7
+                    UiText {
+                        objectName: "homingUnavailableReason"
+                        width: parent.width
+                        visible: text.length > 0
+                        text: root.machine.homeAllUnavailableReason || ""
+                        wrapMode: Text.Wrap
+                        font.pixelSize: 11
+                        color: Theme.muted
+                        topPadding: 5
+                        bottomPadding: 5
                     }
 
                     UiCheckBox {

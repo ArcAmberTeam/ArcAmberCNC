@@ -78,7 +78,23 @@ class Controller:
             commandMessage=self._command_message,
             errors=list(self._errors),
             capabilities=self._capabilities(),
+            homeAllUnavailableReason=self._home_all_unavailable_reason(),
         )
+
+    def _home_all_unavailable_reason(self):
+        if self._capabilities()["machine.home-all"]:
+            return ""
+        if not self._snapshot["connected"] or self._closed:
+            return "回零不可用：LinuxCNC 未连接"
+        if self._config and self._config.homing_message:
+            return self._config.homing_message
+        if self._snapshot["estop"]:
+            return "回零不可用：急停未解除"
+        if not self._snapshot["powered"]:
+            return "回零不可用：机床未使能"
+        if self._snapshot["busy"] or self._jogs or self._steps:
+            return "回零不可用：机床正在运动或等待命令完成"
+        return "回零不可用：HOME_SEQUENCE 或轴配置无效"
 
     def _disconnect(self, message):
         if self._cam_job and self._cam_job["state"] in ACTIVE:

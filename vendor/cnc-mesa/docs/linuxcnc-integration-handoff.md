@@ -167,3 +167,9 @@ CAM/Rust/桌面沿用 LinuxCNC 已有 HOME 命令进入控制层，再调用标�
 完整流程：按确认方向寻找→首次触发停止→向内完整退 5 mm→慢速再次触发→再次向内退 5 mm→机床坐标为 0、该轴 homed。初始开关已触发时先离开再搜索；退开后开关不释放、距离不正确、取消或异常限位时不报告 homed。
 
 接入验收先检查软件：包内模块、配置迁移幂等性、未配置请求的拒绝、模拟两次触碰和故障取消。装包后只能先在未使能/急停状态读开关，确认原始输入、去抖输出和 joint home/对应 limit 一致。实体回零需要实际行程与现场条件齐备后单独执行；当前交接不代表已执行实体回零，也不授权安装后自动运动。
+
+## v5 interface handoff
+
+Use paired `v26.10.26.5` sources. `joint.N.home-backoff-vel` is a positive HAL input, default 2 mm/s, latched at HOME_START and restricted to (0, 2] for XYZ. Bind the application's HOME_BACKOFF_VEL INI field explicitly using HAL setp; LinuxCNC does not natively parse that custom INI field. The source now handles signed HOME_OFFSET directly; remove the application's C text-replacement direction adapter. Equal positive sequence 1 runs independent XYZ concurrently. Any attempt failure cancels all members, even earlier completed peers.
+
+The exact machine migration is owned by ArcAmberCNC, including confirmed motor mapping, -0.1 mm soft minimum and pending empty-table acceptance. No FPGA update payload is published and no target-side build or source patch is permitted.

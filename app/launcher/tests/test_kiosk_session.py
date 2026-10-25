@@ -18,6 +18,15 @@ class KioskSessionTests(unittest.TestCase):
         self.root = Path(self.temporary.name)
         self.records = self.root / "requests.jsonl"
         self.status_records = self.root / "status.jsonl"
+        self.display_records = self.root / "display.jsonl"
+        display = self.root / "xset"
+        display.write_text(
+            f"#!{sys.executable}\n"
+            "import json, sys\n"
+            f"with open({str(self.display_records)!r}, 'a') as output:\n"
+            "    output.write(json.dumps(sys.argv[1:]) + '\\n')\n"
+        )
+        display.chmod(0o700)
         status_executable = self.root / "betterlinuxcnc"
         status_executable.write_text(
             f"#!{sys.executable}\n"
@@ -87,8 +96,13 @@ class KioskSessionTests(unittest.TestCase):
             with self.subTest(status=status):
                 self.records.unlink(missing_ok=True)
                 self.status_records.unlink(missing_ok=True)
+                self.display_records.unlink(missing_ok=True)
                 process = self.launch("--kiosk-session", START_EXIT=str(status))
                 records = self.wait_for_start()
+                self.assertEqual(
+                    [json.loads(line) for line in self.display_records.read_text().splitlines()],
+                    [["s", "off"], ["s", "noblank"], ["-dpms"]],
+                )
                 self.assertEqual(records[1]["args"][:2], ["--user", "import-environment"])
                 self.assertEqual(records[1]["kiosk"], "1")
                 self.assertEqual(records[1]["fullscreen"], "1")
@@ -114,6 +128,7 @@ class KioskSessionTests(unittest.TestCase):
         self.assertEqual(records[1]["kiosk"], "0")
         self.assertEqual(records[1]["fullscreen"], "0")
         self.assertFalse(self.status_records.exists())
+        self.assertFalse(self.display_records.exists())
 
     @unittest.skipIf(os.getuid() == 0, "the operator session deliberately rejects root")
     def test_status_page_failure_does_not_restart_it_over_the_machine_ui(self):

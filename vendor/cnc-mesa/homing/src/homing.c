@@ -116,6 +116,8 @@ typedef struct {
   double       home;                 // intfc, updateable
   double       home_final_vel;       // intfc
   double       home_search_vel;      // intfc
+  double       home_backoff_vel;     // latched from HAL at HOME_START
+  bool         requested;            // includes completed members of this request
   double       home_latch_vel;       // intfc
   int          home_flags;           // intfc
   int          home_sequence;        // intfc, updateable
@@ -132,6 +134,7 @@ typedef struct {
     hal_bit_t *homed;        // joint was homed
     hal_bit_t *index_enable; // motmod sets: request reset on index
                              //        encoder clears: index arrived
+    hal_float_t *home_backoff_vel; // positive retreat speed, sampled at start
     hal_s32_t *home_state;   // homing state machine state
 } one_joint_home_data_t;
 
@@ -241,6 +244,10 @@ static int base_make_joint_home_pins(int id,int njoints)
     for (jno = 0; jno < njoints; jno++) {
         addr = &(joint_home_data->jhd[jno]);
 
+        retval += hal_pin_float_newf(HAL_IN, &(addr->home_backoff_vel), id,
+                                    "joint.%d.home-backoff-vel", jno);
+        if (retval) return retval;
+        *(addr->home_backoff_vel) = 2.0;
         retval += hal_pin_bit_newf(HAL_IN, &(addr->home_sw), id,
                                   "joint.%d.home-sw-in", jno);
         retval += hal_pin_bit_newf(HAL_OUT, &(addr->homing), id,
@@ -397,6 +404,12 @@ static void do_homing_sequence(void)
             }
             sequence_is_set  = 1;
             current_sequence = 0;
+        }
+        /* Keep request membership after individual joints finish, so a late
+           failure cannot leave a partially successful HOME ALL. */
+        for(i=0; i < all_joints; i++) {
+            H[i].requested = H[i].joint_in_sequence
+                             && GET_JOINT_ACTIVE_FLAG(&joints[i]);
         }
         /* Initializations */
         for(i=0; i < all_joints; i++) {
@@ -729,7 +742,7 @@ static int base_1joint_state_machine(int joint_num)
         homing_flag = 1; /* at least one joint is homing */
         /* HOME_IGNORE_LIMITS permits the shared home-side contact only.
            An unexpected opposite limit must still abort XYZ homing. */
-        if (joint_num < 3 && (joint_num == 1 ? joint->on_neg_limit : joint->on_pos_limit)) {
+        if (joint_num < 3 && (H[joint_num].home_offset > 0.0 ? joint->on_neg_limit : joint->on_pos_limit)) {
             rtapi_print_msg(RTAPI_MSG_ERR, "Zhulong j%d: opposite limit during homing\n", joint_num);
             H[joint_num].home_state = HOME_ABORT;
         }
@@ -761,7 +774,8 @@ static int base_1joint_state_machine(int joint_num)
             /* Zhulong XYZ uses two switch approaches and a measured retreat.
                The signed HOME_OFFSET locates the switch relative to HOME=0. */
             if (joint_num < 3) {
-                double direction = joint_num == 1 ? 1.0 : -1.0;
+                double direction = H[joint_num].home_offset > 0.0 ? 1.0 : -1.0;
+                H[joint_num].home_backoff_vel = *(joint_home_data->jhd[joint_num].home_backoff_vel);
                 double distance = fabs(H[joint_num].home_offset);
                 if (!(distance > 0.0 && distance < joint->max_pos_limit - joint->min_pos_limit)
                     || H[joint_num].home != 0.0
@@ -769,7 +783,9 @@ static int base_1joint_state_machine(int joint_num)
                     || !(H[joint_num].home_search_vel * direction > 0.0)
                     || !(H[joint_num].home_latch_vel * direction > 0.0)
                     || !(fabs(H[joint_num].home_latch_vel) < fabs(H[joint_num].home_search_vel))
-                    || !(H[joint_num].home_final_vel > 0.0)
+                    || !(H[joint_num].home_final_vel > 0.0 && H[joint_num].home_final_vel <= 5.0)
+                    || !(fabs(H[joint_num].home_search_vel) <= (joint_num == 2 ? 5.0 : 15.0))
+                    || !(H[joint_num].home_backoff_vel > 0.0 && H[joint_num].home_backoff_vel <= 2.0)
                     || (H[joint_num].home_flags & (HOME_USE_INDEX | HOME_ABSOLUTE_ENCODER
                          | HOME_NO_FINAL_MOVE | HOME_UNLOCK_FIRST | HOME_IS_SHARED))) {
                     rtapi_print_msg(RTAPI_MSG_ERR, "Zhulong j%d: invalid double-touch homing parameters\n", joint_num);
@@ -875,7 +891,9 @@ static int base_1joint_state_machine(int joint_num)
             }
             H[joint_num].pause_timer = 0;
             /* set up a move at '-search_vel' to back off of switch */
-            home_start_move(joint, - H[joint_num].home_search_vel);
+            home_start_move(joint, joint_num < 3
+                ? (H[joint_num].home_search_vel > 0.0 ? -1.0 : 1.0) * H[joint_num].home_backoff_vel
+                : -H[joint_num].home_search_vel);
             /* next state */
             H[joint_num].home_state = HOME_INITIAL_BACKOFF_WAIT;
             break;
@@ -1001,11 +1019,14 @@ static int base_1joint_state_machine(int joint_num)
                 rtapi_print_msg(RTAPI_MSG_ERR,
                      _("Home switch inactive before start of backoff move j=%d"),
                      joint_num);
-                H[joint_num].home_state = HOME_IDLE;
+                H[joint_num].home_state = HOME_ABORT;
+                immediate_state = 1;
                 break;
             }
             /* set up a move at '-search_vel' to back off of switch */
-            home_start_move(joint, - H[joint_num].home_search_vel);
+            home_start_move(joint, joint_num < 3
+                ? (H[joint_num].home_search_vel > 0.0 ? -1.0 : 1.0) * H[joint_num].home_backoff_vel
+                : -H[joint_num].home_search_vel);
             if (joint_num < 3) {
                 /* Coarse switch position is already HOME_OFFSET. Complete
                    the whole retreat, even if the switch clears immediately. */
@@ -1404,6 +1425,19 @@ static int base_1joint_state_machine(int joint_num)
             break;
 
         case HOME_ABORT:
+            /* Cancel the entire request, including an already completed peer.
+               Disable planners in this servo cycle, regardless of joint order. */
+            for (int peer = 0; peer < all_joints; peer++) {
+                if (!H[peer].requested && peer != joint_num) continue;
+                H[peer].homing = 0;
+                H[peer].homed = 0;
+                H[peer].joint_in_sequence = 0;
+                H[peer].requested = 0;
+                H[peer].home_state = HOME_IDLE;
+                H[peer].index_enable = 0;
+                joints[peer].free_tp.enable = 0;
+            }
+            sequence_state = HOME_SEQUENCE_IDLE;
             H[joint_num].homing = 0;
             H[joint_num].homed = 0;
             H[joint_num].joint_in_sequence = 0;

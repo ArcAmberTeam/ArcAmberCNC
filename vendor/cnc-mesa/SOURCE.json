@@ -1,18 +1,18 @@
 {
   "repository": "https://github.com/ArcAmberTeam/CNC-Mesa",
-  "release": "v26.10.26.4",
-  "commit": "38d5beaded8db4540ffcce1b102e0e072da8c376",
-  "archive": "cnc-mesa-integration-26.10.26.4.tar.gz",
-  "sha256": "62b20163c4c82dc0746c404c1ffcb9567ed31bdd67727b6dac839335e9ba7b59",
-  "manifest_sha256": "65f6b040b18c61493f6f12850c5d84f54a6f4d714c4d5ba112098ba05c38ba9a",
+  "release": "v26.10.26.5",
+  "commit": "a13cd13678a224de24770bd6da06f7d6141c521e",
+  "archive": "cnc-mesa-integration-26.10.26.5.tar.gz",
+  "sha256": "23ba7010dd5fdfe4ded61a2a44c47566a5366ac0d77b9248eac37c76d359dfeb",
+  "manifest_sha256": "2bdcabdf20b21967d359ee649187907de6dcc9259d633201ceff6a9a39cf74d5",
   "files": {
     "Makefile": "b0f7b1d3392c4426d27ff0393f0945002c1185de1682c902526348bd2702fafe",
-    "docs/homing.md": "0fe8a7b22b5e4405da22e5ef84580ccf8fcacce1420acb4369e5ef610323f48a",
-    "docs/linuxcnc-integration-handoff.md": "d37cac9de04d2724da0852ce7b5dfeca92687899cf132069136af084976ba7f7",
+    "docs/homing.md": "1a324f067aa23e0744d280c45409c16501e0513d93ffed6cb02f5c31e3e99f28",
+    "docs/linuxcnc-integration-handoff.md": "2e58e3b271c55a38fcefbad0fbb5f5f1ee4e50dead61a57ee43750884f8b7af7",
     "firmware/zhulong-v2/PIN_ZHULONG_V2_34.vhd": "5667c711a937ee91348673b9dd5ed2357a375091f6ab8bbe8e0694e3b2f988cf",
     "homing/prepare.py": "5c04efee865b8f3187b3241495413605758b9bd453bd9e14d4d9bbe12e6cf9eb",
-    "homing/provenance.json": "e97c8ec188046dbc948503803a0b40127c489cbade254c0d2739cbce8ec44570",
-    "homing/src/homing.c": "587fef3645ba857b023908cb8ea7e7bbcfd9ea130f4fe08dc9525630f850ab90",
+    "homing/provenance.json": "a6e699751c5f559ea2972f6010dd6745d5e86f81b73f43d5320a3af227d2e847",
+    "homing/src/homing.c": "71ab12cb83b2cb2b558e6ae308c17abd34f812f430d7d7917f1459557a968bee",
     "homing/upstream/simple_tp.c": "5a0026f4d5bdd9d1bc55290c6ea9c399abd664633b69413c307f7353953d2603",
     "homing/upstream/simple_tp.h": "a6b72ddaf4a14801f95b625d824c2ea1625db5dce765db2d3b1f96a4730afca7",
     "homing/zhulong_homing.comp": "e58b1f8961b3e0b0a3da9e071557f6d315b781ce2cb647a635226a85e6687f8e",
@@ -38,9 +38,10 @@
     "mesa/board/zhulong-v2.json": "242afa53d784c991fd976e520d1ef0db616395d9e70f4115992f4619243fab64",
     "tests/hdl/board_profile_tb.vhd": "040e1e188a67cde1b717ea9f29923d48834e951ada52fef06b4183839f119c5b",
     "tests/hdl/nc_inputs_tb.vhd": "c15fe9f60a40cafa667332eeea47403e7b62f34e7cd345f6577b467c40549afc",
-    "tests/homing/test_homing.c": "adf41bbde4c1de56ee7c3525010ace110180b88d91274587ed87feea9d436441",
+    "tests/homing/test_homing.c": "3d7308f644069f982dd8353cf8ed6498a4dbc290ccf166712f3d1c79d6af4952",
+    "tests/homing/test_parallel.c": "f94a5e3962b0e3709350b73f393a204baeff624d18afcb2a96024f1cb0bb6bee",
     "tests/test_linuxcnc_config.py": "98c6948b536680ce56fc35e74b5f4aeaa665ba39a7560ce56e2ff334af1ff451",
     "tools/test_hdl.py": "62aa9b71d6952829b6e2a6e610573ecc6c4df2dc07100d314c2d3d83f2fff494",
-    "tools/test_homing.py": "000a694f4f3b63108dbd59e382ad28a908d170759fb652f259a52368f2cea2f4"
+    "tools/test_homing.py": "122261a4028470e387827d01978977670e97e00f8bfdb928d9ae18dd0ae3da55"
   }
 }

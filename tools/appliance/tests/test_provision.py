@@ -223,6 +223,27 @@ class ProvisionTests(unittest.TestCase):
         self.assertFalse((self.root / "etc/ssh").exists())
         self.assertFalse((self.root / "etc/lightdm").exists())
 
+    def test_legacy_package_directory_modes_are_repaired_without_touching_contents(
+        self,
+    ):
+        names = (
+            "usr/lib/betterlinuxcnc",
+            "usr/share/betterlinuxcnc",
+            "usr/share/doc/betterlinuxcnc-qt",
+        )
+        for name in names:
+            path = self.root / name
+            path.mkdir(parents=True)
+            path.chmod(0o775)
+            (path / "retained").write_bytes(b"existing package data")
+        result = self.provision(repeats=2)
+        self.assertEqual(result["statuses"], [0, 0])
+        for name in names:
+            self.assertEqual(result["directories"][name], [0, 0, 0o755])
+            self.assertEqual(
+                (self.root / name / "retained").read_bytes(), b"existing package data"
+            )
+
     def test_non_root_is_rejected_before_any_mutation(self):
         result = self.provision(euid=1000)
         self.assertEqual(result["statuses"], [1])

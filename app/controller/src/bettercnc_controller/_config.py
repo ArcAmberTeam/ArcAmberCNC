@@ -105,7 +105,14 @@ class Configuration:
             self.joint_map.get(axis) != [joint] for joint, axis in enumerate("XYZ")
         ):
             return "回零未配置：XYZ joint 映射或 HOME ALL 集合不匹配"
-        commissioned = self.get(section, "CONFIGURATION_REVISION") == "zhulong-xyz-20261026"
+        revision = self.get(section, "CONFIGURATION_REVISION")
+        parallel = revision == "zhulong-xyz-v5-20261026"
+        commissioned = parallel or revision == "zhulong-xyz-20261026"
+        if parallel and (
+            self.get(section, "PARALLEL_TEST_CONDITION") != "EMPTY_TABLE_NO_TOOL"
+            or self.number(section, "SWITCH_OVERRUN_MM") != 1
+        ):
+            return "回零未配置：并行回零缺少空台测试条件或开关余量记录"
         for joint, axis, direction in (
             (0, "X", -1),
             (1, "Y", -1 if commissioned else 1),
@@ -122,16 +129,37 @@ class Configuration:
                 search is None
                 or latch is None
                 or final is None
-                or not 0 < direction * latch < direction * search <= 5
+                or not 0
+                < direction * latch
+                < direction * search
+                <= (15 if parallel and axis != "Z" else 5)
                 or not 0 < final <= 5
                 or self.number(joint_section, "HOME") != 0
                 or self.number(joint_section, "HOME_OFFSET") != direction * 5
-                or self.home_sequences[joint] != joint + 1
+                or self.home_sequences[joint] != (1 if parallel else joint + 1)
                 or (self.get(joint_section, "HOME_IGNORE_LIMITS") or "").upper() != "YES"
                 or (self.get(joint_section, "HOME_USE_INDEX") or "").upper() != "NO"
             ):
                 return f"回零未配置：{axis} 轴搜索、定位或退开参数不符合已验证配置"
+            if parallel:
+                acceleration = self.number(joint_section, "MAX_ACCELERATION")
+                backoff = self.number(joint_section, "HOME_BACKOFF_VEL")
+                # Reserve half the reported 1 mm overrun. This is a configured
+                # braking budget (including 10 ms detection/control allowance),
+                # not proof of the actual motor deceleration or machine latency.
+                if (
+                    acceleration is None
+                    or acceleration <= 0
+                    or backoff is None
+                    or not 0 < backoff <= 2
+                    or abs(latch) > 1
+                    or (axis == "Z" and final > 2)
+                    or search * search / (2 * acceleration) + abs(search) * 0.010 > 0.5
+                ):
+                    return f"回零未配置：{axis} 轴速度、减速预算或慢退速度不符合开关余量"
             lower, upper = (-travel + 10, 0) if direction > 0 else (0, travel - 10)
+            if parallel:
+                lower = -0.1
             for limits in ("AXIS_" + axis, joint_section):
                 minimum = self.number(limits, "MIN_LIMIT")
                 maximum = self.number(limits, "MAX_LIMIT")
@@ -140,6 +168,7 @@ class Configuration:
                     or maximum is None
                     or not lower <= minimum <= 0 <= maximum <= upper
                     or minimum >= maximum
+                    or (parallel and minimum != -0.1)
                 ):
                     return f"回零未配置：{axis} 轴软限位未落在实测行程内"
         return ""

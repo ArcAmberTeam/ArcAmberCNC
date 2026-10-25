@@ -1,4 +1,4 @@
-"""Apply the operator-confirmed XYZ correction to the exact installed v1 profile.
+"""Apply the operator-confirmed XYZ correction to the exact installed v1/v4 profiles.
 
 Only the package provision entry point calls this migration. No machine commands
 are issued; the updater must have stopped and masked the control stack first.
@@ -17,7 +17,8 @@ import uuid
 
 import _homing
 
-REVISION = "zhulong-xyz-20261026"
+V4_REVISION = "zhulong-xyz-20261026"
+REVISION = "zhulong-xyz-v5-20261026"
 INI = "烛龙V2.ini"
 HAL = "烛龙V2.hal"
 MANIFEST = "betterlinuxcnc-homing.json"
@@ -29,6 +30,12 @@ ORIGINAL = {
     "qt_postgui.hal": "9731a1fefc86d6c3494fb24fa62fdf3eeab9905aa15d1048ad8b3b8df9a36236",
     "shutdown.hal": "aaffa097850005d60367e58949926f0c54806607264d759bd828801b9f1a999f",
     MANIFEST: "678058cb2ea8c6aece78a04b9b5e367c66a5e1635469f7f513f79d2825fa4019",
+}
+ORIGINAL_V4 = {
+    **ORIGINAL,
+    INI: "35a53a2172ae98a9d8c310513858f64565b811918425b5a1e892aec2b97f9c6b",
+    HAL: "ef89bfae3d683beb6a9cad4d26194c31262892959445960c6e76c14e76fb0344",
+    MANIFEST: "c31ae5ca17b9d5f57bab318ebad775bd8a480e362bca566bdf0e05e2baa664fb",
 }
 DIRECTORY = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
 
@@ -105,7 +112,7 @@ def _correct(files):
     result[HAL] = text.encode()
     changes = {
         ("JOINT_2", "STEP_SCALE"): "-200.0",
-        ("BETTERCNC_HOMING", "CONFIGURATION_REVISION"): REVISION,
+        ("BETTERCNC_HOMING", "CONFIGURATION_REVISION"): V4_REVISION,
         ("BETTERCNC_HOMING", "MOTOR_MAPPING_VERIFIED"): "YES",
         ("BETTERCNC_HOMING", "MOTOR_DIRECTIONS_VERIFIED"): "YES",
     }
@@ -128,13 +135,69 @@ def _correct(files):
     result[INI] = _homing._patch_ini(files[INI].decode(), changes).encode()
     manifest = json.loads(files[MANIFEST])
     manifest.update(
-        configurationRevision=REVISION,
+        configurationRevision=V4_REVISION,
         motorMappingVerified=True,
         motorDirectionsVerified=True,
         motorObservation="Operator confirmed outputs and positive directions on 2026-10-26",
         motionAcceptance="pending-after-update",
         stepgenByAxis={"X": 1, "Y": 0, "Z": 2},
         positiveDirectionByAxis={"X": "front", "Y": "right", "Z": "up"},
+        halFiles={
+            name: _digest(data)
+            for name, data in result.items()
+            if name.endswith(".hal")
+        },
+        configurationFiles={
+            name: _digest(data) for name, data in result.items() if name != MANIFEST
+        },
+    )
+    result[MANIFEST] = (
+        json.dumps(manifest, ensure_ascii=False, indent=2) + "\n"
+    ).encode()
+    return result
+
+
+def _fast_profile(files):
+    """Keep the origin and motor mapping; place HOME inside the soft envelope."""
+    result = dict(files)
+    changes = {
+        ("BETTERCNC_HOMING", "CONFIGURATION_REVISION"): REVISION,
+        ("BETTERCNC_HOMING", "PARALLEL_TEST_CONDITION"): "EMPTY_TABLE_NO_TOOL",
+        ("BETTERCNC_HOMING", "SWITCH_OVERRUN_MM"): "1",
+    }
+    for joint, axis in enumerate("XYZ"):
+        # HOME stays at zero, 5 mm clear of the switch. The -0.1 mm soft
+        # boundary remains 4.9 mm clear, but tolerates feedback quantization.
+        for section in (f"JOINT_{joint}", "AXIS_" + axis):
+            changes[(section, "MIN_LIMIT")] = "-0.1"
+        for key, value in {
+            "HOME_SEARCH_VEL": "-5" if axis == "Z" else "-15",
+            "HOME_BACKOFF_VEL": "2",
+            "HOME_LATCH_VEL": "-1",
+            "HOME_FINAL_VEL": "2" if axis == "Z" else "5",
+            "HOME_SEQUENCE": "1",
+        }.items():
+            changes[(f"JOINT_{joint}", key)] = value
+    result[INI] = _homing._patch_ini(files[INI].decode(), changes).encode()
+    result[HAL] = (
+        files[HAL]
+        + (
+            "\n# Fixed v5 HOMEMOD: independent slow retreat, sampled at HOME_START.\n"
+            + "".join(
+                f"setp joint.{joint}.home-backoff-vel [JOINT_{joint}]HOME_BACKOFF_VEL\n"
+                for joint in range(3)
+            )
+        ).encode()
+    )
+    manifest = json.loads(files[MANIFEST])
+    manifest.update(
+        sourceCommit=_homing.VENDOR_COMMIT,
+        configurationRevision=REVISION,
+        motionAcceptance="pending-empty-table-parallel-test",
+        homingSchedule="parallel-xyz",
+        switchOverrunMinimumMm=1,
+        parallelTestCondition="Operator agreed to remove tools and clear the full travel envelope",
+        softLimitMarginMm=0.1,
         halFiles={
             name: _digest(data)
             for name, data in result.items()
@@ -179,7 +242,9 @@ def _upgrade(root, config):
         if b"PROFILE = zhulong-v2" not in content:
             return "not-applicable"
         if set(os.listdir(machine)) != set(ORIGINAL):
-            raise ValueError("Machine file set differs from the reviewed v1 profile")
+            raise ValueError(
+                "Machine file set differs from the reviewed v1/v4 profiles"
+            )
         files = {name: _read(machine, name) for name in ORIGINAL}
     manifest = json.loads(files[MANIFEST])
     if manifest.get("configurationRevision") == REVISION:
@@ -192,8 +257,11 @@ def _upgrade(root, config):
                 "Migrated machine configuration changed; review before updating"
             )
         return "already-current"
-    if {name: _digest(data) for name, data in files.items()} != ORIGINAL:
-        raise ValueError("Machine configuration differs from the commissioned v1 input")
+    hashes = {name: _digest(data) for name, data in files.items()}
+    if hashes not in (ORIGINAL, ORIGINAL_V4):
+        raise ValueError(
+            "Machine configuration differs from the commissioned v1/v4 input"
+        )
     launcher = json.loads(_read(config, "launcher.json"))
     if launcher.get("ini") != "/etc/betterlinuxcnc/machine/" + INI:
         raise ValueError("Launcher does not select the reviewed machine configuration")
@@ -208,7 +276,7 @@ def _upgrade(root, config):
         raise ValueError(
             "Install the corrected signed-profile HOMEMOD before migrating axes"
         )
-    updated = _correct(files)
+    updated = _fast_profile(_correct(files) if hashes == ORIGINAL else files)
     stage = ".axis-upgrade-" + uuid.uuid4().hex
     os.mkdir(stage, 0o700, dir_fd=config)
     try:

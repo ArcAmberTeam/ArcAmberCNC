@@ -159,6 +159,7 @@ def provision():
     for root in (
         "/usr/lib/betterlinuxcnc",
         "/usr/share/betterlinuxcnc",
+        "/usr/share/doc/betterlinuxcnc-qt",
         "/var/lib/betterlinuxcnc",
         "/var/cache/betterlinuxcnc",
         "/var/log/betterlinuxcnc",

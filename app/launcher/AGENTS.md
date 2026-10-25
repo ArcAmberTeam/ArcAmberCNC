@@ -19,3 +19,5 @@
 - 操作账户 HOME 为 `/var/lib/betterlinuxcnc/home`，缓存为 `/var/cache/betterlinuxcnc/user`；父目录保持 root 所有。systemd 模式日志位于 `/var/log/betterlinuxcnc/launcher/<本次启动目录>/`。`BETTERCNC_SHARE_LOGS=1` 仅放宽日志目录和日志文件供维护组读取，state、socket 和锁仍私有。直接 CLI 启动默认写入配置所在目录的 `.runtime/launcher/`。按最新启动目录读 controller、linuxcnc、cam-link 日志，不硬编码旧 PID 或日志目录。
 - `cnc-maint` 只通过固定 SSH 命令读取诊断，不拥有任意 shell、启动/停止服务或 sudo 权限。需要变更登录策略时按本机连接说明保留既有 root 维护会话；不通过启动器新增提权通道。
 - 保留已有 CAM 配置。当前目标机启用了 `auto_run`，不能为连接验证随意上传测试程序或改变自动运行设置。启动成功不代表 CAM 收件加工或机床运动已验收。
+
+- 专用 X11 会话通过 xset 关闭自动屏保、黑屏和 DPMS，普通桌面启动不改变显示策略。失败必须记录但不重启核心；该措施不等同于系统睡眠恢复已验收。

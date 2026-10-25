@@ -6,6 +6,8 @@ import sys
 
 from PySide6.QtCore import Property, QCoreApplication, QObject, QProcess, QTimer, Signal, Slot
 
+from bettercnc import __version__
+
 
 class FirmwareUpdater(QObject):
     changed = Signal()
@@ -23,13 +25,12 @@ class FirmwareUpdater(QObject):
         "error",
     }
 
-    def __init__(self, parent=None, *, command=None, socket_path=None):
+    def __init__(self, parent=None, *, command=None):
         super().__init__(parent)
         self._command = command or [shutil.which("betterlinuxcnc-updater") or ""]
         self._available = bool(self._command[0]) and (
             sys.platform == "linux" or command is not None
         )
-        self._socket = str(socket_path) if socket_path else None
         message = (
             ""
             if self._available
@@ -70,9 +71,7 @@ class FirmwareUpdater(QObject):
         self._operation = operation
         arguments = list(self._command[1:]) + [operation]
         if operation == "fetch":
-            arguments += ["--current-version", QCoreApplication.applicationVersion() or "0.2.0"]
-        elif operation == "install" and self._socket:
-            arguments += ["--socket", self._socket]
+            arguments += ["--current-version", QCoreApplication.applicationVersion() or __version__]
         self._process.start(self._command[0], arguments)
 
     def _read(self):

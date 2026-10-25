@@ -22,6 +22,7 @@ pub(super) struct Staged {
 
 pub(super) struct Store {
     pub directory: PathBuf,
+    pub public_directory: Option<PathBuf>,
 }
 
 impl Store {
@@ -37,7 +38,10 @@ impl Store {
             return Err("更新目录必须属于当前用户且不能是符号链接".into());
         }
         fs::set_permissions(&directory, fs::Permissions::from_mode(0o700))?;
-        Ok(Self { directory })
+        Ok(Self {
+            directory,
+            public_directory: None,
+        })
     }
     pub fn lock(&self) -> Result<File> {
         let file = OpenOptions::new()
@@ -52,17 +56,6 @@ impl Store {
             return Err("已有更新任务正在运行".into());
         }
         Ok(file)
-    }
-    pub fn wait_for_scheduler(&self) -> Result<File> {
-        // systemd-run returns after exec; the scheduling CLI still owns its lock
-        // for a few milliseconds. Only the independent apply worker waits.
-        for _ in 0..100 {
-            if let Ok(lock) = self.lock() {
-                return Ok(lock);
-            }
-            std::thread::sleep(std::time::Duration::from_millis(50));
-        }
-        self.lock()
     }
     pub fn save<T: Serialize>(&self, name: &str, value: &T) -> Result<()> {
         let mut file = tempfile::NamedTempFile::new_in(&self.directory)?;
@@ -91,6 +84,21 @@ impl Store {
     }
     pub fn publish(&self, event: &Event) -> Result<()> {
         self.save("status.json", event)?;
+        if let Some(directory) = &self.public_directory {
+            let mut visible = event.clone();
+            if matches!(
+                visible.phase.as_str(),
+                "checking" | "downloading" | "verifying" | "ready"
+            ) {
+                visible.phase = "installing".into();
+            }
+            let mut file = tempfile::NamedTempFile::new_in(directory)?;
+            serde_json::to_writer(&mut file, &visible)?;
+            file.as_file()
+                .set_permissions(fs::Permissions::from_mode(0o644))?;
+            file.as_file().sync_all()?;
+            file.persist(directory.join("status.json"))?;
+        }
         event.emit()
     }
     pub fn staged(&self) -> Result<Staged> {
@@ -123,7 +131,7 @@ pub(super) fn hash(mut source: impl Read) -> Result<String> {
 }
 
 pub(super) fn package_info(path: &std::path::Path) -> Result<(String, String)> {
-    let output = std::process::Command::new("/usr/bin/dpkg-deb")
+    let output = super::command("/usr/bin/dpkg-deb")
         .args([
             "--show",
             "--showformat=${Package}\n${Version}\n${Architecture}\n",
@@ -157,7 +165,7 @@ pub(super) fn validate_version(value: &str) -> Result<()> {
 pub(super) fn newer(candidate: &str, installed: &str) -> Result<bool> {
     validate_version(candidate)?;
     validate_version(installed)?;
-    let status = std::process::Command::new("/usr/bin/dpkg")
+    let status = super::command("/usr/bin/dpkg")
         .args(["--compare-versions", candidate, "gt", installed])
         .status()?;
     match status.code() {
@@ -169,7 +177,7 @@ pub(super) fn newer(candidate: &str, installed: &str) -> Result<bool> {
 
 pub(super) fn installed_version(fallback: &str) -> Result<String> {
     validate_version(fallback)?;
-    let output = std::process::Command::new("/usr/bin/dpkg-query")
+    let output = super::command("/usr/bin/dpkg-query")
         .args(["--show", "--showformat=${Version}", PACKAGE])
         .output()?;
     if output.status.success() {
@@ -202,6 +210,7 @@ mod tests {
         let directory = tempfile::tempdir().unwrap();
         let store = Store {
             directory: directory.path().to_owned(),
+            public_directory: None,
         };
         let _guard = store.lock().unwrap();
         assert!(store.lock().is_err());

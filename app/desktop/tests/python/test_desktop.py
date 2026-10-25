@@ -3,6 +3,7 @@
 import copy
 import json
 import os
+import subprocess
 import sys
 import tempfile
 import time
@@ -10,8 +11,8 @@ import unittest
 from pathlib import Path
 
 from bettercnc.desktop import DesktopBackend
-from PySide6.QtCore import QCoreApplication, QObject, QSettings, QUrl
-from PySide6.QtGui import QGuiApplication
+from PySide6.QtCore import QCoreApplication, QObject, QSettings, Qt, QUrl
+from PySide6.QtGui import QGuiApplication, QWindow
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtTest import QTest
 from test_session import Peer
@@ -67,7 +68,8 @@ elif sys.argv[1] == "install":
         self.wait(lambda: updater.state["phase"] == "scheduled")
         commands = [json.loads(line) for line in calls.read_text().splitlines()]
         self.assertEqual(sum(command[0] == "fetch" for command in commands), 1)
-        self.assertIn(["install", "--socket", str(self.peer.path)], commands)
+        self.assertIn(["install"], commands)
+        self.assertFalse(any("--socket" in command for command in commands))
         self.assertFalse(any(item["method"] == "command.execute" for item in self.peer.requests))
 
     def test_firmware_service_errors_never_enable_installation(self):
@@ -123,10 +125,17 @@ else:
         self.peer = Peer(self.reply)
         self.addCleanup(self.peer.close)
         settings = QSettings(str(Path(self.temporary.name) / "ui.ini"), QSettings.Format.IniFormat)
+        self.program_roots = [
+            Path(self.temporary.name).resolve() / name for name in ("programs", "inbox")
+        ]
+        for root in self.program_roots:
+            root.mkdir()
         self.backend = DesktopBackend(
             socket_path=self.peer.path,
             settings=settings,
             managed=self._testMethodName.startswith("test_managed_"),
+            kiosk=self._testMethodName.startswith("test_kiosk_"),
+            program_roots=self.program_roots,
         )
         self.addCleanup(self.backend.close)
         self.wait(lambda: self.backend.snapshot.get("serviceConnected"))
@@ -344,6 +353,155 @@ else:
                 window.setProperty("visible", False)
             engine.deleteLater()
             QCoreApplication.sendPostedEvents()
+
+    def test_kiosk_window_stays_fullscreen_and_rejects_operator_exit(self):
+        qml = Path(__file__).resolve().parents[2] / "qml"
+        engine = QQmlApplicationEngine()
+        engine.addImportPath(str(qml))
+        engine.setInitialProperties({"backend": self.backend, "kioskMode": True})
+        engine.load(QUrl.fromLocalFile(str(qml / "Main.qml")))
+        try:
+            self.assertTrue(engine.rootObjects())
+            window = engine.rootObjects()[0]
+            self.wait(lambda: window.visibility() == QWindow.Visibility.FullScreen)
+            self.assertFalse(window.close())
+            self.assertTrue(window.isVisible())
+            quit_item = window.findChild(QObject, "menu-file.quit")
+            self.assertIsNotNone(quit_item)
+            self.assertFalse(quit_item.property("enabled"))
+            window.requestActivate()
+            QTest.keyClick(window, Qt.Key.Key_F4, Qt.KeyboardModifier.AltModifier)
+            QTest.keyClick(window, Qt.Key.Key_Q, Qt.KeyboardModifier.ControlModifier)
+            self.assertTrue(window.isVisible())
+            window.showNormal()
+            self.wait(lambda: window.visibility() == QWindow.Visibility.FullScreen)
+            window.showMinimized()
+            self.wait(lambda: window.visibility() == QWindow.Visibility.FullScreen)
+            self.assertEqual(self.actions(), [])
+        finally:
+            for window in engine.rootObjects():
+                window.setProperty("kioskMode", False)
+                window.setProperty("visible", False)
+            engine.deleteLater()
+            QCoreApplication.sendPostedEvents()
+
+    def test_kiosk_program_browser_and_commands_reject_path_and_symlink_escape(self):
+        program = self.program_roots[0] / "part.ngc"
+        program.write_text("G21\nM2\n")
+        outside = Path(self.temporary.name).resolve() / "outside.ngc"
+        outside.write_text("M2\n")
+        (self.program_roots[0] / "escape.ngc").symlink_to(outside)
+        (self.program_roots[0] / "escape-dir").symlink_to(outside.parent, target_is_directory=True)
+        browser = self.backend.programFiles
+        browser.refresh()
+        self.assertEqual([item["name"] for item in browser.entries], ["part.ngc"])
+        self.assertFalse(browser.browse(str(outside.parent)))
+        self.assertEqual(browser.destination("../outside.ngc"), "")
+        for rejected in (
+            outside,
+            self.program_roots[0] / "escape.ngc",
+            self.program_roots[0] / "escape-dir/new.ngc",
+        ):
+            self.assertFalse(self.backend.openProgram(str(rejected)))
+            self.assertFalse(self.backend.saveProgram(str(rejected), "G0 X100\n"))
+            self.assertFalse(
+                self.backend.dispatch("file.save", {"path": str(rejected), "text": "M2\n"})
+            )
+        self.assertEqual(self.actions(), [])
+        self.assertEqual(outside.read_text(), "M2\n")
+        self.assertTrue(self.backend.openProgram(str(program)))
+        self.wait(lambda: "file.open" in self.actions())
+        self.assertTrue(self.backend.saveProgram(str(self.program_roots[1] / "saved.ngc"), "M2\n"))
+        self.wait(lambda: "file.save" in self.actions())
+
+    def test_kiosk_rejects_external_tools_and_direct_exit_dispatch(self):
+        errors = []
+        self.backend.errorOccurred.connect(errors.append)
+        for tool in (
+            "machine.ladder",
+            "machine.calibration",
+            "machine.hal-config",
+            "machine.hal-meter",
+            "machine.hal-scope",
+            "show.pyvcp",
+        ):
+            self.assertFalse(self.backend.dispatch(tool, {}))
+            self.assertIn("专用操作界面", errors[-1])
+        self.assertFalse(self.backend.dispatch("file.quit", {}))
+        self.assertFalse(self.backend.requestClose())
+        self.assertEqual(self.actions(), [])
+
+
+class DesktopCliTests(unittest.TestCase):
+    def test_kiosk_status_cli_reads_only_launcher_files_without_loading_backend(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            run = root / "20261026-120000-123"
+            run.mkdir()
+            for phase in ("starting", "recovering", "retained"):
+                with self.subTest(phase=phase):
+                    (run / "state.json").write_text(json.dumps({"phase": phase}))
+                    script = f"""
+import json, os, sys
+from bettercnc.desktop import main
+original_open = os.open
+def opened(path, flags, *args, **kwargs):
+    if path == '/var/log/betterlinuxcnc/launcher':
+        path = {str(root)!r}
+    return original_open(path, flags, *args, **kwargs)
+os.open = opened
+def audit(event, args):
+    if event in ('socket.connect', 'subprocess.Popen'):
+        raise AssertionError('status page attempted process or socket access')
+sys.addaudithook(audit)
+code = main(['--kiosk-status', '--smoke-test'])
+assert 'bettercnc.desktop._backend' not in sys.modules
+assert 'bettercnc.session' not in sys.modules
+raise SystemExit(code)
+"""
+                    result = subprocess.run(
+                        [sys.executable, "-c", script],
+                        env=dict(
+                            os.environ,
+                            QT_QPA_PLATFORM="offscreen",
+                            QT_QUICK_BACKEND="software",
+                        ),
+                        capture_output=True,
+                        text=True,
+                        timeout=15,
+                    )
+                    self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                    records = [json.loads(line) for line in result.stdout.splitlines()]
+                    self.assertIn({"kioskStatus": "visible", "phase": phase}, records)
+                    self.assertNotIn("QQmlApplicationEngine failed", result.stderr)
+                    self.assertNotIn("ReferenceError", result.stderr)
+
+    def test_public_kiosk_cli_and_environment_start_without_native_dialogs(self):
+        for arguments, kiosk_environment in ((["--kiosk"], "0"), ([], "1")):
+            with self.subTest(arguments=arguments):
+                result = subprocess.run(
+                    [
+                        sys.executable,
+                        "-c",
+                        "from bettercnc.desktop import main; raise SystemExit(main())",
+                        *arguments,
+                        "--smoke-test",
+                        "--socket",
+                        "/tmp/no-kiosk-test-controller.sock",
+                    ],
+                    env=dict(
+                        os.environ,
+                        BETTERCNC_KIOSK=kiosk_environment,
+                        QT_QPA_PLATFORM="offscreen",
+                        QT_QUICK_BACKEND="software",
+                    ),
+                    capture_output=True,
+                    text=True,
+                    timeout=15,
+                )
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertNotIn("QQmlApplicationEngine failed", result.stderr)
+                self.assertNotIn("ReferenceError", result.stderr)
 
 
 if __name__ == "__main__":

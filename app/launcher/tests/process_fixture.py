@@ -140,6 +140,7 @@ def main():
         argv=sys.argv[1:],
         socket=os.environ.get("BETTERCNC_SOCKET"),
         managed=os.environ.get("BETTERCNC_MANAGED"),
+        terminal_input=os.isatty(0),
     )
     if ROLE == "betterlinuxcnc-service":
         return controller()

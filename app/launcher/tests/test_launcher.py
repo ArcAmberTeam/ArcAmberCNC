@@ -196,6 +196,47 @@ class LauncherTests(unittest.TestCase):
         )
         self.assertLess(native_end, service_end)
 
+    def test_shared_logs_preserve_private_state_socket_and_lock(self):
+        logs = self.root / "logs"
+        logs.mkdir(mode=0o2750)
+        logs.chmod(0o2750)
+        process = self.launch(BETTERCNC_LOG_ROOT=str(logs), BETTERCNC_SHARE_LOGS="1")
+        self.wait(lambda: any(path.name == "state.json" for path in logs.glob("*/state.json")))
+        self.wait(
+            lambda: any(
+                json.loads(path.read_text())["phase"] == "ready"
+                for path in logs.glob("*/state.json")
+            )
+        )
+        run = next(logs.iterdir())
+        self.assertEqual(stat.S_IMODE(run.stat().st_mode) & 0o777, 0o750)
+        if sys.platform == "linux":
+            self.assertTrue(run.stat().st_mode & stat.S_ISGID)
+        for log in run.glob("*.log"):
+            self.assertEqual(stat.S_IMODE(log.stat().st_mode), 0o640)
+            self.assertEqual(log.stat().st_gid, logs.stat().st_gid)
+        self.assertEqual(stat.S_IMODE((run / "state.json").stat().st_mode), 0o600)
+        runtime = self.root / "run/betterlinuxcnc"
+        self.assertEqual(stat.S_IMODE(runtime.stat().st_mode), 0o700)
+        self.assertEqual(stat.S_IMODE((runtime / "launcher.lock").stat().st_mode), 0o600)
+        self.assertEqual(stat.S_IMODE((runtime / "control.sock").stat().st_mode), 0o600)
+        process.terminate()
+        self.assertEqual(process.wait(timeout=5), 0, self.output(process))
+
+    def test_kiosk_native_gets_terminal_input_without_starting_a_shell(self):
+        process = self.launch(BETTERCNC_KIOSK="1")
+        self.ready()
+        starts = [event for event in self.events() if event["event"] == "start"]
+        self.assertEqual(
+            [event["role"] for event in starts if event["terminal_input"]], ["linuxcnc"]
+        )
+        self.assertEqual(
+            next(event for event in starts if event["role"] == "linuxcnc")["argv"],
+            [str(self.ini.resolve())],
+        )
+        process.terminate()
+        self.assertEqual(process.wait(timeout=5), 0, self.output(process))
+
     def test_busy_or_unknown_signal_preserves_native_and_controller(self):
         self.assert_preserves("running")
 

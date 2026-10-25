@@ -26,17 +26,19 @@ from PySide6.QtCore import (
 from PySide6.QtGui import QGuiApplication
 
 from ._program import ProgramModel
+from ._program_files import ProgramFiles
 from ._updater import FirmwareUpdater
 from ._worker import ControllerWorker
 
 
 def local_path(value):
     url = QUrl(str(value))
-    if url.isLocalFile():
-        return Path(url.toLocalFile()).expanduser().resolve()
-    if url.scheme():
+    if url.scheme() and not url.isLocalFile():
         raise ValueError("只能打开本机文件")
-    return Path(str(value)).expanduser().resolve()
+    try:
+        return Path(url.toLocalFile() if url.isLocalFile() else str(value)).expanduser().resolve()
+    except RuntimeError as error:
+        raise ValueError("文件路径包含循环链接") from error
 
 
 class DesktopBackend(QObject):
@@ -60,6 +62,8 @@ class DesktopBackend(QObject):
         settings=None,
         managed=False,
         updater_command=None,
+        kiosk=False,
+        program_roots=None,
     ):
         super().__init__(parent)
         self._snapshot = {
@@ -76,9 +80,8 @@ class DesktopBackend(QObject):
             "errors": [],
         }
         self._program = ProgramModel(self)
-        self._firmware_updater = FirmwareUpdater(
-            self, command=updater_command, socket_path=socket_path
-        )
+        self._program_files = ProgramFiles(self, roots=program_roots)
+        self._firmware_updater = FirmwareUpdater(self, command=updater_command)
         self._settings = settings if settings is not None else QSettings()
         self._history = self._settings.value("mdi/history", [], type=list) or []
         self._recent = self._settings.value("program/recent", [], type=list) or []
@@ -91,6 +94,7 @@ class DesktopBackend(QObject):
         self._requested_file = ""
         self._closed = False
         self._managed = managed
+        self._kiosk = kiosk
         self._last_status_time = 0
         self._thread = QThread(self)
         self._thread.setObjectName("Local controller socket")
@@ -117,6 +121,7 @@ class DesktopBackend(QObject):
 
     snapshot = Property("QVariantMap", lambda self: self._snapshot, notify=snapshotChanged)
     program = Property(QObject, lambda self: self._program, constant=True)
+    programFiles = Property(QObject, lambda self: self._program_files, constant=True)
     firmwareUpdater = Property(QObject, lambda self: self._firmware_updater, constant=True)
     history = Property("QStringList", lambda self: self._history, notify=historyChanged)
     recentFiles = Property("QStringList", lambda self: self._recent, notify=recentFilesChanged)
@@ -126,6 +131,8 @@ class DesktopBackend(QObject):
     @Slot(result=bool)
     def requestClose(self):
         """A managed DISPLAY exiting also tears down LinuxCNC's native core."""
+        if self._kiosk:
+            return False
         state = self._snapshot
         if self._managed and (
             not state.get("connected")
@@ -195,7 +202,7 @@ class DesktopBackend(QObject):
             self._requested_file = ""
         if current_file and current_file != self._program.filePath and not self._requested_file:
             try:
-                self._program.load(current_file, self._context())
+                self._program.load(self._program_path(current_file), self._context())
                 self._remember(current_file)
             except (ValueError, OSError) as error:
                 # Avoid retrying unreadable external files on every status tick.
@@ -242,6 +249,8 @@ class DesktopBackend(QObject):
             payload = {"value": int(value)}
         if action == "file.open" and payload.get("path"):
             return self.openProgram(payload["path"])
+        if self._kiosk and action == "file.save":
+            return self.saveProgram(payload.get("path", ""), payload.get("text", ""))
         if action == "file.reload":
             return self.reloadProgram()
         if action == "file.clear-recents":
@@ -251,6 +260,8 @@ class DesktopBackend(QObject):
             return True
         if action == "file.quit":
             self.stopJog()
+            if self._kiosk:
+                return False
             QGuiApplication.quit()
             return True
         if action.startswith("mdi.") and action in ("mdi.clear", "mdi.copy", "mdi.paste"):
@@ -308,7 +319,7 @@ class DesktopBackend(QObject):
         if not self._can_edit():
             return False
         try:
-            path = local_path(value)
+            path = self._program_path(value)
             self._program.load(path, self._context())
             self._remember(str(path))
             if self._snapshot.get("connected"):
@@ -332,7 +343,7 @@ class DesktopBackend(QObject):
             self.errorOccurred.emit("需要连接控制器并停止程序后才能保存程序")
             return False
         try:
-            path = local_path(value)
+            path = self._program_path(value)
             if not path.name or "\0" in text:
                 raise ValueError("程序文件或内容无效")
             self.commandRequested.emit("file.save", {"path": str(path), "text": text})
@@ -341,13 +352,17 @@ class DesktopBackend(QObject):
             self.errorOccurred.emit(str(error))
             return False
 
+    def _program_path(self, value):
+        path = local_path(value)
+        return self._program_files.resolve(path) if self._kiosk else path
+
     @Slot(str, dict)
     def _command_accepted(self, action, payload):
         if self._closed:
             return
         if action == "file.save":
             try:
-                path = payload["path"]
+                path = str(self._program_path(payload["path"]))
                 self._program.load(path, self._context())
                 self._requested_file = path
                 self._remember(path)
@@ -466,6 +481,9 @@ class DesktopBackend(QObject):
         self.dispatch("tool.reload", {})
 
     def _launch_tool(self, action):
+        if self._kiosk:
+            self.errorOccurred.emit("专用操作界面不提供外部调试工具；请联系维护人员。")
+            return False
         if not self._snapshot.get("connected"):
             self.errorOccurred.emit("请先连接 LinuxCNC")
             return False

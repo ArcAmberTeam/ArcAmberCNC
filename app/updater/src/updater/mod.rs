@@ -1,11 +1,13 @@
+mod broker;
 mod install;
+mod package;
 mod release;
 mod storage;
 mod system;
 
 use clap::{Parser, Subcommand};
 use serde::{Deserialize, Serialize};
-use std::{io::Write, path::PathBuf};
+use std::{io::Write, path::Path};
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 const PACKAGE: &str = "betterlinuxcnc-qt";
@@ -31,16 +33,10 @@ enum Action {
     },
     /// Read persistent update status. No network, controller or package-manager access.
     Status,
-    /// Schedule verified installation in an independent systemd user service.
-    Install {
-        #[arg(long)]
-        socket: Option<PathBuf>,
-    },
+    /// Start the fixed privileged system update service. No package inputs are accepted.
+    Install,
     #[command(hide = true)]
-    Apply {
-        #[arg(long)]
-        socket: Option<PathBuf>,
-    },
+    ApplySystem,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
@@ -72,14 +68,19 @@ impl Event {
 
 pub(super) fn run() -> Result<()> {
     let options = Options::parse();
+    if matches!(options.command, Action::ApplySystem) {
+        return broker::apply();
+    }
     let store = storage::Store::open()?;
     if matches!(options.command, Action::Status) {
+        if let Some(status) = broker::visible_status(&store)? {
+            return status.emit();
+        }
         let status = store.status()?;
         if transient(&status) {
             if let Ok(_lock) = store.lock() {
                 let latest = store.status()?;
-                let installing = matches!(latest.phase.as_str(), "scheduled" | "installing");
-                return if transient(&latest) && !(installing && install::is_running()?) {
+                return if transient(&latest) {
                     Event::new("error", "上次更新已中断，请检查安装日志或重新下载", "", 0).emit()
                 } else {
                     latest.emit()
@@ -91,19 +92,13 @@ pub(super) fn run() -> Result<()> {
     let result = match options.command {
         Action::Fetch { current_version } => {
             let _lock = store.lock()?;
-            if matches!(store.status()?.phase.as_str(), "scheduled" | "installing") {
-                install::ensure_not_scheduled()?;
-            }
             release::fetch(&store, &current_version)
         }
-        Action::Install { socket } => {
+        Action::Install => {
             let _lock = store.lock()?;
-            install::schedule(&store, socket)
+            broker::schedule(&store)
         }
-        Action::Apply { socket } => {
-            let _lock = store.wait_for_scheduler()?;
-            install::apply(&store, socket)
-        }
+        Action::ApplySystem => unreachable!(),
         Action::Status => unreachable!(),
     };
     if let Err(error) = &result {
@@ -119,4 +114,46 @@ fn transient(event: &Event) -> bool {
         event.phase.as_str(),
         "checking" | "downloading" | "verifying" | "scheduled" | "installing"
     )
+}
+
+// Commands never inherit APT_CONFIG, dynamic loader settings, user PATH, or proxies.
+fn command(path: impl AsRef<Path>) -> std::process::Command {
+    let mut command = std::process::Command::new(path.as_ref());
+    command
+        .env_clear()
+        .env("PATH", "/usr/sbin:/usr/bin:/sbin:/bin")
+        .env("LANG", "C.UTF-8");
+    command
+}
+
+#[cfg(test)]
+mod cli_tests {
+    use super::*;
+    #[test]
+    fn install_rejects_paths_urls_commands_and_legacy_privileged_apply() {
+        for extra in [
+            "--socket",
+            "--package",
+            "--url",
+            "--command",
+            "--apt-option",
+        ] {
+            assert!(
+                Options::try_parse_from(["updater", "install", extra, "/tmp/user-controlled"])
+                    .is_err()
+            );
+        }
+        assert!(Options::try_parse_from(["updater", "apply"]).is_err());
+        assert!(Options::try_parse_from([
+            "updater",
+            "apply-system",
+            "--package",
+            "/tmp/package.deb"
+        ])
+        .is_err());
+        let process = command("/usr/bin/apt-get");
+        assert!(process
+            .get_envs()
+            .all(|(key, _)| key == "PATH" || key == "LANG"));
+    }
 }

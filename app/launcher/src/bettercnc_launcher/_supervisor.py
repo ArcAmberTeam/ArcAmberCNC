@@ -46,28 +46,67 @@ def _private_directory(path):
         raise ValueError(f"目录必须属于当前用户且权限为 0700：{path}")
 
 
+def _log_directory(path, shared):
+    if not shared:
+        _private_directory(path)
+        return
+    try:
+        path.mkdir(parents=True, mode=0o2750)
+    except FileExistsError:
+        pass
+    else:
+        # Override the runtime's private umask only for traversable log folders.
+        # setgid preserves the maintenance group provisioned on the log root.
+        path.chmod(0o2750)
+    info = path.lstat()
+    if not stat.S_ISDIR(info.st_mode) or info.st_uid != os.getuid() or info.st_mode & 0o027:
+        raise ValueError(f"日志目录必须属于当前用户，且组不可写、其他用户不可访问：{path}")
+
+
 class Child:
     def __init__(self, name, command, logs, env, generation):
         self.name = name
         self.log = logs / f"{name}-{generation}.log"
+        self._terminal = None
+        terminal_input = None
         with self.log.open("xb") as output:
-            self.process = subprocess.Popen(
-                command,
-                stdin=subprocess.DEVNULL,
-                stdout=output,
-                stderr=subprocess.STDOUT,
-                env=env,
-                start_new_session=True,
-            )
+            if env.get("BETTERCNC_SHARE_LOGS") == "1":
+                os.fchmod(output.fileno(), 0o640)
+            if name == "linuxcnc" and env.get("BETTERCNC_KIOSK") == "1":
+                # Upstream selects terminal-only error reporting with `tty -s`.
+                # Keep the master alive without writing input or exposing a shell.
+                master, slave = os.openpty()
+                self._terminal = os.fdopen(master, "rb", buffering=0)
+                terminal_input = os.fdopen(slave, "rb", buffering=0)
+            try:
+                self.process = subprocess.Popen(
+                    command,
+                    stdin=terminal_input if terminal_input is not None else subprocess.DEVNULL,
+                    stdout=output,
+                    stderr=subprocess.STDOUT,
+                    env=env,
+                    start_new_session=True,
+                )
+            except BaseException:
+                if self._terminal is not None:
+                    self._terminal.close()
+                raise
+            finally:
+                if terminal_input is not None:
+                    terminal_input.close()
         print(f"已启动 {name}，PID {self.process.pid}，日志 {self.log}", flush=True)
 
     def stop(self, timeout, *, force=True):
         if self.process.poll() is not None:
+            if self._terminal is not None:
+                self._terminal.close()
             return True
         with contextlib.suppress(ProcessLookupError):
             os.killpg(self.process.pid, signal.SIGTERM)
         try:
             self.process.wait(timeout=timeout)
+            if self._terminal is not None:
+                self._terminal.close()
             return True
         except subprocess.TimeoutExpired:
             if not force:
@@ -75,6 +114,8 @@ class Child:
             with contextlib.suppress(ProcessLookupError):
                 os.killpg(self.process.pid, signal.SIGKILL)
             self.process.wait()
+            if self._terminal is not None:
+                self._terminal.close()
             return True
 
 
@@ -293,9 +334,10 @@ class Runtime:
                 raise RecoveryBlocked(f"控制端点已存在，不会接管或删除：{config.socket}")
             if Path("/tmp/linuxcnc.lock").exists() or Path("/tmp/linuxcnc.lock").is_symlink():
                 raise RecoveryBlocked("/tmp/linuxcnc.lock 已存在，请先处理原 LinuxCNC 会话")
-            _private_directory(config.state)
+            shared_logs = os.environ.get("BETTERCNC_SHARE_LOGS") == "1"
+            _log_directory(config.state, shared_logs)
             self.logs = config.state / f"{time.strftime('%Y%m%d-%H%M%S')}-{os.getpid()}"
-            _private_directory(self.logs)
+            _log_directory(self.logs, shared_logs)
             lock.seek(0)
             lock.truncate()
             lock.write(

@@ -6,7 +6,7 @@ import os
 import subprocess
 from pathlib import Path
 
-from ._autostart import start_session
+from ._autostart import run_kiosk_session, start_session
 from ._config import load
 from ._supervisor import RecoveryBlocked, Runtime
 
@@ -17,9 +17,13 @@ def main(argv=None):
     parser.add_argument("--ini", help="覆盖本次启动的 INI 路径")
     parser.add_argument("--check", action="store_true", help="只校验配置和依赖，不启动进程")
     parser.add_argument("--once", action="store_true", help="单次运行，不自动拉起退出的模块")
-    parser.add_argument("--session-start", action="store_true", help=argparse.SUPPRESS)
+    session = parser.add_mutually_exclusive_group()
+    session.add_argument("--session-start", action="store_true", help=argparse.SUPPRESS)
+    session.add_argument("--kiosk-session", action="store_true", help="保持专用 X11 CNC 会话")
     args = parser.parse_args(argv)
     try:
+        if args.kiosk_session:
+            return run_kiosk_session()
         if args.session_start:
             return start_session()
         if args.config is not None and not args.config.expanduser().is_file():

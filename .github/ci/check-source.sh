@@ -2,8 +2,9 @@
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 actionlint -shellcheck= -pyflakes=
-shellcheck .github/ci/*.sh app/desktop/scripts/ci-check.sh
+shellcheck .github/ci/*.sh app/desktop/scripts/ci-check.sh tools/appliance/packaging/postinst
 for script in .github/ci/*.sh app/desktop/scripts/ci-check.sh; do bash -n "$script"; done
+sh -n tools/appliance/packaging/postinst
 python3 -m unittest discover -s .github/ci -p 'test_*.py'
 python3 - <<'PY'
 import ast

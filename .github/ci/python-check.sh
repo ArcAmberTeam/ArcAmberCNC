@@ -8,7 +8,7 @@ case "$scope" in
   launcher)
     package=app/launcher
     paths=(app/launcher/src app/launcher/tests)
-    tests=(test_launcher.py test_installation.py)
+    tests=(test_launcher.py test_kiosk_session.py test_installation.py)
     test_dir=app/launcher/tests
     ;;
   service)

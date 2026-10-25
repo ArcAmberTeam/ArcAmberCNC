@@ -1,0 +1,2 @@
+#!/bin/sh
+exec /usr/bin/python3 -I "@CMAKE_INSTALL_FULL_LIBDIR@/betterlinuxcnc/appliance/main.py" "$@"

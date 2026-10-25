@@ -1,0 +1,155 @@
+name: ArcAmberCNC Release
+
+on:
+  workflow_run:
+    workflows: [ArcAmberCNC Module CI]
+    branches: [main]
+    types: [completed]
+  pull_request_target:
+    branches: [main]
+    types: [closed, labeled]
+
+permissions:
+  contents: read
+  actions: read
+  pull-requests: read
+
+concurrency:
+  group: release-main
+  cancel-in-progress: false
+
+jobs:
+  resolve:
+    name: Resolve a labeled, merged PR and its successful CI artifact
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      ready: ${{ steps.candidate.outputs.ready }}
+      sha: ${{ steps.candidate.outputs.sha }}
+      run-id: ${{ steps.candidate.outputs.run-id }}
+      artifact-id: ${{ steps.candidate.outputs.artifact-id }}
+      version: ${{ steps.candidate.outputs.version }}
+      pr: ${{ steps.candidate.outputs.pr }}
+    steps:
+      # Never check out or run PR code in this privileged event workflow.
+      - uses: actions/github-script@v8
+        id: candidate
+        with:
+          script: |
+            const repo = context.repo;
+            let sha;
+            let candidates;
+            if (context.eventName === 'pull_request_target') {
+              const {data: pr} = await github.rest.pulls.get({...repo, pull_number: context.payload.pull_request.number});
+              if (!pr.merged || pr.base.ref !== 'main' || !pr.labels.some(label => label.name === 'build-release')) return;
+              sha = pr.merge_commit_sha;
+              candidates = [pr];
+            } else {
+              const eventRun = context.payload.workflow_run;
+              if (eventRun.event !== 'push' || eventRun.head_branch !== 'main' || eventRun.conclusion !== 'success') return;
+              sha = eventRun.head_sha;
+              const associated = await github.paginate(github.rest.repos.listPullRequestsAssociatedWithCommit, {...repo, commit_sha: sha, per_page: 100});
+              candidates = await Promise.all(associated.map(async item => (await github.rest.pulls.get({...repo, pull_number: item.number})).data));
+            }
+            if (!/^[0-9a-f]{40}$/.test(sha)) throw new Error('Invalid merge commit');
+            const eligible = candidates.filter(pr => pr.merged && pr.base.ref === 'main' && pr.base.repo.full_name === `${repo.owner}/${repo.repo}` && pr.merge_commit_sha === sha && pr.labels.some(label => label.name === 'build-release'));
+            if (eligible.length !== 1) return;
+            const pr = eligible[0];
+            const {data: comparison} = await github.rest.repos.compareCommitsWithBasehead({...repo, basehead: `${sha}...main`});
+            if (!['ahead', 'identical'].includes(comparison.status)) throw new Error('Release commit is not on main');
+            const {data: workflow} = await github.rest.actions.getWorkflow({...repo, workflow_id: 'ci.yml'});
+            const {data: runs} = await github.rest.actions.listWorkflowRuns({...repo, workflow_id: workflow.id, branch: 'main', event: 'push', head_sha: sha, per_page: 100});
+            const run = runs.workflow_runs.find(item => item.head_sha === sha && item.head_branch === 'main' && item.event === 'push' && item.status === 'completed' && item.conclusion === 'success');
+            // A later workflow_run event retries automatically when CI is still running.
+            if (!run) { core.info('Waiting for the main push CI run to succeed.'); return; }
+            const jobs = await github.paginate(github.rest.actions.listJobsForWorkflowRun, {...repo, run_id: run.id, filter: 'latest', per_page: 100});
+            if (!jobs.some(job => job.name === 'CI Gate' && job.conclusion === 'success')) throw new Error('CI Gate did not pass');
+            const artifacts = await github.paginate(github.rest.actions.listWorkflowRunArtifacts, {...repo, run_id: run.id, per_page: 100});
+            const matches = artifacts.filter(item => !item.expired && item.name === `betterlinuxcnc-deb-${sha}`);
+            if (matches.length !== 1) throw new Error('Expected exactly one verified DEB artifact');
+            const {data: metadata} = await github.rest.repos.getContent({...repo, path: 'app/desktop/pyproject.toml', ref: sha});
+            const match = Buffer.from(metadata.content, 'base64').toString('utf8').match(/^version\s*=\s*"(\d+\.\d+\.\d+\.\d+)"\s*$/m);
+            if (!match) throw new Error('Expected a four-part application release version');
+            core.setOutput('ready', 'true');
+            core.setOutput('sha', sha);
+            core.setOutput('run-id', String(run.id));
+            core.setOutput('artifact-id', String(matches[0].id));
+            core.setOutput('version', match[1]);
+            core.setOutput('pr', String(pr.number));
+
+  publish:
+    name: Publish the verified DEB as the latest formal Release
+    needs: resolve
+    if: needs.resolve.outputs.ready == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      actions: read
+      pull-requests: read
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          artifact-ids: ${{ needs.resolve.outputs.artifact-id }}
+          run-id: ${{ needs.resolve.outputs.run-id }}
+          github-token: ${{ github.token }}
+          path: release-artifact
+      - uses: actions/github-script@v8
+        env:
+          RELEASE_SHA: ${{ needs.resolve.outputs.sha }}
+          RELEASE_VERSION: ${{ needs.resolve.outputs.version }}
+          RELEASE_PR: ${{ needs.resolve.outputs.pr }}
+        with:
+          script: |
+            const fs = require('node:fs');
+            const crypto = require('node:crypto');
+            const {execFileSync} = require('node:child_process');
+            const repo = context.repo;
+            const sha = process.env.RELEASE_SHA;
+            const version = process.env.RELEASE_VERSION;
+            const tag = `v${version}`;
+            const name = `betterlinuxcnc-qt_${version}_amd64.deb`;
+            const root = 'release-artifact';
+            const {data: pr} = await github.rest.pulls.get({...repo, pull_number: Number(process.env.RELEASE_PR)});
+            if (!pr.merged || pr.base.ref !== 'main' || pr.merge_commit_sha !== sha || !pr.labels.some(label => label.name === 'build-release')) throw new Error('Release authorization changed');
+            const files = fs.readdirSync(root).sort();
+            if (JSON.stringify(files) !== JSON.stringify(['SHA256SUMS', 'SOURCE_COMMIT', name].sort())) throw new Error('Unexpected artifact files');
+            for (const file of files) if (!fs.lstatSync(`${root}/${file}`).isFile()) throw new Error('Artifact must contain only regular files');
+            if (fs.readFileSync(`${root}/SOURCE_COMMIT`, 'utf8').trim() !== sha) throw new Error('Artifact commit mismatch');
+            const data = fs.readFileSync(`${root}/${name}`);
+            const digest = crypto.createHash('sha256').update(data).digest('hex');
+            if (fs.readFileSync(`${root}/SHA256SUMS`, 'utf8') !== `${digest}  ${name}\n`) throw new Error('Package checksum mismatch');
+            for (const [field, expected] of Object.entries({Package: 'betterlinuxcnc-qt', Version: version, Architecture: 'amd64'})) {
+              const actual = execFileSync('dpkg-deb', ['--field', `${root}/${name}`, field], {encoding: 'utf8'}).trim();
+              if (actual !== expected) throw new Error(`Package ${field} mismatch`);
+            }
+            try {
+              const {data: reference} = await github.rest.git.getRef({...repo, ref: `tags/${tag}`});
+              let object = reference.object;
+              while (object.type === 'tag') object = (await github.rest.git.getTag({...repo, tag_sha: object.sha})).data.object;
+              if (object.type !== 'commit' || object.sha !== sha) throw new Error('Existing tag points to another commit');
+            } catch (error) { if (error.status !== 404) throw error; }
+            let release;
+            try { release = (await github.rest.repos.getReleaseByTag({...repo, tag})).data; }
+            catch (error) { if (error.status !== 404) throw error; }
+            if (!release) {
+              release = (await github.rest.repos.createRelease({...repo, tag_name: tag, target_commitish: sha, name: `demo ${tag}`, draft: true, prerelease: false, body: `Built and installation-tested by GitHub CI from ${sha}.\n\nMerged PR #${pr.number}. Install the Debian package; source archives are not installation packages.`})).data;
+            }
+            if (release.draft && release.target_commitish !== sha) throw new Error('Existing draft targets another commit');
+            for (const [assetName, content] of [[name, data], ['SHA256SUMS', fs.readFileSync(`${root}/SHA256SUMS`)]]) {
+              const existing = release.assets.find(asset => asset.name === assetName);
+              const expected = `sha256:${crypto.createHash('sha256').update(content).digest('hex')}`;
+              if (existing) {
+                if (existing.digest !== expected) throw new Error(`Existing asset differs: ${assetName}`);
+              } else {
+                if (!release.draft) throw new Error('Refusing to add assets to an already published release');
+                await github.rest.repos.uploadReleaseAsset({...repo, release_id: release.id, name: assetName, data: content, headers: {'content-type': 'application/octet-stream', 'content-length': content.length}});
+              }
+            }
+            if (!release.draft) {
+              if (release.prerelease || release.name !== `demo ${tag}`) throw new Error('Existing release metadata differs');
+              core.notice(`Release ${tag} already contains these verified assets; leaving it unchanged.`);
+              return;
+            }
+            await github.rest.repos.updateRelease({...repo, release_id: release.id, name: `demo ${tag}`, draft: false, prerelease: false, make_latest: 'true'});
+            core.notice(`Published demo ${tag} from verified commit ${sha}`);

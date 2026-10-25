@@ -11,7 +11,7 @@
 - `Chrome` 拥有菜单、工具栏和说明对话框，可依赖 `Ui`、`Catalog` 及 `ManualState`、`ToolpathState` 的公开展示接口，不导入其他功能模块的面板或私有类型。
 - `Workspace` 组装功能面板、共享展示状态与快捷键。不得建立全局 `utils`、`stores`、`shared`、万能 action 分发器或机床状态桶。模块依赖必须无环。
 - CMake 的资源列表、`qmldir` 与 `scripts/check_boundaries.py` 一起维护；新增模块先明确所有权及依赖，再更新检查，不通过忽略规则消除违规。
-- Python 公开入口为 `bettercnc.desktop` 和 `bettercnc.session`；下划线文件为私有实现。desktop 只跨模块导入 session 公开入口；session 只依赖标准库。Qt 进程不得导入 `linuxcnc`、`gcode`、`hal` 或 `app/controller/` 中的服务包。
+- Python 公开入口为 `bettercnc.desktop`、`bettercnc.session` 和应用版本元数据 `bettercnc.__version__`；下划线文件为私有实现。desktop 只跨模块导入 session 与版本元数据的公开入口；session 只依赖标准库。Qt 进程不得导入 `linuxcnc`、`gcode`、`hal` 或 `app/controller/` 中的服务包。
 
 ## 展示与系统边界
 
@@ -27,14 +27,16 @@
 - 主要目标窗口为 1024×600；同时保留业余用户的引导布局和专业用户布局，通过公开模块复用机床操作与状态。低频选项放入占满应用窗口的设置页，主界面保留常用操作、急停和停止。紧凑标题区域不显示 BetterLinuxCNC 品牌，窗口标题显示程序文件名或“未打开程序”。
 - 3D 旋转、平移、缩放与视角设置仅改变展示状态。触屏点动使用长按启动，释放、拖动取消、失焦和隐藏均须停止；预览键盘操作不能落入机床点动或回零快捷键。布局修改继续检查触控目标和最小窗口，不能只验收大屏。
 - 正式入口为 `app/main.py` 或安装后的 `betterlinuxcnc`；它们使用真实服务。`--check-connection` 通过 `bettercnc.session.read_machine_status` 只读查询，无窗口、无控制权；退出码 0 表示机床已连接、2 表示服务可达但机床离线、1 表示端点/传输/协议错误。不要同时传 `--ini` 或 `--program`。
-- 无 LinuxCNC 环境按用户约定使用 `app/desktop/.venv/bin/python app/desktop/tests/interactive/main.py`。测试在外部注入 vendor 接口，复用正式 GUI 和服务，不在生产代码添加假状态或模拟开关；Controller 与 StatusReader 都必须注入同一测试设备。
+- `--kiosk`/`BETTERCNC_KIOSK=1` 运行专用全屏操作界面，不提供退出到普通桌面的控制。`--kiosk-status` 是独立启动状态页，不创建控制后端或连接机床；启动器通过公开 CLI 管理其生命周期。安装版本取 `bettercnc.__version__`，不读取 LinuxCNC 核心的 `VERSION`。
+- 应用更新通过独立 `betterlinuxcnc-updater` CLI 的 JSON 行接口；Qt 只能请求无附加参数的 `install`，不能向 root 服务传入包路径、URL、版本或命令。程序选择限制在配置允许的程序/收件目录；QML 不自行操作平台文件选择器或外部编辑器。
+- 无 LinuxCNC 环境的交互测试入口为 `app/desktop/tests/interactive/main.py`，当前仅在允许的远端验证环境执行。测试在外部注入 vendor 接口，复用正式 GUI 和服务，不在生产代码添加假状态或模拟开关；Controller 与 StatusReader 都必须注入同一测试设备。
 - `external-interface-integration` 已纳入 CTest，覆盖原始 GUI/服务端到端行为、只读诊断与已有控制会话共存、断线恢复；替身测试不等于真实解释器或运动验收。真实目标机的安装与显示验收记录见 [本机连接说明](../../docs/linuxcnc-local-connection.md)。
 
 ## 验证与 CI
 
-- 修改后运行 CMake 配置/构建、`ctest --test-dir build --output-on-failure` 及受影响 QML 的 `qmllint -I app/desktop/qml`；测试使用公开模块和可观察 UI，不跨模块导入内部实现。
+- 修改后只在 GitHub CI 运行 CMake 配置/构建、CTest 及受影响 QML 的 qmllint；当前用户禁止本地及目标机构建、源码测试，包括本地 Docker。目标机只安装 CI 的完整 DEB 并做实际运行验收。测试使用公开模块和可观察 UI，不跨模块导入内部实现。
 - 新建或修改依赖规则时，临时加入非法导入，确认失败，删除反例，再确认正常代码通过。
 - 公共 UI 测试以 `objectName`、键盘和鼠标操作观察行为；Python 测试经公开接口与真实 Unix socket，使用受控服务替身。不得为测试暴露私有实现，不启动模拟器或机床。
 - macOS 构建和无屏测试不能替代 Debian 13、Intel 核显、中文字体、缩放与窗口生命周期验收。容器构建不表示目标机图形或机床已验证。
-- `.github/workflows/ci.yml` 分别显示“Python：Qt 界面后端”和“QML：Qt 桌面界面”。`scripts/ci-check.sh --suite desktop` 验证安装后的 Python 包，`--suite qml` 执行 QML、模块边界与启动检查；不带 `--suite` 仍执行完整测试。CI 只运行构建和测试并上传日志，不打包或部署；desktop 套件仅在隔离测试环境安装待测 wheel。
+- `.github/workflows/ci.yml` 分别显示“Python：Qt 界面后端”和“QML：Qt 桌面界面”。`scripts/ci-check.sh --suite desktop` 验证安装后的 Python 包，`--suite qml` 执行 QML、模块边界与启动检查；不带 `--suite` 仍执行完整测试。desktop 套件仅在隔离测试环境安装待测 wheel；正式 DEB 由根构建和独立 CI job 负责，Release 规则遵循根 AGENT，不部署到目标机。
 - 构建、启动及验收步骤见 [Qt 迁移说明](../../docs/qt-qml-migration.md)。所有 README 仅由人工维护。

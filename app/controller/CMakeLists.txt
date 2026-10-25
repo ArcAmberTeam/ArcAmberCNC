@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.22)
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
     project(BetterLinuxCNCController VERSION 0.2.0 LANGUAGES NONE)
-    include(GNUInstallDirs)
+    include("${CMAKE_CURRENT_SOURCE_DIR}/../../cmake/ApplicationInstall.cmake")
     include(CTest)
 endif()
 

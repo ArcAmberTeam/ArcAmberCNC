@@ -26,13 +26,14 @@ Rectangle {
     onGuidedStageChanged: { stopJog(); forceActiveFocus(); }
     property Item focusedItem: null
     property var backend: null
+    property bool kioskMode: false
     readonly property var machine: backend && backend.snapshot ? backend.snapshot : ({})
     readonly property var program: backend ? backend.program : null
     readonly property string axesKey: (machine.axes || []).join(",")
     readonly property var configuredAxes: axesKey ? axesKey.split(",") : []
     property string lastConnectionMessage: ""
     property var activeJogKeys: ({})
-    readonly property bool popupActive: dialogs.visible || openFile.visible || saveFile.visible
+    readonly property bool popupActive: dialogs.visible || openFile.visible || saveFile.visible || programPicker.visible
     signal quitRequested()
     focus: true
 
@@ -70,10 +71,14 @@ Rectangle {
         if (id !== "jog.start") stopJog();
         if (id === "file.open" || id === "file.open-sample") {
             if (payload.path) backend.openProgram(payload.path);
+            else if (kioskMode) { programPicker.saveMode = false; programPicker.open(); }
             else openFile.open();
         } else if (id === "file.reload") backend.reloadProgram();
-        else if (id === "file.save") saveFile.open();
-        else if (id === "file.quit") quitRequested();
+        else if (id === "file.save") {
+            if (kioskMode) { programPicker.saveMode = true; programPicker.open(); }
+            else saveFile.open();
+        }
+        else if (id === "file.quit") { if (!kioskMode) quitRequested(); }
         else if (id === "file.save-edits") {
             if (program) backend.saveProgram(program.filePath, payload.text);
         } else if (id === "tool.save") {
@@ -155,6 +160,8 @@ Rectangle {
         machine: workspace.machine
         program: workspace.program
         recentFiles: workspace.backend ? workspace.backend.recentFiles : []
+        allowQuit: !workspace.kioskMode
+        allowExternalTools: !workspace.kioskMode
         onCommandRequested: (actionId, payload) => workspace.requestCommand(actionId, payload)
         onDialogRequested: (actionId, title, axis) => dialogs.openDialog(actionId, title, axis)
     }
@@ -292,7 +299,18 @@ Rectangle {
         title: "打开加工程序"
         nameFilters: ["加工程序 (*.ngc *.nc *.tap)", "所有文件 (*)"]
         fileMode: NativeDialogs.FileDialog.OpenFile
+        options: workspace.kioskMode ? NativeDialogs.FileDialog.DontUseNativeDialog : 0
         onAccepted: if (workspace.backend) workspace.backend.openProgram(selectedFile.toString())
+    }
+    ProgramFilePicker {
+        id: programPicker
+        objectName: "programFilePicker"
+        files: workspace.backend && workspace.backend.programFiles ? workspace.backend.programFiles : null
+        onFileChosen: path => {
+            if (!workspace.backend) return;
+            if (saveMode && workspace.program) workspace.backend.saveProgram(path, workspace.program.text);
+            else workspace.backend.openProgram(path);
+        }
     }
     NativeDialogs.FileDialog {
         id: saveFile
@@ -300,6 +318,7 @@ Rectangle {
         title: "程序另存为"
         nameFilters: ["加工程序 (*.ngc)", "所有文件 (*)"]
         fileMode: NativeDialogs.FileDialog.SaveFile
+        options: workspace.kioskMode ? NativeDialogs.FileDialog.DontUseNativeDialog : 0
         defaultSuffix: "ngc"
         onAccepted: if (workspace.backend && workspace.program)
             workspace.backend.saveProgram(selectedFile.toString(), workspace.program.text)

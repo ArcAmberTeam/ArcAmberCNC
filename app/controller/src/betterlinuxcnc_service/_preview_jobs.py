@@ -22,6 +22,14 @@ class PreviewJobs:
             raise ProtocolError(
                 "invalid_params", "preview path must name an existing absolute file"
             )
+        if os.environ.get("BETTERCNC_KIOSK") == "1":
+            resolved = Path(path).resolve()
+            if not any(
+                resolved.is_relative_to(Path("/var/lib/betterlinuxcnc") / name)
+                for name in ("programs", "inbox")
+            ):
+                raise ProtocolError("invalid_params", "preview is restricted to appliance programs")
+            path = str(resolved)
         # One result per owner prevents unbounded processes, geometry and temp files.
         await self.clear(owner)
         directory = tempfile.TemporaryDirectory(prefix="bettercnc-preview-")

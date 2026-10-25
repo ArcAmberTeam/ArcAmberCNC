@@ -1,0 +1,13 @@
+#!/bin/sh
+set -eu
+case "${1:-}" in
+    configure)
+        exec /usr/sbin/betterlinuxcnc-appliance provision
+        ;;
+    abort-upgrade|abort-remove|abort-deconfigure)
+        exit 0
+        ;;
+    *)
+        exit 1
+        ;;
+esac

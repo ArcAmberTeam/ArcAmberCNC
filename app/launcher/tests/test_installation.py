@@ -2,6 +2,7 @@
 
 import configparser
 import importlib.metadata
+import json
 import os
 import shutil
 import subprocess
@@ -30,8 +31,6 @@ class InstallationTests(unittest.TestCase):
                     "-B",
                     str(build),
                     "-DBUILD_TESTING=OFF",
-                    "-DCMAKE_INSTALL_PREFIX=/usr",
-                    "-DCMAKE_INSTALL_LIBDIR=lib",
                     f"-DPython3_EXECUTABLE={sys.executable}",
                 ],
                 capture_output=True,
@@ -85,6 +84,29 @@ class InstallationTests(unittest.TestCase):
                     (unpacked / "usr/bin" / command).read_bytes(),
                     (stage / "usr/bin" / command).read_bytes(),
                 )
+        self.assertFalse((unpacked / "etc/betterlinuxcnc/launcher.json").exists())
+        self.assertTrue((unpacked / "etc/betterlinuxcnc/updater.json").is_file())
+        self.assertFalse((unpacked / "etc/lightdm").exists())
+        self.assertFalse((unpacked / "etc/ssh").exists())
+        control = output / "control"
+        result = subprocess.run(
+            ["dpkg-deb", "--control", str(package), str(control)],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(
+            "/etc/betterlinuxcnc/updater.json", (control / "conffiles").read_text().splitlines()
+        )
+        self.assertLessEqual(
+            {path.name for path in control.iterdir()}, {"control", "md5sums", "conffiles", "postinst"}
+        )
+        self.assertEqual(
+            (control / "postinst").read_bytes(),
+            (source / "tools/appliance/packaging/postinst").read_bytes(),
+        )
+        self.assertEqual((control / "postinst").stat().st_mode & 0o7777, 0o755)
         fields = {}
         for field in ("Package", "Version", "Architecture", "Depends"):
             result = subprocess.run(
@@ -100,14 +122,37 @@ class InstallationTests(unittest.TestCase):
         architecture = subprocess.check_output(["dpkg", "--print-architecture"], text=True).strip()
         self.assertEqual(fields["Package"], "betterlinuxcnc-qt")
         self.assertEqual(fields["Version"], application_version)
+        installed_version = subprocess.check_output(
+            [sys.executable, "-c", "from bettercnc import __version__; print(__version__)"],
+            env=dict(os.environ, PYTHONPATH=str(unpacked / "usr/lib/betterlinuxcnc/python")),
+            text=True,
+            timeout=10,
+        ).strip()
+        self.assertEqual(installed_version, fields["Version"])
         self.assertEqual(fields["Architecture"], architecture)
         self.assertEqual(
             package.name,
             f"betterlinuxcnc-qt_{fields['Version']}_{fields['Architecture']}.deb",
         )
         dependencies = {entry.strip().split()[0] for entry in fields["Depends"].split(",")}
+        self.assertNotIn("pkexec", dependencies)
         self.assertTrue(
-            {"pkexec", "ca-certificates", "apt", "dpkg", "dbus-user-session"} <= dependencies,
+            {
+                "polkitd",
+                "systemd",
+                "util-linux",
+                "ca-certificates",
+                "apt",
+                "dpkg",
+                "dbus-user-session",
+                "lightdm",
+                "xserver-xorg",
+                "openssh-server",
+                "sudo",
+                "passwd",
+                "procps",
+            }
+            <= dependencies,
             dependencies,
         )
 
@@ -116,9 +161,11 @@ class InstallationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix="launcher-install-") as temporary:
             root = Path(temporary)
             stage = root / "stage"
-            config = stage / "opt/arcambercnc/launcher.json"
+            config = stage / "etc/betterlinuxcnc/launcher.json"
             config.parent.mkdir(parents=True)
             config.write_text('{"ini":"keep-existing.ini"}')
+            updater_config = config.parent / "updater.json"
+            updater_config.write_text('{"account":"preserve-local-policy"}')
             retired_cam = stage / "usr/lib/betterlinuxcnc/python/bettercnc_cam_link"
             retired_cam.mkdir(parents=True)
             (retired_cam / "__init__.py").write_text("# obsolete Python CAM service\n")
@@ -138,9 +185,6 @@ class InstallationTests(unittest.TestCase):
                     "-B",
                     str(build),
                     "-DBUILD_TESTING=OFF",
-                    "-DCMAKE_INSTALL_PREFIX=/usr",
-                    "-DCMAKE_INSTALL_LIBDIR=lib",
-                    "-DBETTERCNC_PROJECT_DIR=/opt/arcambercnc",
                     f"-DPython3_EXECUTABLE={sys.executable}",
                     *prebuilt_services,
                 ],
@@ -190,7 +234,36 @@ class InstallationTests(unittest.TestCase):
                     self.assertTrue((python_root / package / "__init__.py").is_file())
             self.assertFalse((python_root / "bettercnc_cam_link").exists())
             self.assertEqual(config.read_text(), '{"ini":"keep-existing.ini"}')
-            self.assertTrue((config.parent / "launcher.example.json").is_file())
+            self.assertEqual(updater_config.read_text(), '{"account":"preserve-local-policy"}')
+            self.assertFalse((config.parent / "launcher.example.json").exists())
+            self.assertTrue(
+                (stage / "usr/share/doc/betterlinuxcnc-qt/examples/launcher.example.json").is_file()
+            )
+            self.assertTrue((stage / "usr/sbin/betterlinuxcnc-appliance").is_file())
+            self.assertTrue((stage / "usr/lib/betterlinuxcnc/appliance/maintenance.py").is_file())
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    "-I",
+                    str(stage / "usr/lib/betterlinuxcnc/appliance/main.py"),
+                    "plan",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            appliance_plan = json.loads(result.stdout)
+            self.assertEqual(appliance_plan["operatorHome"], "/var/lib/betterlinuxcnc/home")
+            self.assertFalse(appliance_plan["automaticActivation"])
+            self.assertTrue(
+                (stage / "usr/lib/systemd/system/betterlinuxcnc-system-update.service").is_file()
+            )
+            self.assertTrue(
+                (stage / "usr/share/polkit-1/rules.d/49-betterlinuxcnc-update.rules").is_file()
+            )
+            self.assertFalse((stage / "etc/lightdm").exists())
+            self.assertFalse((stage / "etc/ssh").exists())
             unit = stage / "usr/lib/systemd/user/betterlinuxcnc-launcher.service"
             parser = configparser.ConfigParser(interpolation=None)
             parser.read(unit)
@@ -198,7 +271,22 @@ class InstallationTests(unittest.TestCase):
             self.assertIn("SIGKILL", parser["Service"]["RestartPreventExitStatus"])
             self.assertIn("78", parser["Service"]["RestartPreventExitStatus"])
             self.assertEqual(parser["Service"]["KillMode"], "process")
-            self.assertIn("/opt/arcambercnc/launcher.json", parser["Service"]["ExecStart"])
+            self.assertIn("/etc/betterlinuxcnc/launcher.json", parser["Service"]["ExecStart"])
+            self.assertIn(
+                "BETTERCNC_LOG_ROOT=/var/log/betterlinuxcnc/launcher",
+                parser["Service"]["Environment"],
+            )
+            self.assertIn(
+                "XDG_CACHE_HOME=/var/cache/betterlinuxcnc/user", parser["Service"]["Environment"]
+            )
+            self.assertIn("BETTERCNC_SHARE_LOGS=1", parser["Service"]["Environment"])
+            session = configparser.ConfigParser(interpolation=None)
+            session.read(stage / "usr/share/xsessions/betterlinuxcnc-kiosk.desktop")
+            self.assertEqual(
+                session["Desktop Entry"]["Exec"],
+                '"/usr/bin/betterlinuxcnc-launch" --kiosk-session',
+            )
+            self.assertEqual(session["Desktop Entry"]["TryExec"], "/usr/bin/betterlinuxcnc-launch")
             parser.read(stage / "etc/xdg/autostart/betterlinuxcnc-autostart.desktop")
             self.assertIn("--session-start", parser["Desktop Entry"]["Exec"])
             self.assertNotEqual(parser["Desktop Entry"].get("Hidden"), "true")
@@ -225,20 +313,29 @@ class InstallationTests(unittest.TestCase):
             # available; substitute only the not-yet-installed executable path.
             analyzer = shutil.which("systemd-analyze")
             if analyzer:
-                checked = root / "betterlinuxcnc-launcher.service"
-                checked.write_text(
-                    unit.read_text().replace('"/usr/bin/betterlinuxcnc-launch"', '"/bin/true"')
-                )
                 runtime = root / "runtime"
                 runtime.mkdir(mode=0o700)
-                result = subprocess.run(
-                    [analyzer, "--user", "verify", str(checked)],
-                    env=dict(os.environ, XDG_RUNTIME_DIR=str(runtime)),
-                    capture_output=True,
-                    text=True,
-                    timeout=20,
-                )
-                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                for installed_unit, command, options in (
+                    (unit, "betterlinuxcnc-launch", ["--user"]),
+                    (
+                        stage / "usr/lib/systemd/system/betterlinuxcnc-system-update.service",
+                        "betterlinuxcnc-updater",
+                        [],
+                    ),
+                ):
+                    with self.subTest(systemd_unit=installed_unit.name):
+                        checked = root / installed_unit.name
+                        checked.write_text(
+                            installed_unit.read_text().replace(f"/usr/bin/{command}", "/bin/true")
+                        )
+                        result = subprocess.run(
+                            [analyzer, *options, "verify", str(checked)],
+                            env=dict(os.environ, XDG_RUNTIME_DIR=str(runtime)),
+                            capture_output=True,
+                            text=True,
+                            timeout=20,
+                        )
+                        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
 
 if __name__ == "__main__":

@@ -11,6 +11,8 @@ QtObject {
     property var machine: ({})
     property var program: null
     property var recentFiles: []
+    property bool allowQuit: true
+    property bool allowExternalTools: true
     signal dialogRequested(string actionId, string title, string axis)
     signal commandRequested(string actionId, var payload)
 
@@ -54,12 +56,16 @@ QtObject {
         return item.kind === "radio" ? selectedValue(item.group) === item.value : !!preview.flags[item.id];
     }
     function canActivate(id) {
+        if (!allowExternalTools && ["machine.ladder", "machine.calibration", "machine.hal-config",
+                                    "machine.hal-meter", "machine.hal-scope", "show.pyvcp"].indexOf(id) >= 0)
+            return false;
         if (id.indexOf("view.") === 0 || id.indexOf("help.") === 0
                 || id.indexOf("units.") === 0 || id.indexOf("grid.") === 0
                 || id.indexOf("position.") === 0 || id.indexOf("coordinates.") === 0
                 || id.indexOf("touch.") === 0 || (id.indexOf("show.") === 0 && id !== "show.pyvcp")) return true;
         if (id === "file.open" || id.indexOf("file.recent.") === 0) return !machine.busy;
-        if (id === "file.quit" || id === "file.clear-recents") return true;
+        if (id === "file.quit") return allowQuit;
+        if (id === "file.clear-recents") return true;
         if (["file.edit", "file.save", "file.properties", "file.reload"].indexOf(id) >= 0)
             return !!program && !!program.filePath && (["file.edit", "file.properties"].indexOf(id) >= 0 || !machine.busy);
         if (id.indexOf("mdi.") === 0 && id !== "mdi.execute" && id !== "mdi.go") return true;

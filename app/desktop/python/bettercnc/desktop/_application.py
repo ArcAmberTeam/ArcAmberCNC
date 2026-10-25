@@ -11,9 +11,7 @@ from PySide6.QtGui import QFont, QFontDatabase, QGuiApplication
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtQuickControls2 import QQuickStyle
 
-from bettercnc.session import read_machine_status
-
-from ._backend import DesktopBackend
+from bettercnc import __version__
 
 
 def main(argv=None):
@@ -26,6 +24,20 @@ def main(argv=None):
     )
     parser.add_argument("--program", help="Open a local G-code program")
     parser.add_argument(
+        "--fullscreen", action="store_true", default=os.environ.get("BETTERCNC_FULLSCREEN") == "1"
+    )
+    parser.add_argument(
+        "--kiosk",
+        action="store_true",
+        default=os.environ.get("BETTERCNC_KIOSK") == "1",
+        help="Run a fullscreen operator interface without desktop exit controls",
+    )
+    parser.add_argument(
+        "--kiosk-status",
+        action="store_true",
+        help="Display read-only session startup status without a controller connection",
+    )
+    parser.add_argument(
         "--check-connection",
         action="store_true",
         help="Read machine.status without opening a window or taking control (exit 0/1/2)",
@@ -33,7 +45,11 @@ def main(argv=None):
     parser.add_argument("--qml", help=argparse.SUPPRESS)
     parser.add_argument("--smoke-test", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
+    if args.kiosk_status and (args.ini or args.program or args.check_connection):
+        parser.error("--kiosk-status 只显示启动状态，不能同时指定机床或程序操作")
     if args.check_connection:
+        from bettercnc.session import read_machine_status
+
         if args.ini or args.program:
             parser.error("--check-connection 仅观察机床状态，不能同时指定 --ini 或 --program")
         try:
@@ -46,9 +62,11 @@ def main(argv=None):
         print(json.dumps({"serviceConnected": True, "snapshot": state}, ensure_ascii=False))
         return 0 if state["connected"] else 2
     QCoreApplication.setAttribute(Qt.ApplicationAttribute.AA_DontUseNativeMenuBar)
+    if args.kiosk:
+        QCoreApplication.setAttribute(Qt.ApplicationAttribute.AA_DontUseNativeDialogs)
     app = QGuiApplication([sys.argv[0]])
     app.setApplicationName("BetterLinuxCNC")
-    app.setApplicationVersion("0.2.0")
+    app.setApplicationVersion(__version__)
     app.setOrganizationName("Xamber-Software")
     QQuickStyle.setStyle("Basic")
     families = QFontDatabase.families()
@@ -66,27 +84,44 @@ def main(argv=None):
     )
     if not qml.is_dir():
         qml = Path(sys.prefix) / "share/betterlinuxcnc/qml"
-    if not (qml / "Main.qml").is_file():
+    entry = "KioskStatus.qml" if args.kiosk_status else "Main.qml"
+    if not (qml / entry).is_file():
         print(f"QML installation is incomplete: {qml}", file=sys.stderr)
         return 1
-    backend = DesktopBackend(
-        socket_path=args.socket,
-        ini_path=args.ini,
-        managed=os.environ.get("BETTERCNC_MANAGED") == "1",
-    )
-    app.installEventFilter(backend)
+    if args.kiosk_status:
+        from ._kiosk_status import KioskStatus
+
+        backend = KioskStatus(app)
+        properties = {"statusModel": backend}
+    else:
+        from ._backend import DesktopBackend
+
+        backend = DesktopBackend(
+            socket_path=args.socket,
+            ini_path=args.ini,
+            managed=os.environ.get("BETTERCNC_MANAGED") == "1",
+            kiosk=args.kiosk,
+        )
+        app.installEventFilter(backend)
+        properties = {
+            "backend": backend,
+            "kioskMode": args.kiosk,
+            "startFullscreen": args.fullscreen,
+        }
     engine = QQmlApplicationEngine()
     engine.addImportPath(str(qml))
-    engine.setInitialProperties({"backend": backend})
-    engine.load(QUrl.fromLocalFile(str(qml / "Main.qml")))
+    engine.setInitialProperties(properties)
+    engine.load(QUrl.fromLocalFile(str(qml / entry)))
     if not engine.rootObjects():
         backend.close()
         return 1
+    if args.kiosk_status:
+        backend.watch_window(engine.rootObjects()[0])
     app.aboutToQuit.connect(backend.close)
     if args.program:
         QTimer.singleShot(500, lambda: backend.openProgram(args.program))
     if args.smoke_test:
-        QTimer.singleShot(800, app.quit)
+        QTimer.singleShot(800, lambda: app.exit(0))
     code = app.exec()
     backend.close()
     del engine

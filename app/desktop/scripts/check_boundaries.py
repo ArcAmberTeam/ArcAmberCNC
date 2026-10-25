@@ -62,7 +62,7 @@ for source in (ROOT / "qml").glob("*.qml"):
 # Application launchers are composition roots with one declared dependency.
 PYTHON_GRAPH = {
     "bettercnc": set(),
-    "bettercnc.desktop": {"bettercnc.session"},
+    "bettercnc.desktop": {"bettercnc", "bettercnc.session"},
     "bettercnc.session": set(),
     "betterlinuxcnc_service": {"bettercnc_controller", "bettercnc_preview"},
     "bettercnc_controller": set(),

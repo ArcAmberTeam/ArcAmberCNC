@@ -6,6 +6,7 @@
 
 ```text
 CMakeLists.txt               产品应用构建、测试、安装与打包的组合入口
+cmake/ApplicationInstall.cmake 默认 /usr、lib 安装布局
 app/
   desktop/                   PySide6 + QML 桌面
     app/                     GUI 启动
@@ -18,12 +19,13 @@ app/
   cam-link/                  Rust CAM 网络服务
     src/cam_link/            TCP/UDP、收件、状态、作业与点动适配
     tests/                   真实 CLI 与 Python Controller 跨进程测试
-  updater/                   独立 Rust Release 下载、校验与安装服务
+  updater/                   独立 Rust Release 下载、校验与固定 root 更新服务
   launcher/                  Python 启动编排、就绪检查与保活
     src/bettercnc_launcher/  配置、进程与公开协议适配
     tests/                   安装后的 CLI、进程及 socket 边界测试
 tools/
   diagnostics/               独立 Rust v1 兼容诊断库
+  appliance/                 显式账户/目录/登录配置与固定只读 SSH 维护入口
 src/                         LinuxCNC 原生源码与统一原生构建入口
   emc/                       Task、解释器、运动、规划、运动学及接口
   hal/                       HAL 核心、组件、绑定和工具
@@ -37,6 +39,7 @@ tests/、unit_tests/            原生测试
 docs/                        项目说明与上游文档
 .github/ci/                  按模块运行的构建和测试入口
 .github/workflows/ci.yml     各模块 CI 与 CI Gate
+.github/workflows/release.yml 已合并 main 且带 build-release 标签的正式 DEB 发布
 ```
 
 模块内按功能、设备或总线划分，只在实现有真实差异时增加平台/CPU 目录。混合语言组件保持完整：HAL 的 C++ 绑定、Python 生成器归 HAL；桌面的 C++ UI 测试启动器归 desktop。根目录不再维护语言分类模块或它们的兼容链接。
@@ -56,7 +59,7 @@ QML 功能模块
   → HAL 与 C/C++ 设备驱动
 ```
 
-`tools/diagnostics → Unix socket → Python v1 health` 为独立诊断链路；不获取控制会话，不代替 v2，不用于判断真实机床连接。Qt 当前不经 Rust，目录迁移不会把两套协议合并或新增 FFI。
+`tools/diagnostics → Unix socket → Python v1 health` 为独立诊断链路；不获取控制会话，不代替 v2，不用于判断真实机床连接。Qt 的机床控制链路不经 Rust；应用更新另经独立 Rust CLI，二者不合并协议或新增 FFI。
 
 CAM 在另一台设备生成 G-code，经 TCP 6522 发送到 Rust `betterlinuxcnc-cam-link` 二进制。`protocol` 定义帧，`inbox` 接收程序，`feedback` 回传状态，`control` 适配 v2 Unix 协议，`manual` 管理点动租约；`session` 组合连接及订阅，`discovery` 拥有 UDP 8421 发现。显式开启 auto-run 后，新文件提交同一 Python Controller 加工，重复接收和服务重启不重放。协议见 [CAM 联动协议](cam-link-protocol.md)。
 
@@ -65,22 +68,28 @@ CAM 在另一台设备生成 G-code，经 TCP 6522 发送到 Rust `betterlinuxcn
 | 所有者 | 公开入口 | 边界 |
 | --- | --- | --- |
 | Qt 界面 | `BetterCnc.<Capability>` 的 qmldir | 组件不直接访问 socket、文件、进程或硬件 |
-| Qt Python | `bettercnc.desktop`、`bettercnc.session` | desktop 只导入 session 公开入口；session 只依赖标准库 |
+| Qt Python | `bettercnc.desktop`、`bettercnc.session`、`bettercnc.__version__` | desktop 通过公开入口读取会话和应用版本；session 只依赖标准库 |
 | 启动编排 | `bettercnc_launcher.main`、`betterlinuxcnc-launch` | 仅标准库，通过已安装 CLI 和只读 v2 Unix 协议编排，不导入服务或机床实现 |
 | Rust socket | `src/lib.rs` | 只暴露诊断查询及返回数据；内部实现私有 |
 | Python 服务 | `betterlinuxcnc_service`、`Controller`、`StatusReader`、`bettercnc_preview` | service 通过 controller/preview 公开入口协作，无反向依赖；StatusReader 只读取状态 |
 | Rust 系统服务 | `betterlinuxcnc_services::run`、`betterlinuxcnc-cam-link` | 独立二进制，拥有网络和 inbox；仅通过公开 Unix 协议接入控制 |
-| Release 更新器 | `betterlinuxcnc-updater` CLI | 拥有版本、包校验与安装生命周期；Qt 通过 JSON 行协议调用，更新器不依赖 CAM 或控制器实现 |
+| Release 更新器 | `betterlinuxcnc-updater` CLI | Qt 通过 JSON 行接口请求固定系统单元；root 独立下载校验，不接收用户包路径、URL 或命令 |
+| 专用机配置 | `betterlinuxcnc-appliance` | 固定 postinst 仅 provision 账户/目录；plan/stage 可预演，prepare/activate 显式由 root 执行，普通更新不改登录策略 |
+| SSH 维护 | `cnc-maint` 的固定 ForceCommand | 仅 help/version/status/logs/diagnostics，不提供 shell、上传、转发、提权或机床命令 |
 | HAL/驱动 | 既有 HAL/RTAPI 接口 | 设备与信号适配，不依赖新增桌面或服务实现 |
 | 原生核心 | 既有 EMC/NML/RTAPI API | 保持实时职责和混合语言链接边界 |
 
-Release 更新由 `app/updater/` 独立拥有，Qt 通过 JSON 行 CLI 请求检查、下载和安装。更新器复用公开只读状态协议，不获取控制会话；版本与安装约束见 [应用更新说明](firmware-updates.md)。
+Release 更新由 `app/updater/` 独立拥有。Qt 发出无路径参数的安装请求，固定 `betterlinuxcnc-system-update.service` 以 root 校验可信包及机床状态，再协调 `linuxcnc` 的用户服务。更新器复用公开只读状态协议，不获取控制会话；版本与安装约束见 [应用更新说明](firmware-updates.md)。
 
 LinuxCNC 自身负责解释、插补和实时控制。桌面和传输不承担伺服周期工作；命令发送不代表执行完成，重连不重放。完整协议、单位与生命周期见 [本地控制协议](local-control-protocol.md)。现有实现与测试不等于实际机床、INI/HAL 和目标机图形已经验收。
 
 ## 构建与交付
 
-从根目录运行 `cmake -S . -B build`、`cmake --build build`、`ctest --test-dir build --output-on-failure` 和 `cmake --install build`。根 CMake 组合各应用模块；每个模块拥有自己的启动模板和安装规则。统一入口不编译或安装 LinuxCNC 原生核心。应用之间继续通过公开 Python 入口或 IPC 协作，构建聚合不授予跨模块私有访问权限。
+根 CMake 组合各应用模块和 appliance 工具；每个模块拥有自己的启动模板与安装规则。统一入口不编译或安装 LinuxCNC 原生核心。当前用户禁止本地及目标机构建、源码测试，包括本地 Docker；CMake/CTest、Rust 与 Python 验证仅在 GitHub CI 执行，目标机只下载已完成的 DEB 安装。应用之间继续通过公开 Python 入口或 IPC 协作，构建聚合不授予跨模块私有访问权限。
+
+应用版本 `26.10.26.1` 独立于原生核心 `VERSION`。正式产物为 `betterlinuxcnc-qt_26.10.26.1_amd64.deb`，tag `v26.10.26.1`，Release 名称 `demo v26.10.26.1`。正式包启用两个 Rust 服务，通过 apt/dpkg 安装；desktop 独立 CMake 只安装 GUI，禁用系统服务的构建仅用于拆分验证。
+
+应用代码在 `/usr/lib/betterlinuxcnc` 和 `/usr/share/betterlinuxcnc`；配置在 `/etc/betterlinuxcnc`；程序、收件、可变机床数据在 `/var/lib/betterlinuxcnc` 的专用子目录。顶层数据/缓存目录保持 root 所有，操作账户 HOME 为 `/var/lib/betterlinuxcnc/home`，用户缓存为 `/var/cache/betterlinuxcnc/user`，日志为 `/var/log/betterlinuxcnc/launcher`。现场配置和数据不随包升级覆盖，初次迁移及账户隔离须显式执行；完整目录与步骤见 [本机连接说明](linuxcnc-local-connection.md)。
 
 原生核心保留 `src/Makefile` 和已有 Meson 构建。`src/hal/`、`src/hal/drivers/`、`src/hal/user_comps/` 均为真实源码目录，Make 的文件扫描无需跨顶层兼容链接。CI 归档覆盖当前实际文件，并测试迁移未暂存时的归档结果；上游资源和配置仍须随完整仓库保留。
 
@@ -91,10 +100,13 @@ HAL 内部工具以及 `src/rtapi/uspace_rtapi_app.cc` 对 HAL 私有头的既�
 - `.github/ci/check-source.sh`：workflow、shell、Python 语法、AXIS 删除和目录迁移回归。
 - `.github/ci/native-check.sh hal|motion|drivers|task|interpreter|python-extensions`：六个独立原生构建/验证；不启动控制器、模拟器、实时线程或硬件。
 - `.github/ci/python-check.sh service|preview|desktop|launcher`：安装当前源码构建的包并验证公共接口；预览 scope 要求真实 LinuxCNC gcode 扩展存在。
+- 独立 `appliance-checks` job（Python 3.11/3.13）：检查 `tools/appliance` 源码与公开 CLI，包含配置迁移预演、原始文件保留及 SSH 命令限制；root CTest 同时注册 `appliance-provisioning`。
 - `app/desktop/scripts/ci-check.sh --suite desktop|qml`：分别验证 Python 桌面后端与 QML。省略 suite 时执行原有完整检查。
 - `tools/diagnostics/`、`app/cam-link/` 与 `app/updater/`：`cargo fmt --check`、`cargo check --locked --all-targets`、`cargo clippy --locked --all-targets -- -D warnings`、`cargo test --locked`。跨进程测试需 Python 3.11+，可用 `SERVICE_TEST_PYTHON` 指定。
 - `.github/ci/check-configs.py` 与 `config-tests/`：HAL/INI/Tcl 静态语法、文件引用及 include 环检查。
 
-CI 只构建、测试和上传必要诊断，不部署、不发布、不安装到目标机。依赖和测试用 wheel 安装局限于 CI 环境。启动器安装回归在临时目录生成 `.deb`，检查文件名、应用版本、架构和依赖后清理；不上传发布安装包。
+`deb-package` 在 GitHub Debian 容器构建真实应用包，验收首次/重复安装、账户与文件权限、密码/数据保留及有效 SSH/sudo 策略，上传以提交 SHA 命名的 DEB artifact，并纳入 `CI Gate`。依赖和测试用 wheel 安装局限于 CI 环境，CI 不启动机床或 SSH/显示服务。
+
+Release workflow 只为已合并 main 且带 `build-release` 标签的 PR 发布；同一 merge SHA 必须有通过 CI Gate 的 main push run 和唯一包 artifact。仅发布 job 拥有写权限，验证摘要、版本、架构、提交与 tag 后发布正式 latest。流水线不 SSH 部署，目标机仅消费发布资产；源码归档不能替代安装包。
 
 README 内容仍按人工维护规则处理；随目录迁移的 README 归属变化由用户任务授权，正文保持不变。根 README、Python 服务 README、`src/README.md` 和 `src/emc/usr_intf/python-interface/README.md` 中的旧服务路径仍待人工更新，当前入口以本文为准。历史文档中的旧路径不能作为当前入口。

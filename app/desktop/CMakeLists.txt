@@ -2,8 +2,8 @@ cmake_minimum_required(VERSION 3.22)
 
 # Standalone builds own the desktop only. The repository root assembles the product.
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
-    project(BetterLinuxCNCDesktop VERSION 0.2.0 LANGUAGES CXX)
-    include(GNUInstallDirs)
+    project(BetterLinuxCNCDesktop VERSION 26.10.26.1 LANGUAGES CXX)
+    include("${CMAKE_CURRENT_SOURCE_DIR}/../../cmake/ApplicationInstall.cmake")
     message(STATUS "Building the desktop only; configure the repository root for the complete application")
 endif()
 

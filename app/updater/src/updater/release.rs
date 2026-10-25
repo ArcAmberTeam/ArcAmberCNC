@@ -112,6 +112,7 @@ pub(super) fn fetch(store: &Store, current_version: &str) -> Result<()> {
     let architecture = super::install::architecture()?;
     store.publish(&Event::new("checking", "正在检查最新 Release…", "", 0))?;
     let client = Client::builder()
+        .no_proxy()
         .https_only(true)
         .connect_timeout(Duration::from_secs(15))
         .timeout(Duration::from_secs(1800))

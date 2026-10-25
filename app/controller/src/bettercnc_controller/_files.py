@@ -8,6 +8,17 @@ import tempfile
 from pathlib import Path
 
 
+def confined_path(path, *, machine_data=False):
+    """Enforce appliance paths at the machine policy boundary, independent of UI."""
+    if os.environ.get("BETTERCNC_KIOSK") != "1":
+        return path
+    target = Path(path).resolve()
+    names = ("machine",) if machine_data else ("programs", "inbox")
+    if not any(target.is_relative_to(Path("/var/lib/betterlinuxcnc") / name) for name in names):
+        raise ValueError("专用 CNC 模式只允许访问固定的程序或机床数据目录")
+    return str(target)
+
+
 def tool_table(text):
     seen_tools = set()
     for number, source in enumerate(text.splitlines(), 1):

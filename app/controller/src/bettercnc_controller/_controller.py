@@ -9,7 +9,7 @@ from copy import deepcopy
 from dataclasses import dataclass
 
 from ._config import AXES, SYSTEMS, Configuration
-from ._files import atomic_write, tool_table
+from ._files import atomic_write, confined_path, tool_table
 from ._received import ACTIVE, ReceivedPrograms
 from ._status import observe, offline
 
@@ -393,7 +393,7 @@ class Controller:
         self._action = "program.run-received"
         try:
             self._guard("camReady")
-            path = record["path"]
+            path = confined_path(record["path"])
             steps = [
                 self._step(
                     "program_open",
@@ -755,6 +755,7 @@ class Controller:
                 "程序路径必须为绝对路径",
             )
             self._require(len(path.encode("utf-8")) <= 254, "程序路径过长")
+            path = confined_path(path)
             if action == "file.save":
                 atomic_write(path, payload.get("text"))
             self._require(os.path.isfile(path), "程序文件不存在")
@@ -774,6 +775,7 @@ class Controller:
                 self._require(isinstance(text, str), "刀具表必须为文本")
                 path = s["toolTablePath"]
                 self._require(bool(path), "实际 INI 没有配置刀具表路径")
+                path = confined_path(path, machine_data=True)
                 tool_table(text)
                 atomic_write(path, text)
             return [self._step("load_tool_table")]

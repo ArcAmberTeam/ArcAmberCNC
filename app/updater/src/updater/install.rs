@@ -1,7 +1,4 @@
-use super::{
-    storage::{self, Store},
-    Event, Result,
-};
+use super::Result;
 use serde_json::{json, Value};
 use std::{
     fs,
@@ -10,15 +7,14 @@ use std::{
         fs::{FileTypeExt, MetadataExt},
         net::UnixStream,
     },
-    path::{Path, PathBuf},
-    process::Command,
+    path::Path,
     time::Duration,
 };
 
-use super::system::{self, PausedLauncher, UnitState, LAUNCHER, UPDATE_UNIT};
+use super::system::{Manager, UnitState, LAUNCHER};
 
 pub(super) fn architecture() -> Result<String> {
-    let output = Command::new("/usr/bin/dpkg")
+    let output = super::command("/usr/bin/dpkg")
         .arg("--print-architecture")
         .output()?;
     let value = String::from_utf8(output.stdout)?.trim().to_owned();
@@ -28,36 +24,9 @@ pub(super) fn architecture() -> Result<String> {
     Ok(value)
 }
 
-fn socket_path(path: Option<PathBuf>) -> PathBuf {
-    path.unwrap_or_else(|| {
-        std::env::var_os("XDG_RUNTIME_DIR")
-            .map(PathBuf::from)
-            .unwrap_or_else(std::env::temp_dir)
-            .join("betterlinuxcnc/control.sock")
-    })
-}
-
-pub(super) fn ensure_not_scheduled() -> Result<()> {
-    if is_running()? {
-        return Err("安装更新任务正在运行，请等待完成".into());
-    }
-    Ok(())
-}
-
-pub(super) fn is_running() -> Result<bool> {
-    if !cfg!(target_os = "linux") {
-        return Ok(false);
-    }
-    Ok(!matches!(
-        system::state(UPDATE_UNIT)?,
-        UnitState::Stopped | UnitState::Missing | UnitState::Masked
-    ))
-}
-
-fn observed(path: &Path) -> Result<Value> {
+fn observed_for(path: &Path, uid: u32) -> Result<Value> {
     let parent = fs::symlink_metadata(path.parent().ok_or("控制端点目录无效")?)?;
     let info = fs::symlink_metadata(path)?;
-    let uid = unsafe { libc::getuid() };
     if !parent.is_dir()
         || parent.uid() != uid
         || parent.mode() & 0o077 != 0
@@ -125,126 +94,38 @@ fn quiescent(state: &Value) -> bool {
         })
 }
 
-fn preflight(path: &Path) -> Result<UnitState> {
-    let state = system::state(LAUNCHER)?;
+pub(super) fn preflight(path: &Path, manager: &Manager, uid: u32) -> Result<UnitState> {
+    let state = manager.state(LAUNCHER)?;
     if state == UnitState::Transition {
         return Err("启动器正在切换状态，请稍后重试".into());
     }
     if state == UnitState::Running {
-        if !quiescent(&observed(path)?) {
+        if !quiescent(&observed_for(path, uid)?) {
             return Err("请先停止加工和主轴、关闭机床使能，确认空闲后再安装更新".into());
         }
-    } else if path.try_exists()? || Path::new("/tmp/linuxcnc.lock").try_exists()? {
+    } else if present(path)? || present(Path::new("/tmp/linuxcnc.lock"))? {
         return Err("存在未由启动器管理的机床进程，请先正常退出控制系统".into());
     }
     Ok(state)
 }
 
-pub(super) fn schedule(store: &Store, socket: Option<PathBuf>) -> Result<()> {
-    if !cfg!(target_os = "linux") {
-        return Err("安装更新仅支持 Debian".into());
+pub(super) fn present(path: &Path) -> Result<bool> {
+    match fs::symlink_metadata(path) {
+        Ok(_) => Ok(true),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
+        Err(error) => Err(error.into()),
     }
-    ensure_not_scheduled()?;
-    let staged = store.staged()?;
-    let path = socket_path(socket);
-    preflight(&path)?;
-    let mut command = Command::new("/usr/bin/systemd-run");
-    command.args([
-        "--user",
-        "--collect",
-        "--quiet",
-        "--unit",
-        UPDATE_UNIT,
-        "--property=Type=exec",
-    ]);
-    for variable in ["DISPLAY", "XAUTHORITY", "WAYLAND_DISPLAY", "XDG_CACHE_HOME"] {
-        if let Some(value) = std::env::var_os(variable) {
-            let mut argument = std::ffi::OsString::from(format!("--setenv={variable}="));
-            argument.push(value);
-            command.arg(argument);
-        }
-    }
-    command
-        .arg(std::env::current_exe()?)
-        .arg("apply")
-        .arg("--socket")
-        .arg(&path);
-    // Persist before dispatch: the independent worker may immediately stop the GUI.
-    let pending = Event::new(
-        "scheduled",
-        "安装任务已提交；控制界面将关闭，完成后重新启动",
-        &staged.version,
-        100,
-    );
-    store.save("status.json", &pending)?;
-    let output = command.output()?;
-    if !output.status.success() {
-        return Err("无法启动独立更新服务，请检查 systemd 用户会话".into());
-    }
-    pending.emit()
 }
 
-pub(super) fn apply(store: &Store, socket: Option<PathBuf>) -> Result<()> {
-    let staged = store.staged()?;
-    if staged.architecture != architecture()? {
-        return Err("安装包架构与本机不符".into());
-    }
-    let package = store.directory.join("package.deb");
-    let (version, arch) = storage::package_info(&package)?;
-    if version != staged.version || arch != staged.architecture {
-        return Err("安装包信息已改变，请重新下载".into());
-    }
-    let installed = storage::installed_version("0")?;
-    if !storage::newer(&version, &installed)? {
-        return Err("拒绝安装相同或更低版本".into());
-    }
-    let path = socket_path(socket);
-    let original = preflight(&path)?;
-    store.publish(&Event::new(
-        "installing",
-        "正在准备安装更新…",
-        &version,
-        100,
-    ))?;
-    let launcher = PausedLauncher::stop(original)?;
-    // The launcher's own shutdown guard is authoritative; retained processes veto installation.
-    if path.try_exists()? || Path::new("/tmp/linuxcnc.lock").try_exists()? {
-        return Err("控制系统仍在运行，未安装更新，请检查启动器日志".into());
-    }
-    store.staged()?;
-    let output = Command::new("/usr/bin/pkexec")
-        .arg("/usr/bin/apt-get")
-        .args(["--yes", "--no-remove", "install"])
-        .arg(&package)
-        .output()?;
-    let mut log = output.stdout;
-    log.extend_from_slice(&output.stderr);
-    fs::write(store.directory.join("install.log"), &log)?;
-    if !output.status.success() {
-        if matches!(output.status.code(), Some(126 | 127)) {
-            let _ = launcher.resume();
-            return Err("安装授权被取消或不可用；更新未完成".into());
-        }
-        return Err("安装失败；未自动重启控制系统，请查看更新缓存中的 install.log".into());
-    }
-    if storage::installed_version("0")? != version {
-        return Err("安装器结束但版本核验不符，未报告更新成功".into());
-    }
-    launcher
-        .resume()
-        .map_err(|error| format!("更新已安装，但控制系统恢复失败：{error}"))?;
-    store.publish(&Event::new(
-        "complete",
-        format!("已更新至 {version}"),
-        &version,
-        100,
-    ))?;
-    Ok(())
+#[cfg(test)]
+fn observed(path: &Path) -> Result<Value> {
+    observed_for(path, unsafe { libc::getuid() })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::{path::PathBuf, process::Command};
     #[test]
     fn real_status_reader_and_service_observer_contract() {
         use std::{

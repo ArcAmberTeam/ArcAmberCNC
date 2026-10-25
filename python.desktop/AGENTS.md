@@ -1,6 +1,6 @@
 # 原生 Qt Quick 界面规范
 
-先遵循根目录 [AGENT.md](../AGENT.md) 和 `$code-boundary-standards`。本目录 `python.desktop/` 是原生桌面入口，使用 PySide6、Python 3.11+、CMake 和 Qt 6.8+；C++17 只用于 UI 测试启动器。Web 界面与 Tauri 桌面环境已移除。本目录先按功能划分，仅在存在实际差异时再按平台或 CPU 架构分层。
+先遵循根目录 [AGENT.md](../AGENT.md)。本目录 `python.desktop/` 是原生桌面入口，使用 PySide6、Python 3.11+、CMake 和 Qt 6.8+；C++17 只用于 UI 测试启动器。Web 界面与 Tauri 桌面环境已移除。本目录先按功能划分，仅在存在实际差异时再按平台或 CPU 架构分层。
 
 ## 模块与公开入口
 
@@ -15,12 +15,20 @@
 
 ## 展示与系统边界
 
-- 保持当前 QML 的布局、颜色、字号、文案、动作 ID、快捷键、焦点与可编辑输入行为；大窗口、紧凑断点及最小窗口均须验收。
+- 视觉采用 [白金界面说明](../docs/qt-platinum-ui.md) 与 `Ui/Theme.qml` 的集中变量。保留动作 ID、快捷键、焦点与可编辑输入行为；视觉与布局按用户明确需求调整，大窗口、紧凑断点及最小窗口均须验收。
 - `ManualState`、`ToolpathState` 和组件内属性只保存展示状态。坐标、主轴和运行状态从服务只读快照更新，发出命令不代表动作完成。
 - `DesktopBackend` 通过专用 QThread 的 socket 客户端接收状态及提交命令；桌面不启动 LinuxCNC 或 Python 服务。点动使用 GUI 心跳、服务租约和释放/失焦停止；重连只恢复状态读取，不重放命令。
 - QML 组件不得直接访问平台、网络、文件、进程或 LinuxCNC。桌面可读程序文件，程序和刀具表写入必须经服务在最新状态下校验。独立服务保留规则与唯一命令写入口，LinuxCNC 保留实时职责。
 - Qt 使用现有 Python v2 控制会话；独立 `rust.diagnostics/` 通信库保留 v1 `health` 诊断，尚未接入 Qt。服务可达与机床连接分别表示。
 - 静态资源全部本地提供，保留许可证与出处，不加载 CDN、外部字体或遥测。服务在独立进程解释刀路，通过有界分页传输；几何图层不能随每次坐标快照完整重绘。
+
+## 界面与连接约定
+
+- 主要目标窗口为 1024×600；同时保留业余用户的引导布局和专业用户布局，通过公开模块复用机床操作与状态。低频选项放入占满应用窗口的设置页，主界面保留常用操作、急停和停止。紧凑标题区域不显示 BetterLinuxCNC 品牌，窗口标题显示程序文件名或“未打开程序”。
+- 3D 旋转、平移、缩放与视角设置仅改变展示状态。触屏点动使用长按启动，释放、拖动取消、失焦和隐藏均须停止；预览键盘操作不能落入机床点动或回零快捷键。布局修改继续检查触控目标和最小窗口，不能只验收大屏。
+- 正式入口为 `app/main.py` 或安装后的 `betterlinuxcnc`；它们使用真实服务。`--check-connection` 通过 `bettercnc.session.read_machine_status` 只读查询，无窗口、无控制权；退出码 0 表示机床已连接、2 表示服务可达但机床离线、1 表示端点/传输/协议错误。不要同时传 `--ini` 或 `--program`。
+- 无 LinuxCNC 环境按用户约定使用 `python.desktop/.venv/bin/python python.desktop/tests/interactive/main.py`。测试在外部注入 vendor 接口，复用正式 GUI 和服务，不在生产代码添加假状态或模拟开关；Controller 与 StatusReader 都必须注入同一测试设备。
+- `external-interface-integration` 已纳入 CTest，覆盖原始 GUI/服务端到端行为、只读诊断与已有控制会话共存、断线恢复；替身测试不等于真实解释器或运动验收。真实目标机的安装与显示验收记录见 [本机连接说明](../docs/linuxcnc-local-connection.md)。
 
 ## 验证与 CI
 

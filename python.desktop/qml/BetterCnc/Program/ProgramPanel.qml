@@ -18,6 +18,7 @@ FocusScope {
         if (executingLine > 0 && executingLine <= programLines.length)
             lines.positionViewAtIndex(executingLine - 1, ListView.Contain);
     }
+    readonly property int rowHeight: 40
     property bool showFocusRing: false
     signal dialogRequested(string actionId, string title, string axis)
     signal commandRequested(string actionId, var payload)
@@ -47,12 +48,12 @@ FocusScope {
     }
     Keys.onPressed: event => {
         if (event.key === Qt.Key_Menu || (event.key === Qt.Key_F10 && (event.modifiers & Qt.ShiftModifier))) {
-            openMenu(65, Math.max(44, Math.min(height - 40, 44 + (selectedLine - 1) * 24 - lines.contentY)));
+            openMenu(65, Math.max(44, Math.min(height - 40, 44 + (selectedLine - 1) * root.rowHeight - lines.contentY)));
             event.accepted = true;
         }
     }
 
-    Rectangle { anchors.fill: parent; color: Theme.base }
+    Rectangle { anchors.fill: parent; color: Theme.surface }
     ListView {
         id: lines
         objectName: "programLines"
@@ -76,7 +77,7 @@ FocusScope {
             id: longestLine
             text: root.programLines.reduce((longest, line) => line.length > longest.length ? line : longest, "")
             font.family: Theme.mono
-            font.pixelSize: 12
+            font.pixelSize: Theme.bodySize
         }
         delegate: Rectangle {
             id: programLine
@@ -84,8 +85,8 @@ FocusScope {
             required property int index
             objectName: "programLine" + index
             width: lines.contentWidth
-            height: 24
-            color: rowMouse.containsMouse ? "#202126" : (index + 1 === root.selectedLine ? "#22232c" : (index + 1 === root.executingLine ? "#173028" : "transparent"))
+            height: root.rowHeight
+            color: rowMouse.containsMouse ? Theme.hover : (index + 1 === root.selectedLine ? Theme.accentSoft : (index + 1 === root.executingLine ? Theme.successSoft : "transparent"))
             Accessible.role: Accessible.ListItem
             Accessible.name: (index + 1) + " " + modelData
             Accessible.selected: index + 1 === root.selectedLine
@@ -93,28 +94,28 @@ FocusScope {
             Rectangle {
                 width: 2
                 height: parent.height
-                color: programLine.index + 1 === root.executingLine ? "#72d39d" : (programLine.index + 1 === root.selectedLine ? Theme.accent : "transparent")
+                color: programLine.index + 1 === root.executingLine ? Theme.success : (programLine.index + 1 === root.selectedLine ? Theme.accent : "transparent")
             }
             UiText {
                 x: 5
                 width: 32
-                height: 24
+                height: root.rowHeight
                 text: programLine.index + 1
                 horizontalAlignment: Text.AlignRight
                 verticalAlignment: Text.AlignVCenter
-                color: programLine.index + 1 === root.selectedLine ? "#c6c0ff" : Theme.muted
+                color: programLine.index + 1 === root.selectedLine ? Theme.accent : Theme.muted
                 font.family: Theme.mono
-                font.pixelSize: 12
+                font.pixelSize: Theme.bodySize
             }
             UiText {
                 x: 57
-                height: 24
+                height: root.rowHeight
                 text: programLine.modelData || " "
                 textFormat: Text.PlainText
                 verticalAlignment: Text.AlignVCenter
-                color: /^\s*\(/.test(programLine.modelData) ? "#9599a5" : "#c3baff"
+                color: /^\s*\(/.test(programLine.modelData) ? Theme.secondary : Theme.text
                 font.family: Theme.mono
-                font.pixelSize: 12
+                font.pixelSize: Theme.bodySize
             }
             MouseArea {
                 id: rowMouse
@@ -140,13 +141,13 @@ FocusScope {
         anchors.centerIn: lines
         visible: root.programLines.length === 0
         text: "尚未加载加工程序"
-        color: Theme.muted
-        font.pixelSize: 12
+        color: Theme.secondary
+        font.pixelSize: Theme.bodySize
     }
     Rectangle {
         id: heading
         width: parent.width
-        height: 38
+        height: 44
         color: Theme.base
         Row {
             x: 18
@@ -159,14 +160,16 @@ FocusScope {
                 color: Theme.secondary
                 anchors.verticalCenter: parent.verticalCenter
             }
-            UiText { text: "加工程序"; font.pixelSize: 11 }
+            UiText { text: "加工程序"; font.pixelSize: 16; font.weight: Font.DemiBold }
             UiText {
                 leftPadding: 8
+                width: Math.max(0, root.width - 180)
+                elide: Text.ElideMiddle
                 objectName: "programFileName"
                 text: root.program && root.program.fileName ? root.program.fileName : "未加载"
-                color: Theme.muted
+                color: Theme.secondary
                 font.family: Theme.mono
-                font.pixelSize: 11
+                font.pixelSize: Theme.labelSize
             }
         }
         UiText {
@@ -174,14 +177,13 @@ FocusScope {
             anchors.rightMargin: 18
             anchors.verticalCenter: parent.verticalCenter
             text: root.programLines.length + " 行"
-            font.pixelSize: 10
-            color: Theme.muted
+            font.pixelSize: Theme.labelSize
+            color: Theme.secondary
         }
-        Rectangle {
+        UiDivider {
             anchors.bottom: parent.bottom
             width: parent.width
             height: 1
-            color: Theme.border
         }
         MouseArea {
             anchors.fill: parent
@@ -211,10 +213,8 @@ FocusScope {
         padding: 5
         modal: true
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
-        background: Rectangle {
-            color: "#202125"
-            border.color: Theme.borderControl
-            border.width: 1
+        background: UiSurface {
+            shadowStrength: 2
             radius: 9
         }
         MenuItem {
@@ -225,8 +225,8 @@ FocusScope {
             leftPadding: 5
             contentItem: UiText {
                 text: programMenuLabel.text
-                font.pixelSize: 12
-                color: Theme.muted
+                font.pixelSize: Theme.bodySize
+                color: Theme.secondary
                 verticalAlignment: Text.AlignVCenter
             }
             background: Item {}
@@ -248,12 +248,12 @@ FocusScope {
             leftPadding: 5
             contentItem: UiText {
                 text: runLineItem.text
-                font.pixelSize: 12
+                font.pixelSize: Theme.bodySize
                 verticalAlignment: Text.AlignVCenter
             }
             background: Rectangle {
                 radius: 5
-                color: runLineItem.highlighted ? "#34353c" : "transparent"
+                color: runLineItem.highlighted ? Theme.hover : "transparent"
             }
             onTriggered: root.commandRequested("program.run-line", {line: root.selectedLine})
         }

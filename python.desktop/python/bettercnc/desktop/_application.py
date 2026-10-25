@@ -1,6 +1,7 @@
 """PySide6 owns the QML engine and injects the public QObject backend."""
 
 import argparse
+import json
 import os
 import sys
 from pathlib import Path
@@ -10,17 +11,40 @@ from PySide6.QtGui import QFont, QFontDatabase, QGuiApplication
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtQuickControls2 import QQuickStyle
 
+from bettercnc.session import read_machine_status
+
 from ._backend import DesktopBackend
 
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description="BetterLinuxCNC QML desktop")
     parser.add_argument("-ini", "--ini", dest="ini", help="Require the service to use this INI")
-    parser.add_argument("--socket", help="Private Unix socket of betterlinuxcnc-service")
+    parser.add_argument(
+        "--socket",
+        default=os.environ.get("BETTERCNC_SOCKET"),
+        help="Private Unix socket of betterlinuxcnc-service",
+    )
     parser.add_argument("--program", help="Open a local G-code program")
+    parser.add_argument(
+        "--check-connection",
+        action="store_true",
+        help="Read machine.status without opening a window or taking control (exit 0/1/2)",
+    )
     parser.add_argument("--qml", help=argparse.SUPPRESS)
     parser.add_argument("--smoke-test", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
+    if args.check_connection:
+        if args.ini or args.program:
+            parser.error("--check-connection 仅观察机床状态，不能同时指定 --ini 或 --program")
+        try:
+            state = read_machine_status(args.socket)
+        except (OSError, RuntimeError, ValueError) as error:
+            print(
+                json.dumps({"serviceConnected": False, "message": str(error)}, ensure_ascii=False)
+            )
+            return 1
+        print(json.dumps({"serviceConnected": True, "snapshot": state}, ensure_ascii=False))
+        return 0 if state["connected"] else 2
     QCoreApplication.setAttribute(Qt.ApplicationAttribute.AA_DontUseNativeMenuBar)
     app = QGuiApplication([sys.argv[0]])
     app.setApplicationName("BetterLinuxCNC")
@@ -45,7 +69,11 @@ def main(argv=None):
     if not (qml / "Main.qml").is_file():
         print(f"QML installation is incomplete: {qml}", file=sys.stderr)
         return 1
-    backend = DesktopBackend(socket_path=args.socket, ini_path=args.ini)
+    backend = DesktopBackend(
+        socket_path=args.socket,
+        ini_path=args.ini,
+        managed=os.environ.get("BETTERCNC_MANAGED") == "1",
+    )
     app.installEventFilter(backend)
     engine = QQmlApplicationEngine()
     engine.addImportPath(str(qml))

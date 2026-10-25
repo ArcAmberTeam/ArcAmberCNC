@@ -4,9 +4,14 @@ project(BetterLinuxCNC VERSION 0.2.0 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 include(GNUInstallDirs)
+set(BETTERCNC_PROJECT_DIR "/opt/arcambercnc" CACHE PATH "Runtime project directory containing launcher.json")
 find_package(Python3 3.11 REQUIRED COMPONENTS Interpreter)
 configure_file(app/betterlinuxcnc.in betterlinuxcnc @ONLY)
 configure_file(app/betterlinuxcnc-service.in betterlinuxcnc-service @ONLY)
+configure_file(app/betterlinuxcnc-cam-link.in betterlinuxcnc-cam-link @ONLY)
+configure_file(app/betterlinuxcnc-launch.in betterlinuxcnc-launch @ONLY)
+configure_file(packaging/betterlinuxcnc-launcher.service.in betterlinuxcnc-launcher.service @ONLY)
+configure_file(packaging/betterlinuxcnc-autostart.desktop.in betterlinuxcnc-autostart.desktop @ONLY)
 
 include(CTest)
 if(BUILD_TESTING)
@@ -22,6 +27,7 @@ if(BUILD_TESTING)
     add_test(NAME module-boundaries COMMAND Python3::Interpreter
         "${CMAKE_CURRENT_SOURCE_DIR}/scripts/check_boundaries.py")
     file(GLOB_RECURSE QML_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/qml/*.qml")
+    list(APPEND QML_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/tests/VisualPreview.qml")
     add_test(NAME qml-lint COMMAND Qt6::qmllint --max-warnings 0
         -I "${CMAKE_CURRENT_SOURCE_DIR}/qml" ${QML_SOURCES})
     add_test(NAME python-integration COMMAND Python3::Interpreter -m unittest discover
@@ -38,13 +44,48 @@ if(BUILD_TESTING)
     set_tests_properties(desktop-startup PROPERTIES ENVIRONMENT
         "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software;QT_QUICK_CONTROLS_STYLE=Basic"
         FAIL_REGULAR_EXPRESSION "QQmlApplicationEngine failed;ReferenceError:;TypeError:;Unable to assign;Binding loop detected")
+    add_test(NAME interactive-gui-startup COMMAND Python3::Interpreter
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/interactive/main.py" --smoke-test)
+    set_tests_properties(interactive-gui-startup PROPERTIES ENVIRONMENT
+        "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software;QT_QUICK_CONTROLS_STYLE=Basic"
+        FAIL_REGULAR_EXPRESSION "QQmlApplicationEngine failed;ReferenceError:;TypeError:;Unable to assign;Binding loop detected")
+    add_test(NAME external-interface-integration COMMAND Python3::Interpreter
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_simulation.py" -v)
+    set_tests_properties(external-interface-integration PROPERTIES ENVIRONMENT
+        "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software;QT_QUICK_CONTROLS_STYLE=Basic")
+    add_test(NAME interactive-gui-lint COMMAND Qt6::qmllint --max-warnings 0
+        -I "${CMAKE_CURRENT_SOURCE_DIR}/qml"
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/interactive/Interactive.qml"
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/interactive/InteractiveBackend.qml")
+    add_test(NAME visual-preview-startup COMMAND Python3::Interpreter
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/visual_preview.py"
+        --capture "${CMAKE_CURRENT_BINARY_DIR}/visual-preview.png")
+    set_tests_properties(visual-preview-startup PROPERTIES ENVIRONMENT
+        "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software;QT_QUICK_CONTROLS_STYLE=Basic"
+        FAIL_REGULAR_EXPRESSION "QQmlApplicationEngine failed;ReferenceError:;TypeError:;Unable to assign;Binding loop detected")
+    add_test(NAME guided-preview-startup COMMAND Python3::Interpreter
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/visual_preview.py"
+        --interface guided --stage preview --width 760 --height 640
+        --capture "${CMAKE_CURRENT_BINARY_DIR}/guided-preview.png")
+    set_tests_properties(guided-preview-startup PROPERTIES ENVIRONMENT
+        "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software;QT_QUICK_CONTROLS_STYLE=Basic"
+        FAIL_REGULAR_EXPRESSION "QQmlApplicationEngine failed;ReferenceError:;TypeError:;Unable to assign;Binding loop detected")
 endif()
 
 install(PROGRAMS "${CMAKE_CURRENT_BINARY_DIR}/betterlinuxcnc" DESTINATION ${CMAKE_INSTALL_BINDIR})
 install(PROGRAMS "${CMAKE_CURRENT_BINARY_DIR}/betterlinuxcnc-service" DESTINATION ${CMAKE_INSTALL_BINDIR})
+install(PROGRAMS "${CMAKE_CURRENT_BINARY_DIR}/betterlinuxcnc-cam-link" DESTINATION ${CMAKE_INSTALL_BINDIR})
+install(PROGRAMS "${CMAKE_CURRENT_BINARY_DIR}/betterlinuxcnc-launch" DESTINATION ${CMAKE_INSTALL_BINDIR})
+install(FILES "${CMAKE_CURRENT_BINARY_DIR}/betterlinuxcnc-launcher.service"
+    DESTINATION "${CMAKE_INSTALL_PREFIX}/lib/systemd/user")
+install(FILES "${CMAKE_CURRENT_BINARY_DIR}/betterlinuxcnc-autostart.desktop"
+    DESTINATION "/etc/xdg/autostart")
+install(FILES ../launcher.example.json DESTINATION "${BETTERCNC_PROJECT_DIR}")
 install(DIRECTORY python/bettercnc DESTINATION ${CMAKE_INSTALL_LIBDIR}/betterlinuxcnc/python
     PATTERN "__pycache__" EXCLUDE PATTERN "*.pyc" EXCLUDE)
 install(DIRECTORY ../python.service/src/ DESTINATION ${CMAKE_INSTALL_LIBDIR}/betterlinuxcnc/python
+    PATTERN "__pycache__" EXCLUDE PATTERN "*.pyc" EXCLUDE PATTERN "*.egg-info" EXCLUDE)
+install(DIRECTORY ../python.launcher/src/ DESTINATION ${CMAKE_INSTALL_LIBDIR}/betterlinuxcnc/python
     PATTERN "__pycache__" EXCLUDE PATTERN "*.pyc" EXCLUDE PATTERN "*.egg-info" EXCLUDE)
 install(DIRECTORY qml/ DESTINATION ${CMAKE_INSTALL_DATADIR}/betterlinuxcnc/qml)
 install(FILES packaging/betterlinuxcnc-qt.desktop DESTINATION share/applications)

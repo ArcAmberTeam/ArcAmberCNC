@@ -4,8 +4,9 @@ import QtQuick.Controls.Basic
 
 ComboBox {
     id: control
+    property int optionHeight: 30
     implicitWidth: 150
-    implicitHeight: 32
+    implicitHeight: Theme.controlHeight
     leftPadding: 8
     rightPadding: 23
     font.family: Theme.fontFamily
@@ -25,18 +26,18 @@ ComboBox {
         x: control.width - width - 7
         y: (control.height - height) / 2
     }
-    background: Rectangle {
-        radius: 6
-        color: Theme.input
-        border.color: control.visualFocus ? Theme.accent : Theme.borderControl
-        border.width: control.visualFocus ? 2 : 1
+    background: UiSurface {
+        focusHighlighted: control.visualFocus
+        pressed: control.down
+        shadowStrength: control.enabled ? 1 : 0.35
+        color: !control.enabled ? Theme.disabled : control.down || control.hovered ? Theme.hover : Theme.input
     }
     delegate: ItemDelegate {
         id: itemDelegate
         required property int index
         required property var modelData
         width: control.width
-        height: 30
+        height: control.optionHeight
         highlighted: control.highlightedIndex === index
         contentItem: UiText {
             text: control.textRole ? itemDelegate.modelData[control.textRole] : itemDelegate.modelData
@@ -59,6 +60,6 @@ ComboBox {
             currentIndex: control.highlightedIndex
             ScrollBar.vertical: UiScrollBar { }
         }
-        background: Rectangle { color: "#202125"; radius: 6; border.color: Theme.borderControl }
+        background: UiSurface { shadowStrength: 2 }
     }
 }

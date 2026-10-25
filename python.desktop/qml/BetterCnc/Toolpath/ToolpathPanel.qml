@@ -45,7 +45,8 @@ Rectangle {
     }
     readonly property string unit: presentation.choices.units === "mm" ? "毫米" : "英寸"
     objectName: "toolpathPanel"
-    color: Theme.base
+    color: Theme.surface
+    radius: 0
     clip: true
 
     Rectangle {
@@ -56,6 +57,7 @@ Rectangle {
         Accessible.role: Accessible.PageTabList
         Accessible.name: "刀路与坐标显示"
         Row {
+            id: viewTabs
             x: 12
             anchors.verticalCenter: parent.verticalCenter
             spacing: 4
@@ -90,11 +92,17 @@ Rectangle {
                 }
             }
         }
-        Rectangle {
+        ViewportControls {
+            x: viewTabs.x + viewTabs.width + 12
+            width: Math.max(0, parent.width - x - 8)
+            height: 44
+            presentation: root.presentation
+            visible: root.presentation.previewTab === "preview"
+        }
+        UiDivider {
             anchors.bottom: parent.bottom
             width: parent.width
             height: 1
-            color: Theme.border
         }
     }
 
@@ -136,7 +144,7 @@ Rectangle {
                 x: readout.horizontalPadding
                 y: readout.verticalPadding
                 text: "未连接机床，坐标不可用"
-                color: Theme.muted
+                color: Theme.secondary
                 font.pixelSize: 12
             }
             TextMetrics {
@@ -157,13 +165,13 @@ Rectangle {
                 id: unitMetrics
                 text: root.unit
                 font.family: Theme.fontFamily
-                font.pixelSize: 10
+                font.pixelSize: Theme.labelSize
             }
             TextMetrics {
                 id: dtgMetrics
                 text: "剩余 " + root.maximumDtg
                 font.family: Theme.mono
-                font.pixelSize: 11
+                font.pixelSize: Theme.labelSize
             }
             Repeater {
                 model: root.axes
@@ -198,8 +206,8 @@ Rectangle {
                         }
                         UiText {
                             text: Coordinates.linear(axisReadout.modelData) ? root.unit : "°"
-                            font.pixelSize: 10
-                            color: Theme.muted
+                            font.pixelSize: Theme.labelSize
+                            color: Theme.secondary
                             anchors.baseline: coordinateValue.baseline
                         }
                         UiText {
@@ -207,7 +215,7 @@ Rectangle {
                             visible: root.presentation.flags["show.dtg"]
                             text: "剩余 " + root.distance(axisReadout.modelData)
                             font.family: Theme.mono
-                            font.pixelSize: 11
+                            font.pixelSize: Theme.labelSize
                             color: Theme.secondary
                             anchors.baseline: coordinateValue.baseline
                         }
@@ -224,7 +232,7 @@ Rectangle {
                 height: 16.5
                 verticalAlignment: Text.AlignVCenter
                 font.family: Theme.mono
-                font.pixelSize: 11
+                font.pixelSize: Theme.labelSize
                 color: Theme.secondary
             }
             UiText {
@@ -239,14 +247,13 @@ Rectangle {
                 height: 16.5
                 verticalAlignment: Text.AlignVCenter
                 font.family: Theme.mono
-                font.pixelSize: 11
+                font.pixelSize: Theme.labelSize
                 color: Theme.secondary
             }
-            Rectangle {
+            UiDivider {
                 anchors.bottom: parent.bottom
                 width: parent.width
                 height: 1
-                color: Theme.border
             }
         }
 
@@ -281,15 +288,15 @@ Rectangle {
             anchors.rightMargin: 20
             text: ({"p": "透视图", "z": "俯视图", "z2": "旋转俯视图", "x": "侧视图", "y": "正视图"})[root.presentation.choices.view]
                   + " · " + Math.round(root.presentation.zoom * 100) + "%"
-            font.pixelSize: 10
-            color: Theme.muted
+            font.pixelSize: Theme.labelSize
+            color: Theme.secondary
         }
         Rectangle {
             id: legend
             anchors.bottom: parent.bottom
             width: parent.width
             height: root.previewWarnings ? Math.max(32, warningLabel.implicitHeight + 12) : 32
-            color: "#17181b"
+            color: Theme.glass
             UiText {
                 id: warningLabel
                 objectName: "previewWarning"
@@ -302,7 +309,7 @@ Rectangle {
                 wrapMode: Text.Wrap
                 maximumLineCount: 2
                 elide: Text.ElideRight
-                font.pixelSize: 10
+                font.pixelSize: Theme.labelSize
                 color: Theme.secondary
                 ToolTip.visible: warningHover.hovered
                 ToolTip.text: root.previewWarnings
@@ -316,20 +323,20 @@ Rectangle {
                 Rectangle {
                     width: 12
                     height: 1
-                    color: "#b2b9e8"
+                    color: Theme.accentFill
                     anchors.verticalCenter: parent.verticalCenter
                 }
-                UiText { text: "程序路径"; color: Theme.muted; font.pixelSize: 10 }
+                UiText { text: "程序路径"; color: Theme.secondary; font.pixelSize: Theme.labelSize }
                 Item { width: 4; height: 1 }
                 Row {
                     spacing: 2
                     anchors.verticalCenter: parent.verticalCenter
                     Repeater {
                         model: 3
-                        Rectangle { width: 3; height: 1; color: "#7977b7" }
+                        Rectangle { width: 3; height: 1; color: Theme.rapid }
                     }
                 }
-                UiText { text: "快速移动"; color: Theme.muted; font.pixelSize: 10 }
+                UiText { text: "快速移动"; color: Theme.secondary; font.pixelSize: Theme.labelSize }
             }
         }
     }
@@ -376,11 +383,10 @@ Rectangle {
                                 font.pixelSize: root.presentation.flags["show.large"] ? 46 : 36
                             }
                         }
-                        Rectangle {
+                        UiDivider {
                             anchors.bottom: parent.bottom
                             width: parent.width
                             height: 1
-                            color: Theme.border
                         }
                     }
                 }
@@ -403,12 +409,11 @@ Rectangle {
                             font.pixelSize: 13
                             color: Theme.secondary
                         }
-                        Rectangle {
+                        UiDivider {
                             visible: detail.modelData === ""
                             anchors.verticalCenter: parent.verticalCenter
                             width: parent.width
                             height: 1
-                            color: Theme.border
                         }
                     }
                 }

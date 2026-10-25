@@ -45,6 +45,14 @@ class SessionClient:
         return self._socket is not None
 
     def connect(self):
+        self._open()
+        try:
+            self.request("session.attach", {"ini_path": self._ini} if self._ini else {})
+        except Exception:
+            self.close()
+            raise
+
+    def _open(self):
         self.close()
         directory = self.path.parent.lstat()
         endpoint = self.path.lstat()
@@ -62,7 +70,6 @@ class SessionClient:
         try:
             connection.connect(str(self.path))
             self._socket = connection
-            self.request("session.attach", {"ini_path": self._ini} if self._ini else {})
         except Exception:
             connection.close()
             self._socket = None
@@ -144,3 +151,16 @@ class SessionClient:
 
     def execute(self, action, payload=None):
         return self.request("command.execute", {"action": action, "payload": payload or {}})
+
+
+def read_machine_status(path=None):
+    """Read fresh feedback without attaching an owner or renewing a jog lease."""
+    client = SessionClient(path)
+    try:
+        client._open()
+        result = client.request("machine.status", {})
+        if type(result.get("connected")) is not bool:
+            raise ValueError("服务未返回有效的机床连接状态")
+        return result
+    finally:
+        client.close()

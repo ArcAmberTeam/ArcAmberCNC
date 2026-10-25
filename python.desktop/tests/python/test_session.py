@@ -4,12 +4,14 @@ import json
 import os
 import socket
 import struct
+import subprocess
+import sys
 import tempfile
 import threading
 import unittest
 from pathlib import Path
 
-from bettercnc.session import RemoteError, SessionClient
+from bettercnc.session import RemoteError, SessionClient, read_machine_status
 
 
 def read_frame(connection):
@@ -102,6 +104,54 @@ class SessionTests(unittest.TestCase):
         self.assertFalse(state["connected"])
         self.assertTrue(client.connected)
         self.assertEqual([r["method"] for r in peer.requests], ["session.attach", "session.status"])
+
+    def test_observer_reads_feedback_without_claiming_control_or_renewing_jog(self):
+        peer, _ = self.peer(lambda _: {"connected": True, "programState": "idle"}, fragmented=True)
+        self.assertEqual(read_machine_status(peer.path)["programState"], "idle")
+        self.assertEqual(
+            [(r["method"], r["params"]) for r in peer.requests], [("machine.status", {})]
+        )
+
+    def test_observer_rejects_missing_connection_state_and_insecure_endpoint(self):
+        peer, _ = self.peer(lambda _: {})
+        with self.assertRaises(ValueError):
+            read_machine_status(peer.path)
+        peer.path.chmod(0o666)
+        with self.assertRaises(RemoteError):
+            read_machine_status(peer.path)
+        self.assertEqual(len(peer.requests), 1)
+
+    def test_connection_cli_distinguishes_machine_offline_and_transport_failure_without_gui(self):
+        for connected in (True, False):
+            with self.subTest(connected=connected):
+                peer, _ = self.peer(lambda _, value=connected: {"connected": value})
+                result = self.check_connection_cli(peer.path)
+                self.assertEqual(result.returncode, 0 if connected else 2, result.stderr)
+                self.assertEqual(
+                    json.loads(result.stdout),
+                    {"serviceConnected": True, "snapshot": {"connected": connected}},
+                )
+                self.assertEqual([r["method"] for r in peer.requests], ["machine.status"])
+        result = self.check_connection_cli(peer.path.parent / "missing.sock")
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertFalse(json.loads(result.stdout)["serviceConnected"])
+
+    def check_connection_cli(self, path):
+        # An invalid Qt platform proves this path never constructs QGuiApplication.
+        return subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                "from bettercnc.desktop import main; raise SystemExit(main())",
+                "--check-connection",
+                "--socket",
+                str(path),
+            ],
+            env=dict(os.environ, QT_QPA_PLATFORM="no-display-for-readonly-check"),
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
 
     def test_machine_command_disconnect_is_unknown_and_is_not_replayed(self):
         peer, client = self.peer(lambda r: {} if r["method"] == "session.attach" else None)

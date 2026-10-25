@@ -41,7 +41,7 @@ Popup {
     parent: Overlay.overlay
     popupType: Popup.Item
     width: Math.min(["file.edit", "tool.edit"].indexOf(actionId) >= 0 ? 760
-                    : actionId === "help.reference" ? 516 : 370, parent ? parent.width * 0.92 : 760)
+                    : actionId === "help.reference" ? 516 : 480, parent ? parent.width * 0.92 : 760)
     height: Math.min(58 + body.implicitHeight + 44, parent ? parent.height * 0.85 : 680)
     x: parent ? (parent.width - width) / 2 : 0
     y: parent ? parent.height * 0.46 - height / 2 : 0
@@ -52,8 +52,8 @@ Popup {
     closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
     enter: Transition { }
     exit: Transition { }
-    Overlay.modal: Rectangle { color: "#99000000" }
-    background: Rectangle { color: Theme.raised; border.color: "#3b3d45"; radius: 12 }
+    Overlay.modal: Rectangle { color: Theme.scrim }
+    background: UiSurface { radius: 12; shadowStrength: 3 }
 
     function openDialog(id, label, selectedAxis) {
         const item = Catalog.findItem(id);
@@ -100,6 +100,7 @@ Popup {
                 x: 22
                 anchors.verticalCenter: parent.verticalCenter
                 text: root.title
+                font.pixelSize: Theme.titleSize
                 font.weight: Font.DemiBold
                 Accessible.role: Accessible.Heading
             }
@@ -116,7 +117,7 @@ Popup {
                 Accessible.name: "关闭对话框"
                 onClicked: root.close()
             }
-            Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.border }
+            UiDivider { anchors.bottom: parent.bottom; width: parent.width; height: 1 }
         }
         Flickable {
             id: bodyScroll

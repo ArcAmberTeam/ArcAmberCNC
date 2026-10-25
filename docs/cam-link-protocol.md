@@ -1,6 +1,6 @@
 # CAM 联动 TCP 双向通信协议
 
-CAM Link 使用一条经过认证的 TCP 长连接接收外部 CAM 生成的 G-code，同时回传接收回执和只读加工反馈。外部协议版本为 2，帧头包含可读的消息类型，例如 `SEND_GCODE` 表示“发送加工文件”。外部 TCP 协议与设备内部的 Unix socket v2 控制协议独立。
+CAM Link 使用一条完成协议握手的 TCP 长连接接收外部 CAM 生成的 G-code，同时回传接收回执、加工作业状态和只读机床反馈。外部协议版本为 2，帧头包含可读的消息类型，例如 `SEND_GCODE` 表示“发送加工文件”。外部 TCP 协议与设备内部的 Unix socket v2 控制协议独立。
 
 ## 模块职责
 
@@ -16,9 +16,11 @@ bettercnc_cam_link/
 
 ## 启动
 
+默认使用局域网直连，不传 `--token-file`、`--cert`、`--key`；CAM 发现设备后点击连接即可。第一帧仍是 `AUTH / session.auth`，参数为 `{}`，成功返回 `authenticated:true`，仅表示握手完成。直连不进行令牌认证或链路加密；协议、SHA-256、机床联锁和点动租约检查保留。后续令牌与 TLS 说明适用于显式配置的兼容模式，不会在认证失败后降级为直连。
+
 安装 `python.service` 包后，使用 `betterlinuxcnc-cam-link` 或 `python -m bettercnc_cam_link`。运行环境为 Python 3.11+，无额外运行时依赖。
 
-准备当前用户所有、权限为 0600 的令牌文件，内容为 32 至 256 个字母、数字、下划线或短横线，可通过 `secrets.token_urlsafe(32)` 生成。令牌不作为命令行参数直接传入。
+可选认证模式准备当前用户所有、权限为 0600 的令牌文件，内容为 32 至 256 个字母、数字、下划线或短横线，可通过 `secrets.token_urlsafe(32)` 生成。令牌不作为命令行参数直接传入。
 
 ```sh
 betterlinuxcnc-cam-link \
@@ -28,9 +30,9 @@ betterlinuxcnc-cam-link \
   --control-socket /run/user/1000/betterlinuxcnc/control.sock
 ```
 
-默认只监听本机。跨设备连接时，将 `--host` 指定为机床设备的网络地址，用 `--cert` 和 `--key` 提供 TLS 证书和私钥，CAM 客户端验证证书后发送同样的 TCP 帧。该端口使用 CAM Link 自定义协议，不提供 HTTP 接口。
+默认只监听本机。跨设备连接时，将 `--host` 指定为机床设备的网络地址；如启用可选 TLS 模式，用 `--cert` 和 `--key` 提供证书和私钥，CAM 客户端验证证书后发送同样的 TCP 帧。该端口使用 CAM Link 自定义协议，不提供 HTTP 接口。
 
-收件目录必须是当前用户所有的 0700 目录，不存在时创建。完整程序位于 `<inbox>/<transferId>/<filename>`，权限为 0600。本地操作员通过已有桌面文件打开操作选择该文件，由 Controller 校验加载条件。当前没有桌面收件通知或自动导入。
+收件目录必须是当前用户所有的 0700 目录，不存在时创建。完整程序位于 `<inbox>/<transferId>/<filename>`，权限为 0600。未启用自动加工时，由本地操作员选择文件；开启后的行为见自动加工章节。
 
 本地控制服务另行启动；它不可达时仍可接收程序，加工反馈返回 `controller_unavailable`。CAM Link 不启动 LinuxCNC 或控制服务。
 
@@ -117,6 +119,9 @@ CAM2 | SEND_GCODE + NUL 补齐至 16 字节 | 正文长度 4 字节 | JSON 正�
 | --- | --- | --- |
 | `AUTH` | 连接认证 | `session.auth` |
 | `PING` | 心跳 | `ping` |
+| `JOG_START` | 开始连续点动 | `jog.start` |
+| `JOG_KEEPALIVE` | 续租当前按住操作 | `jog.keepalive` |
+| `JOG_STOP` | 停止本次点动 | `jog.stop` |
 | `SEND_GCODE` | 发送加工文件 | `upload.begin`、`upload.chunk`、`upload.finish` |
 | `ABORT_GCODE` | 取消当前文件接收 | `upload.abort` |
 | `GET_RECEIPT` | 查询文件接收回执 | `upload.receipt` |
@@ -220,4 +225,49 @@ TCP 拆包、粘包均按帧头中的长度处理。错误魔数、未知类型�
 
 订阅继续重采样，连接恢复后重新推送实际状态。取消订阅后，已在网络缓冲区的事件仍可能先于取消回执到达；回执后不再产生该订阅的新事件。CAM 连接关闭时取消订阅，不影响机床加工。
 
-`transferId` 只按本地路径关联收件，复制或本地编辑文件不构成新的作业记录。`received` 只表示完整接收，`idle` 只表示当前空闲，均不能证明加工成功。当前没有独立作业生命周期、加工成功事件、剩余时间或远程启动、暂停、停止接口。
+`transferId` 只按本地路径关联收件，复制或本地编辑文件不构成新的作业记录。`received` 只表示完整接收，`idle` 只表示当前空闲，均不能证明加工成功。显式开启自动加工后，作业生命周期见下文；百分比、剩余时间、远程暂停及停止接口不在本次范围。
+
+
+## 收到 G-code 后自动加工
+
+用户于 2026-10-24 要求接收后自动加工，并取消自动返回加工前位置。本次只加载及运行，不生成返回、回零、解除急停或使能命令。LinuxCNC 核心仍由现场启动。
+
+控制服务增加 `--cam-inbox /home/cnc/cam-inbox`，网络服务增加 `--auto-run` 并使用同一 inbox。两端默认关闭此能力；只开启网络端而未配置控制端会明确拒绝加工。认证后的新文件 `upload.finish` 完整发布后，网络服务调用本地 `cam.job.start`；文件重复上传只查询 `cam.job.status`。不扫描既有收件箱、不在重启时补跑旧文件。
+
+| 外部方法 | 帧头 | 参数 | 结果 |
+| --- | --- | --- | --- |
+| `job.start` | `START_JOB` | `{transferId}` | `{job}`；显式启动一个已接收文件，同编号不会重启 |
+| `job.status` | `GET_JOB` | `{transferId}` | `{job}`；没有加工记录时 job 为 null |
+
+外部接口要求 session.auth 握手；配置令牌或 TLS 时继续执行对应校验。本地 v2 接口为 `cam.job.start/status`，参数同为 `{transferId}`，不授予 CAM 任意路径、任意 MDI 或开机权限。允许调用这些接口的是配置了收件目录的控制服务；所有 native 调用仍在现有单一工作线程、同一 Controller 内串行执行，不建立第二个命令写入口。
+
+Controller 核对私有收件目录、UUID、普通文件、接收回执、大小及 SHA-256，并将内容复制到同一任务目录下只读的 `.execution.ngc`，防止加载前后原收件文件变化影响加工。启动意图先持久化到 `execution.json`，再按确认顺序执行 `program_open`、AUTO 模式及 `AUTO_RUN(0)`。机床必须连接、已使能、未急停、所有 joint 已回零、空闲、无硬限位及限位覆盖，且未开启 block delete；不绕过 NO_FORCE_HOMING，也不自动回零。
+
+启动请求响应包含 `job`，`upload.finish`/`upload.receipt` 在自动模式下也附带此字段，机床状态附带当前服务作业。例如：
+
+```json
+{"state":"received","transferId":"550e8400-e29b-41d4-a716-446655440000","job":{"transferId":"550e8400-e29b-41d4-a716-446655440000","state":"starting","message":"等待 LinuxCNC 确认"}}
+```
+
+作业状态为 accepted、loading、starting、running、completed、error、unknown。completed 要求该 AUTO_RUN 的 NML 序号确认 RCS_DONE，解释器和运动队列为空、机床 in-position；不以 idle 单独判定。错误、急停、断线、外部写入、中止请求和服务关闭不会报告完成或自动重试。已经启动的程序不随 CAM TCP 短连接关闭而中止，桌面断开也不撤销服务作业；重启后未完成记录返回 unknown，不自动续跑。
+
+如果文件已接收但控制服务不可达，接收回执附带 unknown 作业结果；查询回执不会再次调用启动。需要先查询 `job.status` 核实结果，禁止对状态不明的加工自动重发。机床联锁不满足时 job 为 error，原文件保留；同一编号后续查询仍返回失败，不会在机床后来使能时突然启动。忙碌时拒绝提交，不建立延迟执行队列。
+
+## XYZ 持续点动
+
+认证后的同一 TCP 连接可以发送以下操作。`jogId` 是新的小写 UUID；每次按住使用一个新编号，禁止重试或重放 `jog.start`。回执为 `{jogId,accepted:true}`，表示控制请求被接受，不代表实体轴已达到目标。
+
+| 方法 | 参数 |
+| --- | --- |
+| `jog.start` | `jogId`、`axis`（X/Y/Z）、`direction`（整数 ±1）、`feedRate`（毫米/分钟，0 < 值 ≤ 3000） |
+| `jog.keepalive` | 同一 `jogId`，仅续租，不能重新启动 |
+| `jog.stop` | 同一 `jogId`，关闭本次拥有的控制会话 |
+
+`manual` 能力通过公开 Unix 协议 `session.attach` 获取独占控制会话。已有 Qt 或其他控制所有者时返回 `control_in_use`，不抢占控制权。只接受已连接且实际处于 world 模式的 XYZ 轴，不猜测 joint 映射；毫米速度按最新 `linearUnits` 转为原生单位/秒，`increment=0`。Controller 仍根据最新状态检查回零、使能、急停、忙碌状态和 INI 速度上限，不自动回零、上电或运行程序。
+
+CAM 按住时每 150 ms 左右续租；Python 只有收到该连接的新续租请求才调用 `session.status(jog_lease=true)`，不自行后台续租。450 ms 未续租、TCP 断开、显式停止或服务关闭，会关闭本次 Unix 控制连接，撤销待发送步骤并停止本会话点动。控制服务还有独立的 600 ms 租约。超时后续租不能恢复点动，必须松开重新按住。软件租约不是硬实时停止保证：原生 LinuxCNC/NML 调用、操作系统调度等可能延迟处理；实体安全链不由网络租约替代。
+
+浏览器按键松开、pointercancel、丢失捕获、失焦、页面隐藏、页面退出及组件卸载均撤销当前操作。旧机床服务会返回 `unsupported_method`，必须更新后才支持遥控，不能通过发送 MDI 或 G-code 绕过。
+
+
+CAM 点动通过本地 `cam.jog.start/keepalive/stop` 接入服务的同一 Controller，不再附着或抢占桌面会话。网络断开关闭对应 Unix 连接，服务撤销该点动租约；桌面仍可读状态并优先执行急停或停止。独立网络450毫秒与服务600毫秒租约保持不变。

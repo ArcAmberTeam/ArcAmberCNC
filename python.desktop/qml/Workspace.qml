@@ -12,6 +12,18 @@ Rectangle {
     id: workspace
     objectName: "workspace"
     color: Theme.base
+    property string interfaceMode: "professional"
+    property bool settingsOpen: false
+    function openSettings() {
+        stopJog(); settingsOpen = true; settings.focusBack();
+    }
+    function closeSettings() {
+        settingsOpen = false; chrome.focusSettings();
+    }
+    property string guidedStage: "prepare"
+    readonly property bool guided: interfaceMode === "guided"
+    onInterfaceModeChanged: { stopJog(); if (!settingsOpen) forceActiveFocus(); }
+    onGuidedStageChanged: { stopJog(); forceActiveFocus(); }
     property Item focusedItem: null
     property var backend: null
     readonly property var machine: backend && backend.snapshot ? backend.snapshot : ({})
@@ -81,22 +93,32 @@ Rectangle {
         target: manualPresentation
         function onControlTabChanged() {
             workspace.stopJog();
+            if (workspace.guided) workspace.guidedStage = "device";
             if (workspace.machine.connected)
                 workspace.requestCommand("machine.mode", {mode: manualPresentation.controlTab});
         }
     }
-    property int programHeight: 184
+    property int programHeight: height <= 640 ? 120 : 184
     property bool initialized: false
     readonly property int maximumProgramHeight: Math.max(90, Math.min(340, panes.height - 247))
     readonly property bool compact: width <= 900
-    readonly property int sidebarWidth: compact ? 264 : 296
-    readonly property bool viewShortcutsEnabled: !popupActive && !chrome.menuOpen && !editing()
+    readonly property int sidebarWidth: compact ? 280 : 304
+    readonly property bool menuOpen: chrome.menuOpen
+    readonly property bool viewShortcutsEnabled: !settingsOpen && !popupActive && !chrome.menuOpen && !editing()
 
     function editing() {
         let item = focusedItem;
         while (item) {
             if (item instanceof TextInput || item instanceof TextEdit || item instanceof ComboBox)
                 return true;
+            item = item.parent;
+        }
+        return false;
+    }
+    function previewFocused() {
+        let item = focusedItem;
+        while (item) {
+            if (item === toolpathPanel) return true;
             item = item.parent;
         }
         return false;
@@ -109,6 +131,20 @@ Rectangle {
         initialized = true;
         setProgramHeight(programHeight);
     }
+
+    ProfessionalLayout {
+        id: professionalLayout
+        width: panes.width; height: panes.height
+        sidebarWidth: workspace.sidebarWidth
+        programHeight: workspace.programHeight
+    }
+    GuidedLayout {
+        id: guidedLayout
+        width: panes.width; height: panes.height
+        sidebarWidth: workspace.sidebarWidth
+        stage: workspace.guidedStage
+    }
+    readonly property WorkspaceLayout layout: guided ? guidedLayout : professionalLayout
 
     ManualState { id: manualPresentation; objectName: "manualState" }
     ToolpathState { id: toolpathPresentation; objectName: "toolpathState" }
@@ -125,20 +161,28 @@ Rectangle {
     ChromeBar {
         id: chrome
         width: parent.width
-        height: 146
+        height: implicitHeight
+        visible: !workspace.settingsOpen
         compact: workspace.compact
+        interfaceMode: workspace.interfaceMode
+        guidedStage: workspace.guidedStage
+        onSettingsRequested: workspace.openSettings()
+        onStageRequested: stage => workspace.guidedStage = stage
         actions: chromeActions
         preview: toolpathPresentation
     }
     Item {
         id: panes
-        y: 146
-        width: parent.width
-        height: parent.height - y
+        visible: !workspace.settingsOpen
+        x: Theme.gap
+        y: chrome.height + Theme.gap
+        width: parent.width - Theme.gap * 2
+        height: parent.height - y - 40
         ManualPanel {
             id: manualPanel
-            width: workspace.sidebarWidth
-            height: parent.height
+            x: workspace.layout.manualRect.x; y: workspace.layout.manualRect.y
+            width: workspace.layout.manualRect.width; height: workspace.layout.manualRect.height
+            visible: workspace.layout.manualVisible
             presentation: manualPresentation
             machine: workspace.machine
             history: workspace.backend ? workspace.backend.history : []
@@ -148,9 +192,10 @@ Rectangle {
             onDialogRequested: (actionId, title, axis) => dialogs.openDialog(actionId, title, axis)
         }
         ToolpathPanel {
-            x: workspace.sidebarWidth
-            width: parent.width - x
-            height: parent.height - workspace.programHeight - 7
+            id: toolpathPanel
+            x: workspace.layout.previewRect.x; y: workspace.layout.previewRect.y
+            width: workspace.layout.previewRect.width; height: workspace.layout.previewRect.height
+            visible: workspace.layout.previewVisible
             presentation: toolpathPresentation
             machine: workspace.machine
             program: workspace.program
@@ -159,22 +204,23 @@ Rectangle {
         Rectangle {
             id: sash
             objectName: "programSeparator"
-            x: workspace.sidebarWidth
+            visible: workspace.layout.separatorVisible
+            x: workspace.layout.programRect.x
             y: parent.height - workspace.programHeight - height
-            width: parent.width - x
+            width: workspace.layout.programRect.width
             height: 7
             color: Theme.base
             activeFocusOnTab: true
             Accessible.role: Accessible.Grip
             Accessible.name: "调整程序区高度"
-            Rectangle { width: parent.width; height: 1; color: Theme.border }
+            UiDivider { width: parent.width; height: 1 }
             Rectangle {
                 anchors.horizontalCenter: parent.horizontalCenter
                 y: 2
                 width: 26
                 height: 2
                 radius: 2
-                color: sashMouse.containsMouse ? Theme.accent : "#41434c"
+                color: sashMouse.containsMouse ? Theme.accent : Theme.borderControl
             }
             Rectangle { anchors.fill: parent; color: "transparent"; border.width: 2; border.color: Theme.accent; visible: sash.activeFocus }
             MouseArea {
@@ -198,12 +244,37 @@ Rectangle {
             machine: workspace.machine
             program: workspace.program
             onCommandRequested: (actionId, payload) => workspace.requestCommand(actionId, payload)
-            x: workspace.sidebarWidth
-            y: parent.height - workspace.programHeight
-            width: parent.width - x
-            height: workspace.programHeight
+            x: workspace.layout.programRect.x; y: workspace.layout.programRect.y
+            width: workspace.layout.programRect.width; height: workspace.layout.programRect.height
+            visible: workspace.layout.programVisible
             onDialogRequested: (actionId, title, axis) => dialogs.openDialog(actionId, title, axis)
         }
+    }
+    WorkspaceGuide {
+        x: panes.x + workspace.layout.guideRect.x
+        y: panes.y + workspace.layout.guideRect.y
+        width: workspace.layout.guideRect.width; height: workspace.layout.guideRect.height
+        visible: !workspace.settingsOpen && workspace.guided && workspace.layout.guideVisible
+        stage: workspace.guidedStage
+        actions: chromeActions
+        onStageRequested: stage => workspace.guidedStage = stage
+    }
+    WorkspaceStatus {
+        visible: !workspace.settingsOpen
+        anchors.bottom: parent.bottom
+        width: parent.width
+        machine: workspace.machine
+    }
+    WorkspaceSettings {
+        id: settings
+        anchors.fill: parent
+        visible: workspace.settingsOpen
+        interfaceMode: workspace.interfaceMode
+        preview: toolpathPresentation
+        actions: chromeActions
+        onBackRequested: workspace.closeSettings()
+        onInterfaceModeRequested: mode => workspace.interfaceMode = mode
+        onCommandRequested: (actionId, payload) => workspace.requestCommand(actionId, payload)
     }
     DialogHost {
         id: dialogs
@@ -232,47 +303,22 @@ Rectangle {
         onAccepted: if (workspace.backend && workspace.program)
             workspace.backend.saveProgram(selectedFile.toString(), workspace.program.text)
     }
-    Shortcut { sequence: "F3"; enabled: !workspace.popupActive; onActivated: manualPresentation.controlTab = "manual" }
-    Shortcut { sequence: "F5"; enabled: !workspace.popupActive; onActivated: manualPresentation.controlTab = "mdi" }
-    Repeater {
-        model: workspace.configuredAxes
-        delegate: Item {
-            id: axisShortcut
-            required property string modelData
-            Shortcut {
-                sequence: axisShortcut.modelData
-                enabled: workspace.viewShortcutsEnabled
-                onActivated: manualPresentation.selectedAxis = axisShortcut.modelData
-            }
-        }
+    WorkspaceShortcuts {
+        settingsOpen: workspace.settingsOpen
+        manualControlsEnabled: manualPanel.visible && !workspace.previewFocused()
+        onManualRequested: if (workspace.guided) workspace.guidedStage = "device"
+        popupActive: workspace.popupActive
+        menuOpen: workspace.menuOpen
+        viewShortcutsEnabled: workspace.viewShortcutsEnabled
+        configuredAxes: workspace.configuredAxes
+        machine: workspace.machine
+        onCommandRequested: (actionId, payload) => workspace.requestCommand(actionId, payload)
+        manual: manualPresentation
+        preview: toolpathPresentation
+        actions: chromeActions
     }
-    Shortcut {
-        sequence: "V"
-        enabled: workspace.viewShortcutsEnabled
-        onActivated: {
-            const views = ["p", "z", "z2", "x", "y"];
-            toolpathPresentation.setChoice("view", views[(views.indexOf(toolpathPresentation.choices.view) + 1) % views.length]);
-        }
-    }
-    Shortcut { sequence: "D"; enabled: workspace.viewShortcutsEnabled; onActivated: toolpathPresentation.rotate = !toolpathPresentation.rotate }
-    Shortcut { sequence: "!"; enabled: workspace.viewShortcutsEnabled; onActivated: toolpathPresentation.setChoice("units", toolpathPresentation.choices.units === "mm" ? "inch" : "mm") }
-    Shortcut { sequence: "@"; enabled: workspace.viewShortcutsEnabled; onActivated: toolpathPresentation.setChoice("position", toolpathPresentation.choices.position === "actual" ? "commanded" : "actual") }
-    Shortcut { sequence: "#"; enabled: workspace.viewShortcutsEnabled; onActivated: toolpathPresentation.setChoice("coordinates", toolpathPresentation.choices.coordinates === "relative" ? "machine" : "relative") }
-    Shortcut { sequence: "F1"; autoRepeat: false; enabled: !!workspace.machine.connected; onActivated: chromeActions.activate("machine.estop") }
-    Shortcut { sequence: "F2"; autoRepeat: false; enabled: workspace.viewShortcutsEnabled; onActivated: chromeActions.activate("machine.power") }
-    Shortcut { sequence: "O"; autoRepeat: false; enabled: workspace.viewShortcutsEnabled; onActivated: chromeActions.activate("file.open") }
-    Shortcut { sequence: "Ctrl+R"; autoRepeat: false; enabled: workspace.viewShortcutsEnabled; onActivated: chromeActions.activate("file.reload") }
-    Shortcut { sequence: "Ctrl+S"; autoRepeat: false; enabled: workspace.viewShortcutsEnabled; onActivated: chromeActions.activate("file.save") }
-    Shortcut { sequence: "Ctrl+K"; autoRepeat: false; enabled: workspace.viewShortcutsEnabled; onActivated: chromeActions.activate("view.clear") }
-    Shortcut { sequence: "R"; autoRepeat: false; enabled: workspace.viewShortcutsEnabled; onActivated: chromeActions.activate("program.run") }
-    Shortcut { sequence: "T"; autoRepeat: false; enabled: workspace.viewShortcutsEnabled; onActivated: chromeActions.activate("program.step") }
-    Shortcut { sequence: "P"; autoRepeat: false; enabled: workspace.viewShortcutsEnabled; onActivated: chromeActions.activate("program.pause") }
-    Shortcut { sequence: "S"; autoRepeat: false; enabled: workspace.viewShortcutsEnabled; onActivated: chromeActions.activate("program.resume") }
-    Shortcut { sequence: "Escape"; autoRepeat: false; enabled: !workspace.popupActive && !chrome.menuOpen; onActivated: workspace.requestCommand("program.stop", {}) }
-    Shortcut { sequence: "Home"; autoRepeat: false; enabled: workspace.viewShortcutsEnabled && !!workspace.machine.connected; onActivated: manualPresentation.mode === "joint" ? workspace.requestCommand("machine.home", {joint: manualPresentation.selectedJoint}) : chromeActions.activate("machine.home-" + manualPresentation.selectedAxis) }
-    Shortcut { sequence: "End"; autoRepeat: false; enabled: workspace.viewShortcutsEnabled; onActivated: chromeActions.activate("machine.touch-off", "工件对刀") }
     Keys.onPressed: event => {
-        if (!workspace.viewShortcutsEnabled || manualPresentation.controlTab !== "manual" || event.isAutoRepeat) return;
+        if (!manualPanel.visible || workspace.previewFocused() || !workspace.viewShortcutsEnabled || manualPresentation.controlTab !== "manual" || event.isAutoRepeat) return;
         const keys = {};
         keys[Qt.Key_Left] = ["X", -1]; keys[Qt.Key_Right] = ["X", 1];
         keys[Qt.Key_Down] = ["Y", -1]; keys[Qt.Key_Up] = ["Y", 1];

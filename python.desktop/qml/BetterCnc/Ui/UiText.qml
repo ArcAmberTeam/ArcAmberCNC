@@ -3,6 +3,6 @@ import QtQuick
 Text {
     color: Theme.text
     font.family: Theme.fontFamily
-    font.pixelSize: 13
+    font.pixelSize: Theme.bodySize
     renderType: Text.NativeRendering
 }

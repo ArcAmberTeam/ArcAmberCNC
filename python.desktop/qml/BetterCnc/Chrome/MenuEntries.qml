@@ -32,9 +32,8 @@ Menu {
 
     FontMetrics { id: metrics; font: root.font }
 
-    background: Rectangle {
-        color: "#202125"
-        border.color: Theme.borderControl
+    background: UiSurface {
+        shadowStrength: 2
         radius: 9
     }
     contentItem: ListView {
@@ -88,8 +87,8 @@ Menu {
             x: submenuItem.width - width - 9
             y: (submenuItem.height - height) / 2
             text: "▸"
-            font.pixelSize: 11
-            color: Theme.muted
+            font.pixelSize: Theme.labelSize
+            color: Theme.secondary
             visible: submenuItem.subMenu !== null
         }
         contentItem: UiText {
@@ -100,7 +99,7 @@ Menu {
         }
         background: Rectangle {
             radius: 5
-            color: submenuItem.highlighted ? "#34353c" : "transparent"
+            color: submenuItem.highlighted ? Theme.hover : "transparent"
         }
     }
 
@@ -137,10 +136,10 @@ Menu {
                     color: "transparent"
                     radius: 3
                     border.width: actionItem.entry.kind === "check" ? 1 : 0
-                    border.color: "#666873"
+                    border.color: Theme.borderControl
                     UiText {
                         anchors.centerIn: parent
-                        font.pixelSize: 11
+                        font.pixelSize: Theme.labelSize
                         color: Theme.accent
                         text: actionItem.entry.kind === "check"
                             ? (root.actions.isSelected(actionItem.entry) ? "✓" : "")
@@ -160,13 +159,13 @@ Menu {
                     anchors.rightMargin: 9
                     anchors.verticalCenter: parent.verticalCenter
                     text: actionItem.entry.shortcut || ""
-                    color: Theme.muted
-                    font.pixelSize: 11
+                    color: Theme.secondary
+                    font.pixelSize: Theme.labelSize
                 }
             }
             background: Rectangle {
                 radius: 5
-                color: actionItem.highlighted ? "#34353c" : "transparent"
+                color: actionItem.highlighted ? Theme.hover : "transparent"
             }
         }
     }

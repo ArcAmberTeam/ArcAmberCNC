@@ -6,11 +6,13 @@
 
 2026-10-08 用户决定删除 Web 并按“语言.职责”整理项目。**`python.desktop/` 是正式桌面入口**，Vue/Web、Tauri 桌面环境及部署脚本已删除；Web 源码及设计资料整体删除，历史内容从 Git 获取。Rust v1 诊断逻辑提取为独立 `rust.diagnostics/`，不替换现有 Python v2 控制链路。原生 AXIS 应用已删除，包括 Python 主程序、Tcl 界面、axis-remote、专属资源和构建/安装入口。LinuxCNC 控制核心、共享 Python API 和其他上游工具保留，不属于当前界面发布产物。删除边界及遗留配置说明见 [迁移记录](docs/native-axis-removal.md)，当前桌面决策见 [Qt 迁移说明](docs/qt-qml-migration.md)。
 
-用户随后要求全部接入，并明确先使用 Unix socket、不运行模拟。Qt 入口现通过独立 Python 控制服务接入 LinuxCNC 状态、命令及解释器预览；独立 `rust.diagnostics` 仍只查询 v1 诊断接口。服务由用户显式启动，桌面不自动启动 LinuxCNC 或 Python 服务。没有机床配置或实测依据时，不得声称完成了运动或目标机验收。视觉设计不向原生 Tcl/Python 回写。
+用户随后要求全部接入，并明确先使用 Unix socket、不运行模拟。Qt 入口现通过独立 Python 控制服务接入 LinuxCNC 状态、命令及解释器预览；独立 `rust.diagnostics` 仍只查询 v1 诊断接口。独立 `python.launcher/` 可由用户显式调用，统一编排控制服务、原生 LinuxCNC 和 CAM 联动；桌面和服务本身不启动彼此或核心。没有机床配置或实测依据时，不得声称完成了运动或目标机验收。视觉设计不向原生 Tcl/Python 回写。
+
+2026-10-25 已在目标机完成新版 GUI、控制服务和启动器安装，通过 `DISPLAY=:0` 显示 1024×600 界面，并从真实 LinuxCNC 读取连接状态；用户确认可以使用。验证覆盖安装版本、窗口显示和控制链路，不代表回零、点动、主轴、换刀或加工验收。无硬件开发使用外部 vendor 接口注入，不以测试数据冒充生产反馈。
 
 ## 技术与系统边界
 
-- 目标运行环境：Debian 13、Intel 核显。CPU 型号、LinuxCNC 安装版本、Qt 图形后端、字体与缩放仍须在目标机确认。
+- 目标运行环境：Debian 13、Intel 核显。已核实目标机 Python 3.13.5、PySide6 6.8.2.1、实时内核和 X11 `DISPLAY=:0`；CPU 型号、实际 GPU/Qt 渲染后端、LinuxCNC 安装版本和其他缩放组合仍需按需核实，不能由仓库 VERSION 推断安装版本。
 - 原生桌面：Qt 6.8+、Qt Quick/QML、PySide6、Python 3.11+ 和 CMake；C++17 仅用于 Qt Quick Test 启动器。Web 应用已经删除；QML 和 Python 的职责及已有控制实现保持不变。
 - 控制链路为 QML → PySide6 QObject → Unix domain socket → 独立 Python 控制服务 → LinuxCNC。桌面不得直接导入 LinuxCNC。已删除的 Vue/Tauri 链路历史决策见 [Tauri 架构记录](docs/tauri-local-control-architecture.md)。不建设 HTTP/WebSocket 控制网关；v2 协议见 [本地控制协议](docs/local-control-protocol.md)。
 - LinuxCNC 自身负责 G 代码解释、插补、运动规划、实时线程及 HAL。QML、PySide6、Rust 与 Python 控制服务均不得承担实时伺服职责。桌面适配层拥有窗口和通信桥接；服务拥有机床操作规则，不复制两套控制逻辑。
@@ -20,6 +22,8 @@
 
 ## 模块边界
 
+`python.launcher/` 是 Python 标准库的独立编排入口，配置在运行项目目录 `launcher.json`。用户调用 `betterlinuxcnc-launch` 或安装后的 XDG 会话启动项，通过 CLI 依次启动控制服务、原生 `linuxcnc <ini>` 与 CAM 联动。就绪探测只查询公开 v2 `machine.status`，不获取控制会话。模块保活不重放命令；原生核心重启必须确认旧进程组与原生锁已释放。安装默认项目目录 `/opt/arcambercnc`，编译时由 `BETTERCNC_PROJECT_DIR` 指定；不覆盖已有配置，也不替用户选择或改写机床 INI/HAL。
+
 Qt 目录及依赖见 [python.desktop/AGENTS.md](python.desktop/AGENTS.md)：按 `BetterCnc.<Capability>` 命名模块及 `qmldir` 公开类型组织，组件通过公开状态与信号组合。Rust 的 `src/lib.rs` 为公开入口，内部通信实现私有，规范见 `rust.diagnostics/AGENTS.md`。跨模块和应用层只允许导入公开入口，禁止依赖环、反向依赖及生产代码引用测试夹具。
 
 自有顶层模块采用小写 `<language>.<role>`，后半部分按职责命名：`desktop` 为桌面、`service` 为控制服务、`diagnostics` 为诊断、`drivers` 为设备驱动集合。语言表示实现主体，不拆散混合语言的能力。`src/` 等上游构建目录，以及 `docs/`、`tests/`、`configs/` 等公共目录保留原名。模块内先按功能、设备或总线划分，仅有实际实现差异才增加平台/CPU 子目录；不复制通用代码或建空架构目录。`rust.drivers`、`rust.hal` 等只在实际引入实现时创建。目录与公开入口见 [模块地图](docs/module-map.md)。
@@ -28,7 +32,17 @@ Qt 目录及依赖见 [python.desktop/AGENTS.md](python.desktop/AGENTS.md)：按
 
 外部网络、文件、进程和平台接口只能由明确适配层拥有。Qt 的 `bettercnc.desktop` 向 QML 提供只读状态和操作，`bettercnc.session` 负责 socket；服务的 `bettercnc_controller` 拥有控制规则与机床文件写入，`bettercnc_preview` 拥有隔离解释。`rust.diagnostics` 独立拥有 v1 诊断传输，不嵌入 Qt 控制链路。界面组件不得直接调用 LinuxCNC、HAL、socket、HTTP 或 WebSocket。
 
-协议必须区分 joint/axis、机床/工件坐标、指令/实际位置、角度/长度单位；命令“已接受、已发送、已完成、结果未知”不得混为一谈。重连不得自动重放运动、MDI 或主轴命令。软急停 UI 不替代物理安全回路。测试不启动模拟器或机床；使用 vendor 接口替身、真实 Unix socket 和只解释文件的 LinuxCNC `gcode` 扩展。
+协议必须区分 joint/axis、机床/工件坐标、指令/实际位置、角度/长度单位；命令“已接受、已发送、已完成、结果未知”不得混为一谈。重连不得自动重放运动、MDI 或主轴命令。软急停 UI 不替代物理安全回路。自动化回归测试不启动模拟器或机床；使用 vendor 接口替身、真实 Unix socket 和只解释文件的 LinuxCNC `gcode` 扩展。用户授权的目标机部署与联调按下节执行，不属于 CI 或替身测试。
+
+## 目标机与更新约定
+
+- 开发源码在本地修改、验证并通过 Git 同步；目标机为 `teto@192.168.109.67`，仓库 `/home/teto/ArcAmberCNC`。用户已授权本项目的本地推送（可使用 GitHub Desktop）、远端拉取、构建、sudo 安装和图形会话启动。已有授权覆盖的步骤不重复询问；这不把运动/加工验收加入普通部署范围。凭据不写入仓库、脚本、日志或文档。
+- 拉取前后核对 `git status`、当前分支、HEAD 和目标远端引用。曾出现 `origin/main` 已更新而工作分支仍停在旧提交的情况；优先快进，不用 reset/clean 丢弃目标机修改。保留本机 `launcher.json`、`configs/zhulong-v2/` 及已有 VERSION/changelog 修改，不将其混入其他提交。
+- `git pull` 不更新已安装的 `/usr/lib/betterlinuxcnc/python` 和 `/usr/share/betterlinuxcnc/qml`。使用 `python.desktop` 的 CMake 安装入口同步 GUI、服务和启动器；无需为 GUI 更新重编 LinuxCNC 核心。LinuxCNC 会把系统目录放回 PATH 前面，不能仅靠 PATH 覆盖来保证启动新版 GUI。
+- 目标机使用现有 `configs/zhulong-v2/烛龙V2.ini` 和根目录 `launcher.json`，不为界面接入重写 INI/HAL。安装前确认旧启动器、核心及服务已正常退出；安装只使用必要的 sudo，运行使用 `teto` 用户。优先通过 `betterlinuxcnc-launcher.service` 用户服务启动，避免 SSH 断开带走进程或并行启动第二套。
+- 图形环境为 `DISPLAY=:0`、`XAUTHORITY=/home/teto/.Xauthority`；启动前检查图形访问并导入 systemd 用户环境。先运行启动器 `--check`，再启动；用 `betterlinuxcnc --check-connection`、启动器 `state.json`、进程日志和实际窗口共同确认，不能只看 systemd 的 active 状态。
+- 连接诊断只发送公开 `machine.status`，不附着控制会话、不续租点动；诊断结束不影响现有 GUI。服务可达与机床已连接分别判断。远端操作前重新读取当前机床状态，不把历史截图中的急停/使能状态当作当前状态。
+- 完整命令、已验证部署记录及日志位置见 [LinuxCNC 本机连接说明](docs/linuxcnc-local-connection.md)。纯文档更新检查链接、内容一致性和 `git diff --check` 即可，不为文档更新重启机床或重跑全套硬件相关验证。
 
 ## README 人工维护规则
 
@@ -39,7 +53,7 @@ Qt 目录及依赖见 [python.desktop/AGENTS.md](python.desktop/AGENTS.md)：按
 
 ## 工作方式与验收
 
-1. 写、改、设计、审查或测试代码前应用 `$code-boundary-standards`；先读本文件、子目录规范和已有实现。
+1. 写、改、设计、审查或测试代码前，先读本文件、子目录规范和已有实现；不再要求调用额外的边界规范技能。
 2. 修改范围限于当前任务，保留用户已有改动；未经需求不要重构 LinuxCNC 原生代码。
 3. 模块对外 API 小而明确；不创建通用 `utils` 垃圾桶，不为了测试暴露私有实现。
 4. 从 Git 中删除前的 `frontend/docs/axis-parity.md` 核对 AXIS 按钮、条件项及来源。保留拷贝资产的许可证及来源。
@@ -49,7 +63,7 @@ Qt 目录及依赖见 [python.desktop/AGENTS.md](python.desktop/AGENTS.md)：按
 
 ## CI/CD 边界
 
-所有活动 CI job 均运行于 GitHub 托管的 `ubuntu-24.04` runner，不依赖 PVE 自托管 runner。源码检查通过 `.github/ci/setup-source-tools.sh` 验证预装工具并下载固定版本、校验 SHA-256 的 actionlint，不调用 apt/sudo。所有自动和手动部署入口已经删除。
+所有活动 CI job 均运行于 GitHub 托管的 `ubuntu-24.04` runner，不依赖 PVE 自托管 runner。源码检查通过 `.github/ci/setup-source-tools.sh` 验证预装工具并下载固定版本、校验 SHA-256 的 actionlint，不调用 apt/sudo。CI 工作流中的自动和手动部署入口已经删除；用户授权的目标机 CMake 安装与运行维护不属于 CI 部署。
 
 当前唯一自动工作流为 `.github/workflows/ci.yml` 的 ArcAmberCNC Module CI，push 覆盖 `main`、`staging测试环境` 和 `kihon`，同时支持 PR、merge queue 与手动运行。每个模块显示独立的“语言：功能”检查结果，矩阵设置 `fail-fast: false`；统一 `CI Gate` 要求全部矩阵实例通过，名称保持不变以兼容分支保护。
 

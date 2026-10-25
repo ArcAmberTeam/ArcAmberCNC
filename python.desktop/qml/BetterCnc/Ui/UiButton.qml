@@ -9,19 +9,19 @@ Button {
     property string tooltip: ""
     readonly property color foreground: !enabled ? Theme.muted
         : kind === "danger" ? Theme.danger
-        : selected ? (kind === "tab" ? Theme.text : "#c5bfff")
+        : selected ? Theme.accent
         : kind === "tab" && !selected || kind === "toolbar" && !hovered ? Theme.secondary : Theme.text
-    implicitWidth: Math.max(30, implicitContentWidth + leftPadding + rightPadding)
-    implicitHeight: 30
+    implicitWidth: Math.max(36, implicitContentWidth + leftPadding + rightPadding)
+    implicitHeight: kind === "primary" || kind === "danger" ? 40 : Theme.controlHeight
     padding: 4
     leftPadding: kind === "toolbar" ? 5 : 10
     rightPadding: leftPadding
     spacing: 7
     font.family: Theme.fontFamily
-    font.pixelSize: 12
+    font.pixelSize: Theme.bodySize
     hoverEnabled: true
     focusPolicy: Qt.StrongFocus
-    opacity: enabled ? 1 : 0.55
+    opacity: 1
     contentItem: Item {
         implicitWidth: contentRow.implicitWidth
         implicitHeight: contentRow.implicitHeight
@@ -44,28 +44,17 @@ Button {
             }
         }
     }
-    background: Rectangle {
-        radius: 6
-        color: control.kind === "danger" ? Theme.dangerSoft
-            : control.kind === "primary" ? (control.hovered ? "#7b73e6" : Theme.accentFill)
-            : control.selected || control.down ? (control.kind === "tab" ? Theme.hover : Theme.accentSoft)
+    background: UiSurface {
+        elevated: control.kind !== "tab" || control.selected || control.hovered
+        pressed: control.down
+        focusHighlighted: control.visualFocus
+        shadowStrength: control.enabled ? 1 : 0.35
+        color: !control.enabled ? Theme.disabled
+            : control.kind === "danger" ? (control.hovered || control.down ? Theme.dangerSoft : Theme.surface)
+            : control.kind === "primary" ? (control.down ? Theme.accentPressed : control.hovered ? Theme.accentHover : Theme.accentFill)
+            : control.selected || control.down ? Theme.accentSoft
             : control.hovered ? Theme.hover
-            : control.kind === "toolbar" || control.kind === "tab" ? "transparent" : Theme.raised
-        border.width: 1
-        border.color: control.kind === "danger" ? "#583137"
-            : control.kind === "primary" ? "#7971e9"
-            : control.selected || control.down ? (control.kind === "tab" ? Theme.border : "#514a75")
-            : control.kind === "toolbar" || control.kind === "tab" ? "transparent"
-            : control.hovered ? "#52545f" : Theme.borderControl
-        Rectangle {
-            anchors.fill: parent
-            anchors.margins: -3
-            visible: control.visualFocus
-            color: "transparent"
-            border.color: Theme.accent
-            border.width: 2
-            radius: 8
-        }
+            : control.kind === "tab" ? "transparent" : Theme.raised
     }
     ToolTip.visible: hovered && tooltip.length > 0
     ToolTip.text: tooltip

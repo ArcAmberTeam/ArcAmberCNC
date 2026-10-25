@@ -29,7 +29,7 @@ TestCase {
     }
     function init() {
         backend = createTemporaryObject(backendComponent, null);
-        window = createTemporaryObject(appComponent, null, {backend: backend});
+        window = createTemporaryObject(appComponent, null, {backend: backend, width: 1100, height: 820});
         verify(window !== null);
         window.requestActivate();
         waitForRendering(window.contentItem);
@@ -38,14 +38,21 @@ TestCase {
     function click(name) {
         const item = control(name);
         mouseClick(item, item.width / 2, item.height / 2);
+        waitForRendering(window.contentItem);
+    }
+    function switchInterface(mode) {
+        click("open-settings");
+        click("settings-tab-interface");
+        click("interface-" + mode);
+        click("settings-back");
     }
     function lastRequest() { return backend.requests[backend.requests.length - 1]; }
     function test_initialLayoutAndRealProgram() {
         compare(control("workspace").width, 1100);
-        compare(control("manualPanel").width, 296);
+        compare(control("manualPanel").width, 304);
         compare(control("programSeparator").height, 7);
         compare(control("mdiTab").text, "手动输入 [F5]");
-        compare(window.title, "test.ngc — BetterLinuxCNC");
+        compare(window.title, "test.ngc");
         verify(!control("dialogHost").visible);
         compare(control("feedOverride").value, 100);
     }
@@ -266,10 +273,11 @@ TestCase {
         sash.forceActiveFocus(); keyClick(Qt.Key_Up);
         compare(workspace.programHeight, 194);
         window.width = 760; window.height = 640;
-        tryCompare(control("manualPanel"), "width", 264);
+        tryCompare(control("manualPanel"), "width", 280);
         waitForRendering(window.contentItem);
+        click("open-settings"); click("settings-tab-machine");
         const slider = control("maxVelocity.slider");
-        const scroller = control("manualScroller");
+        const scroller = control("settingsScroller");
         slider.forceActiveFocus(Qt.TabFocusReason);
         tryVerify(() => slider.mapToItem(scroller, 0, 0).y >= 0);
         tryVerify(() => slider.mapToItem(scroller, 0, slider.height).y <= scroller.height);
@@ -293,4 +301,457 @@ TestCase {
         tryCompare(dialog, "visible", true);
         compare(dialog.description, "当前状态不允许执行此指令");
     }
+
+    function test_jogRejectedWithoutPermittedState_data() {
+        return [
+            {tag: "disconnected", state: {connected: false}},
+            {tag: "power-off", state: {powered: false}},
+            {tag: "estop", state: {estop: true}},
+            {tag: "busy", state: {busy: true}},
+            {tag: "auto-mode", state: {mode: "auto"}},
+            {tag: "missing-axis", state: {axes: []}},
+            {tag: "capability-denied", state: {capabilities: {"jog.start": false}}}
+        ];
+    }
+    function test_jogRejectedWithoutPermittedState(data) {
+        backend.update(data.state);
+        const plus = control("jogPlus");
+        tryCompare(plus, "enabled", false);
+        const before = backend.requests.length;
+        mouseClick(plus, plus.width / 2, plus.height / 2);
+        control("workspace").forceActiveFocus();
+        keyPress(Qt.Key_Right);
+        keyRelease(Qt.Key_Right);
+        compare(backend.requests.length, before);
+    }
+
+    function test_reconnectDoesNotReplayHeldJog() {
+        const workspace = control("workspace");
+        workspace.forceActiveFocus();
+        keyPress(Qt.Key_Right);
+        compare(lastRequest().id, "jog.start");
+        const before = backend.requests.length;
+        const stops = backend.stopCount;
+        backend.update({connected: false});
+        tryVerify(() => backend.stopCount > stops);
+        verify(!control("jogPlus").enabled);
+        backend.update({connected: true});
+        tryCompare(control("jogPlus"), "enabled", true);
+        waitForRendering(window.contentItem);
+        compare(backend.requests.length, before);
+        keyRelease(Qt.Key_Right);
+        compare(backend.requests.length, before);
+        keyPress(Qt.Key_Right);
+        compare(backend.requests.length, before + 1);
+        compare(lastRequest().id, "jog.start");
+        keyRelease(Qt.Key_Right);
+    }
+
+    function test_offlineViewControlsRemainLocal() {
+        backend.update({connected: false, powered: false, axes: []});
+        const before = backend.requests.length;
+        const preview = control("toolpathState");
+        const zoom = preview.zoom;
+        click("viewport-zoom-in");
+        verify(preview.zoom > zoom);
+        click("viewport-top");
+        compare(preview.choices.view, "z");
+        click("droTab");
+        compare(preview.previewTab, "dro");
+        click("previewTab");
+        compare(preview.previewTab, "preview");
+        compare(backend.requests.length, before);
+    }
+
+    function test_invalidTouchOffDoesNotSubmit_data() {
+        return [
+            {tag: "empty", text: ""},
+            {tag: "whitespace", text: "   "},
+            {tag: "text", text: "bad"},
+            {tag: "overflow", text: "1e999"}
+        ];
+    }
+    function test_invalidTouchOffDoesNotSubmit(data) {
+        click("workTouchOff");
+        const dialog = control("dialogHost");
+        tryCompare(dialog, "opened", true);
+        verify(waitForRendering(dialog.contentItem));
+        const field = control("touch-value");
+        field.forceActiveFocus();
+        field.selectAll();
+        keyClick(Qt.Key_Backspace);
+        for (let i = 0; i < data.text.length; ++i) keyClick(data.text[i]);
+        compare(field.text, data.text);
+        const before = backend.requests.length;
+        click("dialog-submit");
+        compare(backend.requests.length, before);
+        verify(dialog.visible);
+        const error = control("dialog-validation-error");
+        verify(error.visible);
+        compare(error.text, "请输入有效的数值。");
+        // A validation failure must not prevent correcting and submitting the input.
+        field.forceActiveFocus();
+        field.selectAll();
+        keyClick(Qt.Key_5);
+        click("dialog-submit");
+        compare(backend.requests.length, before + 1);
+        compare(lastRequest().id, "machine.touch-off");
+        compare(lastRequest().payload.value, 5);
+        verify(!dialog.visible);
+    }
+
+    function test_platinumLayout_data() {
+        return [
+            {tag: "wide", w: 1440, h: 900, columns: true},
+            {tag: "desktop", w: 1280, h: 800, columns: true},
+            {tag: "compact", w: 1024, h: 768, columns: false},
+            {tag: "target-screen", w: 1024, h: 600, columns: false},
+            {tag: "minimum", w: 760, h: 640, columns: false}
+        ];
+    }
+    function test_platinumLayout(data) {
+        window.width = data.w; window.height = data.h;
+        waitForRendering(window.contentItem);
+        if (data.w === 1024) compare(control("workspace-chrome").height, 52);
+        const manual = control("manualPanel");
+        const preview = control("toolpathPanel");
+        const program = control("programPanel");
+        verify(manual.x + manual.width < preview.x);
+        compare(control("programSeparator").visible, true);
+        compare(program.x, preview.x);
+        verify(preview.y + preview.height < program.y);
+        if (data.columns) verify(preview.width >= 520);
+        const stop = control("toolbar-program.stop");
+        const viewport = control("toolbar-viewport");
+        control("toolbar-program.step").forceActiveFocus(Qt.TabFocusReason);
+        waitForRendering(window.contentItem);
+        verify(stop.mapToItem(window.contentItem, 0, 0).x >= viewport.mapToItem(window.contentItem, viewport.width, 0).x);
+        verify(stop.visible && stop.enabled);
+        verify(control("machineStatusLabel").visible);
+    }
+    function test_statusReflectsFeedback_data() {
+        return [
+            {tag: "offline", state: {connected: false}, text: "未连接"},
+            {tag: "estop", state: {estop: true}, text: "急停已触发"},
+            {tag: "busy", state: {busy: true}, text: "加工中"},
+            {tag: "paused", state: {busy: true, paused: true}, text: "已暂停"},
+            {tag: "unknown", state: {commandState: "unknown"}, text: "操作异常"}
+        ];
+    }
+    function test_statusReflectsFeedback(data) {
+        backend.update(data.state);
+        compare(control("machineStatusLabel").text, data.text);
+    }
+    function test_switchInterfacesPreservesStateWithoutCommands() {
+        keyClick(Qt.Key_F5);
+        control("mdiCommand").text = "G0 X25";
+        const state = control("toolpathState");
+        state.setChoice("view", "x");
+        state.panBy(45, -20); state.zoomBy(1.5);
+        backend.program.selectedLine = 3;
+        const manual = control("manualState");
+        manual.jogIncrement = 0.1;
+        const before = backend.requests.length;
+        switchInterface("guided");
+        compare(window.interfaceMode, "guided");
+        compare(control("manualPanel").visible, false);
+        click("stage-device");
+        compare(control("mdiCommand").text, "G0 X25");
+        switchInterface("professional");
+        compare(window.interfaceMode, "professional");
+        compare(state.choices.view, "x");
+        compare(state.panX, 45); compare(state.panY, -20); compare(state.zoom, 1.5);
+        compare(backend.program.selectedLine, 3);
+        compare(manual.jogIncrement, 0.1);
+        compare(backend.requests.length, before);
+    }
+    function test_guidedStagesAndHiddenJog() {
+        switchInterface("guided");
+        compare(control("workspaceGuide").visible, true);
+        compare(control("programPanel").visible, true);
+        const before = backend.requests.length;
+        control("workspace").forceActiveFocus();
+        keyClick(Qt.Key_Right);
+        compare(backend.requests.length, before);
+        click("guide-next");
+        compare(window.guidedStage, "preview");
+        compare(control("programPanel").visible, false);
+        compare(control("toolpathPanel").visible, true);
+        click("guide-next");
+        compare(window.guidedStage, "device");
+        compare(control("manualPanel").visible, true);
+        control("workspace").forceActiveFocus();
+        keyPress(Qt.Key_Right);
+        compare(lastRequest().id, "jog.start");
+        const stops = backend.stopCount;
+        click("stage-prepare");
+        verify(backend.stopCount > stops);
+        keyRelease(Qt.Key_Right);
+        const stopped = backend.requests.length;
+        control("workspace").forceActiveFocus();
+        keyClick(Qt.Key_Right);
+        compare(backend.requests.length, stopped);
+        keyClick(Qt.Key_F5);
+        compare(window.guidedStage, "device");
+        compare(control("mdiTab").selected, true);
+    }
+    function test_guidedActionsUseSharedPermissions() {
+        switchInterface("guided");
+        click("stage-preview");
+        waitForRendering(window.contentItem);
+        control("guide-run").forceActiveFocus(Qt.TabFocusReason);
+        click("guide-run");
+        compare(lastRequest().id, "program.run");
+        backend.update({busy: true});
+        verify(!control("guide-run").enabled);
+        click("toolbar-program.pause");
+        compare(lastRequest().id, "program.pause");
+        backend.update({paused: true});
+        compare(control("toolbar-program.pause").text, "继续");
+        click("toolbar-program.pause");
+        compare(lastRequest().id, "program.resume");
+        click("toolbar-program.stop");
+        compare(lastRequest().id, "program.stop");
+        backend.update({connected: false});
+        verify(!control("toolbar-machine.estop").enabled);
+        verify(!control("guide-run").enabled);
+        compare(control("machineStatusLabel").text, "未连接");
+        backend.update({connected: true, busy: false, paused: false, capabilities: {"program.run": false}});
+        verify(!control("guide-run").enabled);
+        verify(!control("toolbar-program.run").enabled);
+    }
+    function test_guidedLayout_data() {
+        const rows = [];
+        for (const width of [760, 1024, 1280, 1440])
+            for (const stage of ["prepare", "preview", "device"])
+                rows.push({tag: width + "-" + stage, w: width, stage: stage});
+        return rows;
+    }
+    function test_guidedLayout(data) {
+        window.width = data.w; window.height = data.w === 1024 ? 600 : 640;
+        switchInterface("guided");
+        click("stage-" + data.stage);
+        waitForRendering(window.contentItem);
+        if (data.w === 1024) compare(control("workspace-chrome").height, 96);
+        const panels = [control("manualPanel"), control("programPanel"), control("toolpathPanel"), control("workspaceGuide")].filter(p => p.visible);
+        for (const item of panels) {
+            const p = item.mapToItem(window.contentItem, 0, 0);
+            verify(p.x >= 0 && p.y >= control("workspace-chrome").height);
+            verify(p.x + item.width <= window.width);
+            verify(p.y + item.height <= window.height - 32);
+            verify(item.width > 0 && item.height > 0);
+            for (const other of panels) {
+                if (other === item) continue;
+                const q = other.mapToItem(window.contentItem, 0, 0);
+                verify(p.x + item.width <= q.x || q.x + other.width <= p.x
+                    || p.y + item.height <= q.y || q.y + other.height <= p.y);
+            }
+        }
+        for (const name of ["toolbar-machine.estop", "toolbar-program.stop", "open-settings", "stage-device"]) {
+            const item = control(name);
+            const p = item.mapToItem(window.contentItem, 0, 0);
+            verify(item.visible && p.x >= 0 && p.x + item.width <= window.width);
+        }
+        if (data.stage !== "device") {
+            const next = control("guide-next");
+            const p = next.mapToItem(window.contentItem, 0, 0);
+            verify(p.y >= control("workspace-chrome").height && p.y + next.height <= window.height - 32);
+            if (data.stage === "preview") {
+                const run = control("guide-run");
+                const q = run.mapToItem(window.contentItem, 0, 0);
+                verify(q.y + run.height <= window.height - 32);
+            }
+        }
+    }
+    function test_cameraFocusConsumesJogKeysAndTouch() {
+        const canvas = control("toolpathCanvas"), state = control("toolpathState");
+        const before = backend.requests.length;
+        mouseClick(canvas, canvas.width / 2, canvas.height / 2);
+        keyClick(Qt.Key_Right); keyClick(Qt.Key_Up); keyClick(Qt.Key_PageUp);
+        compare(backend.requests.length, before);
+        verify(state.panX > 0 && state.panY < 0 && state.zoom > 1);
+        keyClick(Qt.Key_Home);
+        compare(state.panX, 0); compare(state.zoom, 1);
+        keyClick(Qt.Key_End);
+        compare(backend.requests.length, before);
+        let touch = touchEvent(canvas);
+        touch.press(0, canvas, 100, 80).commit(); wait(20);
+        touch.move(0, canvas, 150, 100).commit(); wait(20);
+        touch.move(0, canvas, 190, 120).commit(); wait(20);
+        touch.release(0, canvas, 190, 120).commit(); wait(20);
+        compare(backend.requests.length, before);
+    }
+    function test_viewToolbarFocusDoesNotOperateMachine() {
+        click("viewport-zoom-in");
+        const before = backend.requests.length;
+        keyClick(Qt.Key_Right); keyClick(Qt.Key_PageUp);
+        keyClick(Qt.Key_Home); keyClick(Qt.Key_End);
+        compare(backend.requests.length, before);
+        verify(!control("dialogHost").visible);
+    }
+    function test_touchJogPendingHoldCanceledByFocusLoss() {
+        const plus = control("jogPlus"), before = backend.requests.length;
+        let touch = touchEvent(plus);
+        touch.press(0, plus, 20, 20).commit(); wait(20);
+        control("toolpathCanvas").forceActiveFocus();
+        wait(350);
+        compare(backend.requests.length, before);
+        touch.release(0, plus, 20, 20).commit(); wait(20);
+    }
+    function test_touchJogTapAndSwipeDoNotStartMotion() {
+        const plus = control("jogPlus"), before = backend.requests.length;
+        verify(plus.width >= 44 && plus.height >= 44);
+        let touch = touchEvent(plus);
+        touch.press(0, plus, 20, 20).commit(); wait(20);
+        touch.release(0, plus, 20, 20).commit(); wait(20);
+        compare(backend.requests.length, before);
+        touch.press(0, plus, 20, 20).commit(); wait(20);
+        touch.move(0, plus, 20, -45).commit(); wait(20);
+        wait(350);
+        touch.release(0, plus, 20, -45).commit(); wait(20);
+        compare(backend.requests.length, before);
+    }
+    function test_touchJogHoldReleaseAndDragCancel() {
+        const plus = control("jogPlus"), before = backend.requests.length;
+        let touch = touchEvent(plus);
+        touch.press(0, plus, 20, 20).commit(); wait(20);
+        compare(backend.requests.length, before);
+        wait(350);
+        compare(backend.requests.length, before + 1);
+        compare(lastRequest().id, "jog.start");
+        const stops = backend.stopCount;
+        touch.release(0, plus, 20, 20).commit(); wait(20);
+        verify(backend.stopCount > stops);
+        touch.press(0, plus, 20, 20).commit(); wait(20);
+        wait(350);
+        compare(backend.requests.length, before + 2);
+        const stops2 = backend.stopCount;
+        touch.move(0, plus, 20, -45).commit(); wait(20);
+        verify(backend.stopCount > stops2);
+        touch.move(0, plus, 20, 20).commit(); wait(20);
+        wait(350);
+        compare(backend.requests.length, before + 2, "Canceled touch must not restart on reentry");
+        touch.release(0, plus, 20, 20).commit(); wait(20);
+    }
+
+    function test_settingsFillSmallScreenAndRestoreWorkspace() {
+        window.width = 1024; window.height = 600;
+        const view = control("toolpathState"), manual = control("manualState");
+        view.panBy(40, 25); view.zoomBy(1.5); manual.jogIncrement = 0.1;
+        backend.program.selectedLine = 3;
+        const before = backend.requests.length;
+        click("open-settings");
+        const page = control("settingsPage");
+        tryCompare(page, "width", 1024); tryCompare(page, "height", 600);
+        const origin = page.mapToItem(window.contentItem, 0, 0);
+        compare(origin.x, 0); compare(origin.y, 0);
+        verify(!control("workspace-chrome").visible);
+        verify(!control("manualPanel").visible);
+        verify(!control("toolpathPanel").visible);
+        for (const name of ["settings-back", "settings-estop", "settings-stop", "settings-tab-machine"]) {
+            const item = control(name), p = item.mapToItem(page, 0, 0);
+            verify(item.visible && item.height >= 44);
+            verify(p.x >= 0 && p.x + item.width <= 1024 && p.y + item.height <= 600);
+        }
+        click("settings-back");
+        verify(!page.visible);
+        verify(control("toolpathPanel").visible);
+        verify(control("open-settings").activeFocus);
+        compare(view.panX, 40); compare(view.panY, 25); compare(view.zoom, 1.5);
+        compare(manual.jogIncrement, 0.1); compare(backend.program.selectedLine, 3);
+        compare(backend.requests.length, before);
+    }
+    function test_settingsStopsJogAndBlocksMachineShortcuts() {
+        control("workspace").forceActiveFocus();
+        keyPress(Qt.Key_Right);
+        compare(lastRequest().id, "jog.start");
+        const stops = backend.stopCount;
+        click("open-settings"); keyRelease(Qt.Key_Right);
+        verify(backend.stopCount > stops);
+        const before = backend.requests.length;
+        for (const key of [Qt.Key_Left, Qt.Key_Right, Qt.Key_Home, Qt.Key_End, Qt.Key_R, Qt.Key_F2, Qt.Key_F3, Qt.Key_F5]) keyClick(key);
+        compare(backend.requests.length, before);
+        verify(control("settingsPage").visible);
+        verify(!control("dialogHost").visible);
+        keyClick(Qt.Key_Escape);
+        compare(lastRequest().id, "program.stop");
+        keyClick(Qt.Key_F1);
+        compare(lastRequest().id, "machine.estop");
+        click("settings-stop"); compare(lastRequest().id, "program.stop");
+        click("settings-estop"); compare(lastRequest().id, "machine.estop");
+    }
+    function test_settingsDisplayAndScrollStayLocalOffline() {
+        window.width = 1024; window.height = 600;
+        backend.update({connected: false, message: ""});
+        const before = backend.requests.length, state = control("toolpathState");
+        click("open-settings"); click("settings-tab-interface");
+        const units = control("settings-units");
+        units.forceActiveFocus(); keyClick(Qt.Key_Home); keyClick(Qt.Key_Return);
+        compare(state.choices.units, "inch");
+        const scroll = control("settingsScroller"), flags = JSON.stringify(state.flags);
+        scroll.contentY = 0;
+        waitForRendering(window.contentItem);
+        let touch = touchEvent(scroll);
+        touch.press(0, scroll, scroll.width - 40, 360).commit(); wait(20);
+        touch.move(0, scroll, scroll.width - 40, 280).commit(); wait(20);
+        touch.move(0, scroll, scroll.width - 40, 120).commit(); wait(20);
+        touch.release(0, scroll, scroll.width - 40, 120).commit(); wait(20);
+        tryVerify(() => scroll.contentY > 40);
+        compare(JSON.stringify(state.flags), flags, "Scrolling must not toggle display settings");
+        tryCompare(scroll, "moving", false);
+        const flag = control("settings-show.large");
+        flag.forceActiveFocus(Qt.TabFocusReason);
+        const scroller = control("settingsScroller");
+        tryVerify(() => flag.mapToItem(scroller, 0, 0).y >= 0 && flag.mapToItem(scroller, 0, flag.height).y <= scroller.height);
+        click("settings-show.large"); compare(state.flags["show.large"], true);
+        click("settings-tab-display");
+        const clear = control("settings-clear-live"), revision = state.liveResetRevision;
+        clear.forceActiveFocus(Qt.TabFocusReason); click("settings-clear-live");
+        compare(state.liveResetRevision, revision + 1);
+        compare(backend.requests.length, before);
+        click("settings-tab-machine");
+        verify(!control("maxVelocity").enabled);
+        verify(!control("settings-program.optional").enabled);
+    }
+
+    function test_settingsSidebarCategories_data() {
+        return [{tag: "compact", width: 760, height: 640},
+                {tag: "target", width: 1024, height: 600},
+                {tag: "large", width: 1440, height: 900}];
+    }
+    function test_settingsSidebarCategories(data) {
+        window.width = data.width; window.height = data.height;
+        click("open-settings");
+        const page = control("settingsPage"), sidebar = control("settingsSidebar");
+        const names = ["about", "interface", "display", "machine"];
+        const labels = ["关于本机", "界面与显示", "刀路与视图", "加工选型"];
+        for (let i = 0; i < names.length; ++i) {
+            const item = control("settings-tab-" + names[i]);
+            compare(item.text, labels[i]);
+            const point = item.mapToItem(sidebar, 0, 0);
+            verify(point.x >= 0 && point.x + item.width <= sidebar.width);
+            verify(point.y >= 0 && point.y + item.height <= sidebar.height);
+            item.forceActiveFocus(Qt.TabFocusReason);
+            keyClick(Qt.Key_Space);
+            compare(control("settingsSectionTitle").text, labels[i]);
+            const heading = control("settingsSectionTitle").mapToItem(page, 0, 0);
+            verify(heading.x > sidebar.width);
+        }
+        click("settings-tab-about");
+        verify(control("settings-about-机床状态").visible);
+        compare(control("settings-about-配置轴").text, backend.snapshot.axes.join(" · "));
+        control("settings-tab-about").forceActiveFocus(Qt.TabFocusReason);
+        keyClick(Qt.Key_Down);
+        verify(control("interface-guided").visible);
+        verify(control("settings-units").visible);
+        verify(!control("settings-grid").visible);
+        keyClick(Qt.Key_Down);
+        verify(control("settings-grid").visible);
+        verify(!control("settings-units").visible);
+        verify(control("settings-show.program").visible);
+        keyClick(Qt.Key_Down);
+        verify(control("settings-program.optional").visible);
+        verify(control("maxVelocity").visible);
+    }
+
 }

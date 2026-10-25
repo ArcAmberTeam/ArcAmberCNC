@@ -1,6 +1,6 @@
 # C 驱动模块边界
 
-遵循根目录 `AGENT.md` 和 `$code-boundary-standards`。
+遵循根目录 `AGENT.md`。
 
 本目录拥有原 `src/hal/drivers/` 的设备驱动及其生成器、固件资源、说明文件；`user/` 拥有已迁移的 Modbus、变频器和 Shuttle C 用户态驱动。按完整设备能力保留现有源码和资源，不能仅按扩展名拆分。
 

@@ -90,16 +90,16 @@ fn query(manager: &Manager, unit: &str) -> Result<UnitState> {
         .lines()
         .filter_map(|line| line.split_once('='))
         .collect();
-    let load = fields
-        .get("LoadState")
-        .copied()
-        .ok_or_else(|| {
-            let detail: String = String::from_utf8_lossy(&output.stderr)
-                .chars()
-                .take(512)
-                .collect();
-            format!("无法查询用户服务，systemd 未返回加载状态：{}", detail.trim())
-        })?;
+    let load = fields.get("LoadState").copied().ok_or_else(|| {
+        let detail: String = String::from_utf8_lossy(&output.stderr)
+            .chars()
+            .take(512)
+            .collect();
+        format!(
+            "无法查询用户服务，systemd 未返回加载状态：{}",
+            detail.trim()
+        )
+    })?;
     let active = fields
         .get("ActiveState")
         .copied()

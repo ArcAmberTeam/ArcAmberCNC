@@ -2,14 +2,14 @@
 
 “设置 → 关于本机”的“更新固件”检查 `ArcAmberTeam/ArcAmberCNC` 最新正式 GitHub Release，下载并校验当前 Debian 架构的应用包。这里更新 GUI、控制服务、CAM、启动器、更新器与专用机维护工具；不刷写控制卡或电机固件，不覆盖源码工作区；LinuxCNC 原生核心仍由 `linuxcnc-uspace` 独立系统包管理。
 
-## 26.10.26.1 发布约定
+## 26.10.26.5 发布约定
 
 | 项目 | 当前约定 |
 | --- | --- |
-| Release 名称 | `demo v26.10.26.1` |
-| Tag | `v26.10.26.1` |
-| Debian Package / Version | `betterlinuxcnc-qt` / `26.10.26.1` |
-| amd64 安装包 | `betterlinuxcnc-qt_26.10.26.1_amd64.deb` |
+| Release 名称 | `demo v26.10.26.5` |
+| Tag | `v26.10.26.5` |
+| Debian Package / Version | `betterlinuxcnc-qt` / `26.10.26.5` |
+| amd64 安装包 | `betterlinuxcnc-qt_26.10.26.5_amd64.deb` |
 | 校验资产 | `SHA256SUMS`，每个文件名只出现一次 |
 | 配对资产 | 同 tag 的 CNC-Mesa `mesa-release.json` 与本仓库的 `CNC_MESA_PAIR.json` |
 | Release 类型 | 正式、非 draft、非 prerelease，并设为 latest |
@@ -18,7 +18,7 @@
 
 根 CMake、desktop Python 包与公开 `bettercnc.__version__` 使用同一个应用版本。根 `VERSION` 的 `2.9.10` 是 LinuxCNC 核心版本；Rust crate 内部版本也不能用于判断应用是否需要更新。
 
-`ArcAmberTeam/CNC-Mesa` 同版 Release 提供源码与集成资料。清单固定 `schema_version=1`、`board=zhulong-v2`、`variant=PIN_ZHULONG_V2_34`，`version` 与 `compatible_app_version` 均为 `26.10.26.1`，`source_commit` 必须等于 tag 指向且位于该仓库 `main` 的提交。其他描述性 metadata 可以扩展；应用、板型、来源与验证声明必须符合发布契约。
+`ArcAmberTeam/CNC-Mesa` 同版 Release 提供源码与集成资料。清单固定 `schema_version=1`、`board=zhulong-v2`、`variant=PIN_ZHULONG_V2_34`，`version` 与 `compatible_app_version` 均为 `26.10.26.5`，`source_commit` 必须等于 tag 指向且位于该仓库 `main` 的提交。其他描述性 metadata 可以扩展；应用、板型、来源与验证声明必须符合发布契约。
 
 本版 `firmware.available=false`，`asset`、`sha256`、`size` 均为 null，`origin=unavailable`；`firmware.verification` 内的 `implementation`、`timing`、`board_approved` 和顶层 `physical_constraints_verified` 均为 false。没有新 ISE 位流不阻止应用发布，但不允许烧录。原厂 bit 即使包含在参考源码归档中，也不能当作更新载荷。
 
@@ -77,7 +77,7 @@ GUI 退出不会终止系统更新服务；重新打开后读取系统公开状�
 3. 成功后上传 `betterlinuxcnc-deb-<SHA>` artifact，内含真实 `.deb`、`SHA256SUMS` 和 `SOURCE_COMMIT`；`CI Gate` 同时要求模块测试和包验收通过。
 4. Release workflow 在 main CI 完成或已合并 PR 加标签时检查资格，只读取同一 merge SHA 的成功 main push CI 和唯一 artifact。仅发布 job 拥有仓库内容写权限，不检出或执行 PR 源码。
 5. 发布 job 再核对源码 SHA、包名、四段版本、amd64 架构、SHA-256 和 tag 指向，并只读检查 CNC-Mesa 同 tag 的正式 Release：清单摘要、来源提交及源码/集成归档的摘要和大小均须一致。创建 draft 前与正式发布前各检查一次；配对缺失或检查期间变化时不正式发布。
-6. 成功后上传 `.deb`、`SHA256SUMS`、配对清单原字节 `mesa-release.json` 和包含两仓来源提交、Release/asset ID、清单摘要的 `CNC_MESA_PAIR.json`，发布 `demo v26.10.26.1` 为正式 latest。GitHub 自动附带的源码 zip/tar 不是安装包。
+6. 成功后上传 `.deb`、`SHA256SUMS`、配对清单原字节 `mesa-release.json` 和包含两仓来源提交、Release/asset ID、清单摘要的 `CNC_MESA_PAIR.json`，发布 `demo v26.10.26.5` 为正式 latest。GitHub 自动附带的源码 zip/tar 不是安装包。
 
 CNC-Mesa 先发布，应用后发布；跨仓库仅公开读取，不需要 PAT 或跨仓库写权限。若应用流水线先完成，可在配对 Release 就绪后重跑失败发布 job，或从 `main` 手动运行 Release workflow 并提供原已合并 PR 编号。重试仍检查标签授权、同一 merge SHA、成功 CI 和原 artifact；既有资产必须摘要一致，不替换已发布文件，也不让迟到的旧版本降低 latest 版本。
 
@@ -88,3 +88,13 @@ CNC-Mesa 先发布，应用后发布；跨仓库仅公开读取，不需要 PAT 
 启动器暂存安装回归继续核对版本、真实二进制、配置保留、systemd 单元与 `.deb` 布局；独立 appliance job 覆盖迁移预演和维护命令限制，Rust updater job 覆盖真实 Debian 归档及固定 postinst 正负路径。发布前必须通过同一提交的完整 `CI Gate`。流水线只发布安装资产，不连接或部署目标机。
 
 目标机安装、账户迁移、专用会话和连接验收按 [本机连接说明](linuxcnc-local-connection.md) 执行。包验证和只读状态检查不等于真实更新、图形会话或机床运动验收，必须分别记录实测结果。
+
+## v5 fixed machine migration and update repair
+
+The package accepts only the captured, hash-matched installed v1 or v4 Zhulong profiles for the operator-authorized v5 migration. It requires the stack stopped, verifies the installed HOMEMOD ABI and provenance, then atomically exchanges the complete machine configuration. Unknown edits are rejected. Existing v4 motor mapping is retained, not swapped again. Work offsets, tool data and programs are preserved.
+
+HOME remains zero, HOME_OFFSET remains -5 mm and MIN_LIMIT becomes -0.1 mm for XYZ. This prevents the observed -7.62939436e-8 mm numerical residue at HOME from triggering the negative soft limit, while keeping that limit 4.9 mm inside the home switch. MAX_LIMIT stays 410/265/80 mm. XYZ runs concurrently with search speeds 15/15/5 mm/s, independent first retreat 2 mm/s, latch 1 mm/s and final retreat 5/5/2 mm/s. The first test is explicitly restricted to a clear empty machine without a tool. Simulation does not establish physical collision clearance or braking performance.
+
+The v4 fixed update unit retains CAP_SETUID/CAP_SETGID for its runuser transition under NoNewPrivileges. CI verifies this with actual systemd rather than a command stub. v5 also normalizes the package documentation root to root:root 0755, covering the legacy 0775 mode that previously caused secure package preflight to reject the destination. No general sudo grant is added.
+
+The dedicated X11 session disables idle screensaver blanking and DPMS through the installed xset command. Regular desktop sessions are unaffected. This prevents idle display power-down; it is not evidence that GPU suspend/resume has been validated.

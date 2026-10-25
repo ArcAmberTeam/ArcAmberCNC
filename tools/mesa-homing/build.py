@@ -112,29 +112,27 @@ def build(root, output, integration_tests):
         staged_vendor = native / "vendor/cnc-mesa"
         run("/usr/bin/python3", staged_vendor / "homing/prepare.py")
         module_work = staged_vendor / ".build/homing"
-        commissioned_harness = prepare_profile(module_work, staged_vendor, work)
+        prepare_profile(module_work, staged_vendor)
         run(native / "bin/halcompile", "--compile", "zhulong_homing.comp", cwd=module_work)
         module = module_work / "zhulong_homing.so"
         verify_module(module)
         harness = work / "test_homing"
-        run(
-            "cc", "-std=gnu11", "-DULAPI", "-DEXPORT_SYMBOL(x)=", "-Wall", "-Wextra",
-            f"-I{headers}", f"-I{staged_vendor / 'homing/upstream'}",
-            staged_vendor / "tests/homing/test_homing.c", module_work / "homing.c",
-            staged_vendor / "homing/upstream/simple_tp.c", "-lm", "-o", harness,
-        )
-        for axis in range(3):
-            for scenario in SCENARIOS:
-                subprocess.run([str(harness), scenario, str(axis)], check=True, timeout=15)
-        run(
-            "cc", "-std=gnu11", "-DULAPI", "-DEXPORT_SYMBOL(x)=", "-Wall", "-Wextra",
-            f"-I{headers}", f"-I{staged_vendor / 'homing/upstream'}",
-            commissioned_harness, module_work / "homing.c",
-            staged_vendor / "homing/upstream/simple_tp.c", "-lm", "-o", harness,
-        )
-        for axis in range(3):
-            for scenario in SCENARIOS:
-                subprocess.run([str(harness), scenario, str(axis)], check=True, timeout=15)
+        for name in ("test_homing", "test_parallel"):
+            run(
+                "cc", "-std=gnu11", "-DULAPI", "-DEXPORT_SYMBOL(x)=", "-Wall", "-Wextra",
+                f"-I{headers}", f"-I{staged_vendor / 'homing/upstream'}",
+                staged_vendor / f"tests/homing/{name}.c", module_work / "homing.c",
+                staged_vendor / "homing/upstream/simple_tp.c", "-lm", "-o", harness,
+            )
+            scenarios = SCENARIOS if name == "test_homing" else (
+                "normal", "initially-active", "missing", "stuck", "final-stuck", "cancel",
+                "cancel-retreat", "limit", "invalid-backoff",
+            )
+            profiles = ((), ("negative-xyz",)) if name == "test_homing" else ((),)
+            for profile in profiles:
+                for axis in range(3):
+                    for scenario in scenarios:
+                        subprocess.run([str(harness), scenario, str(axis), *profile], check=True, timeout=15)
         if integration_tests:
             run("/usr/bin/python3", "-m", "unittest", "discover", "-s", "tests", "-p", "test_linuxcnc_config.py", "-v", cwd=staged_vendor)
             run("/usr/bin/python3", staged_vendor / "tools/test_hdl.py", cwd=staged_vendor)
@@ -149,12 +147,12 @@ def build(root, output, integration_tests):
             "public_api": list(PUBLIC_API),
             "commissioning_profile": REVISION,
             "profile_adapter_sha256": digest(root / "tools/mesa-homing/commissioned_profile.py"),
-            "validation": {"public_api_scenarios": 54, "hardware_verified": False},
+            "validation": {"public_api_scenarios": 81, "hardware_verified": False},
         }
         output.mkdir(parents=True, exist_ok=True)
         shutil.copy2(module, output / module.name)
         (output / "provenance.json").write_text(json.dumps(provenance, indent=2) + "\n")
-    print("PASS pinned HOMEMOD build, ELF exports and 54 public API scenarios; no hardware started")
+    print("PASS pinned HOMEMOD build, ELF exports and 81 public API scenarios; no hardware started")
 
 
 if __name__ == "__main__":

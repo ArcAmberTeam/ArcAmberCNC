@@ -11,6 +11,7 @@
 
 /* A HAL allocation seam; tests use the public pins and HOMEMOD API. */
 static hal_bit_t *home_inputs[EMCMOT_MAX_JOINTS];
+static hal_float_t *backoff_inputs[EMCMOT_MAX_JOINTS];
 static hal_s32_t *home_states[EMCMOT_MAX_JOINTS];
 void *hal_malloc(long size) { return calloc(1, size); }
 int hal_pin_bit_newf(hal_pin_dir_t dir, hal_bit_t **ptr, int id, const char *fmt, ...) {
@@ -27,16 +28,23 @@ int hal_pin_s32_newf(hal_pin_dir_t dir, hal_s32_t **ptr, int id, const char *fmt
     home_states[joint] = *ptr;
     return 0;
 }
+int hal_pin_float_newf(hal_pin_dir_t dir, hal_float_t **ptr, int id, const char *fmt, ...) {
+    (void)dir; (void)id;
+    *ptr = calloc(1, sizeof(**ptr));
+    va_list ap; va_start(ap, fmt); int joint = va_arg(ap, int); va_end(ap);
+    if (strstr(fmt, "home-backoff-vel")) backoff_inputs[joint] = *ptr;
+    return 0;
+}
 void rtapi_print_msg(msg_level_t level, const char *fmt, ...) {
     (void)level;
     va_list ap; va_start(ap, fmt); vfprintf(stderr, fmt, ap); va_end(ap);
 }
 
 int main(int argc, char **argv) {
-    assert(argc == 3);
+    assert(argc == 3 || argc == 4);
     const char *mode = argv[1];
     const int axis = atoi(argv[2]);
-    const double direction = axis == 1 ? 1 : -1;
+    const double direction = argc == 4 ? -1 : (axis == 1 ? 1 : -1);
     const double retreat = 5;
     const double dt = 0.001;
     emcmot_joint_t plant[3] = {0};
@@ -63,7 +71,7 @@ int main(int argc, char **argv) {
         if (sw && !previous_switch) touches++;
         previous_switch = sw;
         *home_inputs[axis] = sw;
-        if (axis == 1) j->on_pos_limit = sw;
+        if (direction > 0) j->on_pos_limit = sw;
         else j->on_neg_limit = sw;
         read_homing_in_pins(3);
         if ((!strcmp(mode, "cancel") && ticks == 1000)
@@ -72,7 +80,7 @@ int main(int argc, char **argv) {
             cancelled = 1;
         }
         if (!strcmp(mode, "limit") && ticks == 1000) {
-            if (axis == 1) j->on_neg_limit = 1;
+            if (direction > 0) j->on_neg_limit = 1;
             else j->on_pos_limit = 1;
         }
         do_homing();

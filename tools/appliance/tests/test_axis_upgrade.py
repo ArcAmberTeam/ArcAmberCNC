@@ -34,7 +34,7 @@ def account(name):
 def run(args, **kwargs):
     assert args[:3] == ['/usr/bin/dpkg-query', '-W', '-f=${Version}']
     assert args[3] in ('linuxcnc-uspace', 'linuxcnc-uspace-dev', 'betterlinuxcnc-qt')
-    return SimpleNamespace(stdout='26.10.26.4' if args[3] == 'betterlinuxcnc-qt' else '2.9.10')
+    return SimpleNamespace(stdout='26.10.26.5' if args[3] == 'betterlinuxcnc-qt' else '2.9.10')
 def sync(fd):
     if fault == 'write':
         raise OSError('Injected storage failure before atomic publication')
@@ -50,9 +50,9 @@ def fixture_bytes(name):
     return "".join(json.loads(FIXTURE.read_text())[name]).encode()
 
 
-def write_fixture(target):
+def write_fixture(target, fixture=FIXTURE):
     target.mkdir(parents=True)
-    for name, lines in json.loads(FIXTURE.read_text()).items():
+    for name, lines in json.loads(fixture.read_text()).items():
         (target / name).write_text("".join(lines))
 
 
@@ -94,7 +94,7 @@ class AxisUpgradeTests(unittest.TestCase):
         metadata = {
             "schema_version": 1,
             "module": "zhulong_homing.so",
-            "application_version": "26.10.26.4",
+            "application_version": "26.10.26.5",
             "architecture": "amd64",
             "sha256": hashlib.sha256(module).hexdigest(),
             "linuxcnc": {
@@ -104,7 +104,7 @@ class AxisUpgradeTests(unittest.TestCase):
                 "headers": headers,
             },
             "vendor": {"commit": source["commit"]},
-            "commissioning_profile": "zhulong-xyz-20261026",
+            "commissioning_profile": "zhulong-xyz-v5-20261026",
         }
         self.metadata = self.root / "usr/share/betterlinuxcnc/homing/provenance.json"
         self.metadata.parent.mkdir(parents=True)
@@ -165,11 +165,24 @@ class AxisUpgradeTests(unittest.TestCase):
                 f"net {name}-home-sw debounce.0.{joint}.out => joint.{joint}.neg-lim-sw-in",
                 hal,
             )
-            self.assertEqual(ini.getfloat(f"JOINT_{joint}", "HOME_SEARCH_VEL"), -2)
-            self.assertEqual(ini.getfloat(f"JOINT_{joint}", "HOME_LATCH_VEL"), -0.5)
+            self.assertEqual(
+                ini.getfloat(f"JOINT_{joint}", "HOME_SEARCH_VEL"),
+                -5 if axis == "Z" else -15,
+            )
+            self.assertEqual(ini.getfloat(f"JOINT_{joint}", "HOME_BACKOFF_VEL"), 2)
+            self.assertEqual(ini.getfloat(f"JOINT_{joint}", "HOME_SEQUENCE"), 1)
+            self.assertEqual(
+                ini.getfloat(f"JOINT_{joint}", "HOME_FINAL_VEL"),
+                2 if axis == "Z" else 5,
+            )
+            self.assertEqual(ini.getfloat(f"JOINT_{joint}", "HOME_LATCH_VEL"), -1)
             self.assertEqual(ini.getfloat(f"JOINT_{joint}", "HOME_OFFSET"), -5)
+            self.assertIn(
+                f"setp joint.{joint}.home-backoff-vel [JOINT_{joint}]HOME_BACKOFF_VEL",
+                hal,
+            )
             self.assertEqual(ini.getfloat(f"AXIS_{axis}", "MAX_LIMIT"), travel - 10)
-            self.assertEqual(ini.getfloat(f"AXIS_{axis}", "MIN_LIMIT"), 0)
+            self.assertEqual(ini.getfloat(f"AXIS_{axis}", "MIN_LIMIT"), -0.1)
         self.assertEqual(
             [ini.getfloat(f"JOINT_{j}", "STEP_SCALE") for j in range(3)],
             [200, 200, -200],
@@ -184,8 +197,14 @@ class AxisUpgradeTests(unittest.TestCase):
             ini["EMCIO"]["TOOL_TABLE"], "/var/lib/betterlinuxcnc/machine/tool.tbl"
         )
         manifest = json.loads((self.machine / "betterlinuxcnc-homing.json").read_text())
-        self.assertEqual(manifest["motionAcceptance"], "pending-after-update")
+        self.assertEqual(
+            manifest["motionAcceptance"], "pending-empty-table-parallel-test"
+        )
         self.assertEqual(manifest["stepgenByAxis"], {"X": 1, "Y": 0, "Z": 2})
+        self.assertEqual(
+            manifest["sourceCommit"],
+            json.loads(self.metadata.read_text())["vendor"]["commit"],
+        )
         for name in (
             "custom.hal",
             "custom_postgui.hal",
@@ -199,6 +218,21 @@ class AxisUpgradeTests(unittest.TestCase):
         self.assertIn("already-current", again.stdout)
         self.assertEqual(self.contents(), current)
         self.assertEqual(list(self.config.glob(".axis-upgrade-*")), [])
+
+    def test_v4_upgrade_keeps_confirmed_axis_mapping_and_origin(self):
+        shutil.rmtree(self.machine)
+        write_fixture(self.machine, FIXTURE.with_name("zhulong-installed-v4.json"))
+        # The same public assertions must hold for both v1 and v4 inputs;
+        # in particular a v4 upgrade must not swap the motors a second time.
+        self.test_migrates_command_feedback_enable_scale_and_home_switches_together()
+        ini = configparser.ConfigParser(strict=False, interpolation=None)
+        ini.read(self.machine / "烛龙V2.ini")
+        for joint, axis in enumerate("XYZ"):
+            self.assertEqual(ini.getfloat(f"JOINT_{joint}", "HOME"), 0)
+            minimum = ini.getfloat(f"JOINT_{joint}", "MIN_LIMIT")
+            self.assertLess(minimum, -7.629394360719743e-08)
+            self.assertGreater(minimum, ini.getfloat(f"JOINT_{joint}", "HOME_OFFSET"))
+            self.assertEqual(ini.getfloat(f"AXIS_{axis}", "MIN_LIMIT"), minimum)
 
     def test_refuses_live_core_unknown_files_and_modified_source_without_partial_changes(
         self,

@@ -25,3 +25,15 @@ CI 将模块放进 release DEB，目标机只安装 DEB，不现场编译或手�
 生成独立参考配置的接口：`python3 linuxcnc/prepare.py --settings /path/to/verified-homing.json --output /path/to/empty-directory`。默认设置故意不能生成可启用的回零配置。生成器只在输入验证与实测行程完整时写文件，拒绝覆盖非空输出目录；生成结果沿用供应商的运动参数，不能用来覆盖已经调好的机床配置。接入方按交接文档选择性合并回零字段。HOME ALL 顺序为 X、Y、Z；A/B/C 未指定回零方法，排除在 HOME ALL 外。
 
 验证通过公共 HOMEMOD 接口执行，使用 LinuxCNC 单轴轨迹规划器模拟运动，检查状态、距离、故障和取消。软件测试不代表实体机已完成回零验收。
+
+## v26.10.26.5 signed and parallel profile
+
+The HOMEMOD now derives the search direction and opposite-limit selection from the sign of HOME_OFFSET. The original generator remains a conservative commissioning reference; it must not overwrite an installed, tuned machine profile. The application owns the exact reviewed v1/v4 migration.
+
+The operator confirmed stepgen.01=X (positive forward), stepgen.00=Y (positive right), and stepgen.02=Z with negative STEP_SCALE (positive up). The installed v5 profile homes all axes in the negative direction: X back, Y left, Z down, with independent GPIO020/021/022 inputs. Travel is 420/275/90 mm. HOME stays 0 and HOME_OFFSET stays -5; minimum soft limits become -0.1 mm, giving feedback quantization margin while staying 4.9 mm inside the switch. Maximum limits remain 410/265/80 mm.
+
+Public HAL input `joint.N.home-backoff-vel` is a positive speed in machine units/second, default 2. It is sampled and validated at HOME_START, then remains fixed for that attempt. XYZ accepts values greater than zero and at most 2; invalid/non-finite values abort the entire request. It controls both initial switch clearance and the full first retreat, independently of HOME_SEARCH_VEL. The standard C HOMEMOD API remains unchanged.
+
+The v5 application sets XYZ HOME_SEQUENCE=1 for concurrent independent homing. Search is X/Y -15 and Z -5 mm/s; first backoff is +2; latch is -1; final retreat to HOME is X/Y 5 and Z 2 mm/s. Failure or cancellation clears homed state and disables every planner in the current request, including peers that already finished. Other requests and unrelated previously homed joints are not touched.
+
+The public API harness covers both signed reference profiles (54 scenarios) and parallel operation (27 scenarios). The parallel harness uses the LinuxCNC planner at 750 mm/s², 1 ms steps and five complete periods of input delay. It measures peak penetration and checks a 0.5 mm software budget within the operator-reported minimum 1 mm switch overrun. These results do not verify real motor deceleration, step loss, latency or collision clearance. The first physical parallel test requires no tool, an empty table, and a verified collision-free full XYZ envelope including downward Z. Machine acceptance remains pending; CI never starts hardware.

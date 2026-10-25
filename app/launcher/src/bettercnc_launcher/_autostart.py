@@ -95,6 +95,15 @@ def start_session(*, kiosk=False):
     return 0
 
 
+def _keep_display_visible():
+    """Disable X11 idle blanking only for the dedicated operator session."""
+    command = shutil.which("xset")
+    if command is None:
+        raise ValueError("专用会话缺少 xset，无法关闭自动黑屏")
+    for arguments in (("s", "off"), ("s", "noblank"), ("-dpms",)):
+        subprocess.run([command, *arguments], check=True, timeout=5)
+
+
 def run_kiosk_session():
     """Own the X11 session lifetime independently of the supervised machine stack."""
     if os.getuid() == 0:
@@ -114,6 +123,10 @@ def run_kiosk_session():
     }
     status_page = None
     try:
+        try:
+            _keep_display_visible()
+        except (subprocess.SubprocessError, OSError, ValueError) as error:
+            print(f"无法关闭显示器自动节能：{error}", flush=True)
         try:
             status_page = _start_status_page(lambda: stopping)
         except (subprocess.SubprocessError, OSError, ValueError, RuntimeError) as error:

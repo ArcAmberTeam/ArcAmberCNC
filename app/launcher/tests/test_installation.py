@@ -153,6 +153,7 @@ class InstallationTests(unittest.TestCase):
                 "dbus-user-session",
                 "lightdm",
                 "xserver-xorg",
+                "x11-xserver-utils",
                 "openssh-server",
                 "sudo",
                 "passwd",

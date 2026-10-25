@@ -11,9 +11,9 @@ interface is `betterlinuxcnc-appliance`. The package's fixed, byte-validated
   /var/lib/betterlinuxcnc and application code in the package-managed /usr paths.
 - `provision` is idempotent: create or validate dedicated identities and fixed
   directory ownership without changing passwords. The operator-authorized fixed
-  v1 XYZ correction is the only automatic machine configuration migration.
+  v1/v4 XYZ correction is the only automatic machine configuration migration.
   Restore the package-owned /usr/lib/betterlinuxcnc and /usr/share/betterlinuxcnc
-  directory roots to root:root 0755; dpkg retains legacy directory modes on upgrades.
+  and /usr/share/doc/betterlinuxcnc-qt directory roots to root:root 0755; dpkg retains legacy directory modes on upgrades.
   Reject unexpected existing accounts, groups and symlinked directory parents.
   Keep data/cache parents root-owned; users own only their designated children.
   Reload systemd unit definitions when systemd is present, without starting services.

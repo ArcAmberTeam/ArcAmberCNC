@@ -271,8 +271,8 @@ def verify_installed_homing(source, version):
     require(len(api) == 20 and set(metadata["public_api"]) == api, "HOMEMOD public API contract changed")
     symbols = {line.split()[-1] for line in run("nm", "-D", "--defined-only", str(module)).stdout.splitlines() if line.split()}
     require(api <= symbols, "Installed homing module omitted public API symbols")
-    require(metadata["validation"] == {"public_api_scenarios": 54, "hardware_verified": False}, "Unexpected homing validation claim")
-    require(metadata["commissioning_profile"] == "zhulong-xyz-20261026", "Missing commissioned direction profile")
+    require(metadata["validation"] == {"public_api_scenarios": 81, "hardware_verified": False}, "Unexpected homing validation claim")
+    require(metadata["commissioning_profile"] == "zhulong-xyz-v5-20261026", "Missing commissioned direction profile")
     require(metadata["profile_adapter_sha256"] == hashlib.sha256((source / "tools/mesa-homing/commissioned_profile.py").read_bytes()).hexdigest(), "Profile adapter provenance mismatch")
     # The distribution core is installed for package lifecycle checks only.
     # Never dlopen this module or infer ABI compatibility from successful installation.
@@ -295,12 +295,12 @@ def main():
         require(stat.S_IMODE((control / "postinst").stat().st_mode) == 0o755, "postinst must be executable")
     # dpkg preserves directory modes during upgrades. Older manual installations
     # used group-writable application roots; provisioning must protect them.
-    for name in ("/usr/lib/betterlinuxcnc", "/usr/share/betterlinuxcnc"):
+    for name in ("/usr/lib/betterlinuxcnc", "/usr/share/betterlinuxcnc", "/usr/share/doc/betterlinuxcnc-qt"):
         path = Path(name)
         path.mkdir(parents=True, exist_ok=True)
         path.chmod(0o775)
     run("apt-get", "install", "-y", "--no-install-recommends", str(package))
-    for name in ("/usr/lib/betterlinuxcnc", "/usr/share/betterlinuxcnc"):
+    for name in ("/usr/lib/betterlinuxcnc", "/usr/share/betterlinuxcnc", "/usr/share/doc/betterlinuxcnc-qt"):
         ownership(name, "root", "root", 0o755)
     verify_xsession_entry()
     require(

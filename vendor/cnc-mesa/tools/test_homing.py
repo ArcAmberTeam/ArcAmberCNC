@@ -23,3 +23,14 @@ with tempfile.TemporaryDirectory(prefix="cnc-mesa-home-") as temp:
     for axis in range(3):
         for scenario in ("normal", "initially-active", "missing", "stuck", "final-stuck", "cancel", "cancel-retreat", "limit", "wrong-direction"):
             subprocess.run([str(binary), scenario, str(axis)], check=True, timeout=15)
+            subprocess.run([str(binary), scenario, str(axis), "negative-xyz"], check=True, timeout=15)
+    subprocess.run([
+        "cc", "-std=gnu11", "-DULAPI", "-DEXPORT_SYMBOL(x)=", "-Wall", "-Wextra",
+        "-I/usr/include/linuxcnc", "-I" + str(ROOT / "homing/upstream"),
+        str(ROOT / "tests/homing/test_parallel.c"),
+        str(ROOT / "homing/src/homing.c"),
+        str(ROOT / "homing/upstream/simple_tp.c"), "-lm", "-o", str(binary),
+    ], check=True)
+    for axis in range(3):
+        for scenario in ("normal", "initially-active", "missing", "stuck", "final-stuck", "cancel", "cancel-retreat", "limit", "invalid-backoff"):
+            subprocess.run([str(binary), scenario, str(axis)], check=True, timeout=15)

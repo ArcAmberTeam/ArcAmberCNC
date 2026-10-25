@@ -3,7 +3,7 @@
   "commit": "d80fbf438a6ca987f21eb30c382ebacabe8ef13f",
   "path": "src/emc/motion/homing.c",
   "original_sha256": "f6e97c711046261f4893e75835a7850e12b4534f02af5bae52170a8efa10bd79",
-  "changes": "XYZ parameter validation, full-distance first retreat, release/position checks before completing both retreats, opposite-limit abort even with shared home-side limits",
+  "changes": "Signed HOME_OFFSET direction and opposite-limit selection, independent latched backoff speed, double-touch retreats and whole-request failure cancellation",
   "test_planner_files": {
     "simple_tp.c": "5a0026f4d5bdd9d1bc55290c6ea9c399abd664633b69413c307f7353953d2603",
     "simple_tp.h": "a6b72ddaf4a14801f95b625d824c2ea1625db5dce765db2d3b1f96a4730afca7"

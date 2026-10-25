@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(BetterLinuxCNC VERSION 26.10.26.4 LANGUAGES CXX)
+project(BetterLinuxCNC VERSION 26.10.26.5 LANGUAGES CXX)
 
 # Application composition only; the native LinuxCNC core is built from src/Makefile.
 include(cmake/ApplicationInstall.cmake)
@@ -46,7 +46,7 @@ set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Native PySide6/QML desktop for LinuxCNC")
 if(NOT BETTERCNC_BUILD_SYSTEM_SERVICES)
     set(CPACK_DEBIAN_PACKAGE_ARCHITECTURE "all")
 endif()
-set(CPACK_DEBIAN_PACKAGE_DEPENDS "python3 (>= 3.11), python3-pyside6.qtcore (>= 6.8), python3-pyside6.qtgui, python3-pyside6.qtqml, python3-pyside6.qtquick, python3-pyside6.qtquickcontrols2, linuxcnc-uspace (>= 2.9), python3-opengl, qml6-module-qtqml, qml6-module-qtqml-models, qml6-module-qtquick, qml6-module-qtquick-window, qml6-module-qtquick-controls, qml6-module-qtquick-layouts, qml6-module-qtquick-templates, qml6-module-qtquick-shapes, qml6-module-qtquick-dialogs, qml6-module-qtqml-workerscript, fonts-noto-cjk, fonts-liberation, dbus-user-session, lightdm, xserver-xorg, openssh-server, sudo, passwd, procps")
+set(CPACK_DEBIAN_PACKAGE_DEPENDS "python3 (>= 3.11), python3-pyside6.qtcore (>= 6.8), python3-pyside6.qtgui, python3-pyside6.qtqml, python3-pyside6.qtquick, python3-pyside6.qtquickcontrols2, linuxcnc-uspace (>= 2.9), python3-opengl, qml6-module-qtqml, qml6-module-qtqml-models, qml6-module-qtquick, qml6-module-qtquick-window, qml6-module-qtquick-controls, qml6-module-qtquick-layouts, qml6-module-qtquick-templates, qml6-module-qtquick-shapes, qml6-module-qtquick-dialogs, qml6-module-qtqml-workerscript, fonts-noto-cjk, fonts-liberation, dbus-user-session, lightdm, xserver-xorg, x11-xserver-utils, openssh-server, sudo, passwd, procps")
 if(BETTERCNC_BUILD_SYSTEM_SERVICES)
     string(APPEND CPACK_DEBIAN_PACKAGE_DEPENDS ", polkitd, systemd, util-linux, ca-certificates, apt, dpkg, mesaflash")
     file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/conffiles" "/etc/betterlinuxcnc/updater.json\n")

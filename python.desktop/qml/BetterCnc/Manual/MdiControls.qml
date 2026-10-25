@@ -38,10 +38,9 @@ Item {
             y: 26
             width: parent.width
             height: 160
-            radius: 6
             color: Theme.input
-            border.width: 1
-            border.color: Theme.border
+            UiDivider { width: parent.width }
+            UiDivider { width: parent.width; anchors.bottom: parent.bottom }
 
             ListView {
                 id: historyList

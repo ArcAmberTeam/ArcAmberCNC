@@ -8,3 +8,5 @@ UiComboBox 1.0 UiComboBox.qml
 UiTextField 1.0 UiTextField.qml
 UiRange 1.0 UiRange.qml
 UiScrollBar 1.0 UiScrollBar.qml
+UiSurface 1.0 UiSurface.qml
+UiDivider 1.0 UiDivider.qml

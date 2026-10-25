@@ -10,11 +10,6 @@ Column {
     function permitted(id) { return connected && (!machine.capabilities || machine.capabilities[id] !== false); }
     spacing: 10
     UiText { text: "运动速度上限"; font.pixelSize: 18; font.weight: Font.DemiBold }
-    UiText {
-        width: parent.width
-        text: "修改后等待控制器反馈。点动速度和常用倍率仍在主界面调整。"
-        wrapMode: Text.WordWrap; color: Theme.secondary
-    }
     UiRange {
         objectName: "maxVelocity"
         width: parent.width

@@ -6,15 +6,18 @@ import BetterCnc.Catalog 1.0
 Column {
     id: root
     required property ToolpathState presentation
-    spacing: 8
+    property string category: "view"
+    readonly property bool displaySettings: category === "display"
+    readonly property var groups: displaySettings
+        ? [{group: "units", label: "显示单位"}, {group: "coordinates", label: "坐标系"}, {group: "position", label: "位置来源"}]
+        : [{group: "view", label: "投影视角"}, {group: "grid", label: "参考网格"}]
+    readonly property var displayFlags: ["show.offsets", "show.velocity", "show.dtg", "show.large"]
+    spacing: 12
     readonly property var entries: Catalog.menus.find(menu => menu.id === "view").children
     readonly property var choiceEntries: entries.concat(entries.find(entry => entry.id === "view.grid").children)
-    UiText { text: "刀路与坐标显示"; font.pixelSize: 18; font.weight: Font.DemiBold }
-    UiText { text: "显示设置即时生效，不改变机床坐标与加工程序。"; color: Theme.secondary }
+    UiText { text: root.displaySettings ? "坐标显示" : "视角与网格"; font.pixelSize: 18; font.weight: Font.DemiBold }
     Repeater {
-        model: [{group: "units", label: "显示单位"}, {group: "view", label: "投影视角"},
-                {group: "coordinates", label: "坐标系"}, {group: "position", label: "位置来源"},
-                {group: "grid", label: "参考网格"}]
+        model: root.groups
         Row {
             id: choiceRow
             required property var modelData
@@ -33,10 +36,13 @@ Column {
             }
         }
     }
+    UiDivider { width: parent.width }
+    UiText { text: root.displaySettings ? "数显内容" : "刀路图层"; font.pixelSize: 18; font.weight: Font.DemiBold }
     Grid {
         width: parent.width; columns: 2; columnSpacing: 16; rowSpacing: 4
         Repeater {
-            model: root.entries.filter(entry => entry.kind === "check" && entry.id in root.presentation.flags)
+            model: root.entries.filter(entry => entry.kind === "check" && entry.id in root.presentation.flags
+                && (root.displayFlags.indexOf(entry.id) >= 0) === root.displaySettings)
             UiCheckBox {
                 id: flag
                 required property var modelData
@@ -50,7 +56,8 @@ Column {
         }
     }
     UiButton {
-        objectName: "settings-clear-live"
+        objectName: root.displaySettings ? "" : "settings-clear-live"
+        visible: !root.displaySettings
         text: "清除实际运动轨迹"; height: 44
         onClicked: root.presentation.clearLive()
     }

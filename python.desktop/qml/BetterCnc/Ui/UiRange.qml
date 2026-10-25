@@ -42,24 +42,15 @@ Item {
             color: Theme.borderControl
             Rectangle { width: slider.visualPosition * parent.width; height: 4; radius: 3; color: Theme.accentFill }
         }
-        handle: Rectangle {
+        handle: UiSurface {
             x: slider.leftPadding + slider.visualPosition * (slider.availableWidth - width)
             y: slider.topPadding + slider.availableHeight / 2 - height / 2
             width: 14
             height: 14
             radius: 6
             color: Theme.surface
-            border.width: 2
-            border.color: Theme.accent
-            Rectangle {
-                anchors.fill: parent
-                anchors.margins: -3
-                visible: slider.visualFocus
-                color: "transparent"
-                radius: 8
-                border.color: Theme.accent
-                border.width: 2
-            }
+            focusHighlighted: slider.visualFocus
+            pressed: slider.pressed
         }
     }
 }

@@ -32,9 +32,8 @@ Menu {
 
     FontMetrics { id: metrics; font: root.font }
 
-    background: Rectangle {
-        color: Theme.surface
-        border.color: Theme.borderControl
+    background: UiSurface {
+        shadowStrength: 2
         radius: 9
     }
     contentItem: ListView {

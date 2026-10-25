@@ -16,7 +16,8 @@ Rectangle {
     readonly property string previewState: !hasProgram ? "等待程序" : program.previewBusy ? "解释中…"
         : program.previewError ? "解释失败" : program.segments && program.segments.length ? "刀路已生成" : "暂无刀路线段"
     signal stageRequested(string stage)
-    color: Theme.surface; radius: Theme.radius; border.color: Theme.border
+    color: Theme.surface
+    UiDivider { height: parent.height; width: 1; vertical: true }
     MachineStatus { id: status; machine: root.machine }
     Connections {
         target: root.Window.window
@@ -48,7 +49,8 @@ Rectangle {
                 text: root.stage === "prepare" ? "打开 G 代码，确认程序内容，再检查刀路与机床坐标。" : "核对工件原点、刀具和装夹。刀路预览不检查碰撞，也不表示机床已准备完成。"
             }
             Rectangle {
-                width: parent.width; height: 76; radius: Theme.controlRadius; color: Theme.hover
+                width: parent.width; height: 76; color: "transparent"
+                UiDivider { width: parent.width }
                 Column {
                     x: 12; y: 12; spacing: 6; width: parent.width - 24
                     UiText { text: "设备状态"; color: Theme.secondary; font.pixelSize: Theme.labelSize }
@@ -72,7 +74,7 @@ Rectangle {
                     }
                 }
             }
-            Rectangle { width: parent.width; height: 1; color: Theme.border }
+            UiDivider { width: parent.width; height: 1 }
             UiText {
                 width: parent.width; wrapMode: Text.Wrap; color: Theme.secondary; font.pixelSize: Theme.labelSize
                 text: "需要 MDI、倍率或完整工具栏？可随时切换专业界面，当前程序与显示设置会保留。"
@@ -82,8 +84,8 @@ Rectangle {
     Rectangle {
         id: actionDock
         anchors.bottom: parent.bottom; width: parent.width; height: 128
-        color: Theme.surface; radius: Theme.radius
-        Rectangle { x: 16; width: parent.width - 32; height: 1; color: Theme.border }
+        color: Theme.surface
+        UiDivider { x: 16; width: parent.width - 32; height: 1 }
         Column {
             x: 16; y: 16; width: parent.width - 32; spacing: 8
             UiButton {

@@ -15,10 +15,9 @@ Item {
     width: parent.width
     height: topPadding + 1 + 34 + ranges.height
 
-    Rectangle {
+    UiDivider {
         width: parent.width
         height: 1
-        color: Theme.border
     }
 
     UiText {

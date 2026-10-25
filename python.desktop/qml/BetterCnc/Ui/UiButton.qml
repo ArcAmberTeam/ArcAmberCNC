@@ -44,29 +44,17 @@ Button {
             }
         }
     }
-    background: Rectangle {
-        radius: Theme.controlRadius
+    background: UiSurface {
+        elevated: control.kind !== "tab" || control.selected || control.hovered
+        pressed: control.down
+        focusHighlighted: control.visualFocus
+        shadowStrength: control.enabled ? 1 : 0.35
         color: !control.enabled ? Theme.disabled
             : control.kind === "danger" ? (control.hovered || control.down ? Theme.dangerSoft : Theme.surface)
             : control.kind === "primary" ? (control.down ? Theme.accentPressed : control.hovered ? Theme.accentHover : Theme.accentFill)
             : control.selected || control.down ? Theme.accentSoft
             : control.hovered ? Theme.hover
-            : control.kind === "toolbar" || control.kind === "tab" ? "transparent" : Theme.raised
-        border.width: 1
-        border.color: control.kind === "danger" ? Theme.danger
-            : control.kind === "primary" ? Theme.accent
-            : control.selected || control.down ? (control.kind === "tab" ? Theme.border : Theme.accent)
-            : control.kind === "toolbar" || control.kind === "tab" ? "transparent"
-            : control.hovered ? Theme.borderControl : Theme.borderControl
-        Rectangle {
-            anchors.fill: parent
-            anchors.margins: -3
-            visible: control.visualFocus
-            color: "transparent"
-            border.color: Theme.accent
-            border.width: 2
-            radius: 8
-        }
+            : control.kind === "tab" ? "transparent" : Theme.raised
     }
     ToolTip.visible: hovered && tooltip.length > 0
     ToolTip.text: tooltip

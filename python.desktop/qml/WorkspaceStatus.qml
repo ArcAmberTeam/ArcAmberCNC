@@ -8,7 +8,7 @@ Rectangle {
     height: 32
     color: Theme.surface
     MachineStatus { id: status; machine: root.machine }
-    Rectangle { width: parent.width; height: 1; color: Theme.border }
+    UiDivider { width: parent.width; height: 1 }
     Row {
         x: Theme.padding
         anchors.verticalCenter: parent.verticalCenter

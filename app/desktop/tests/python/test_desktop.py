@@ -426,6 +426,7 @@ else:
             {"busy": True},
             {"busy": False, "commandState": "sent"},
             {"commandState": "idle", "camJob": {"state": "starting"}},
+            {"commandState": "idle", "camJob": {"state": "homing"}},
             {"camJob": None, "connected": False},
         ):
             self.state.update(update)

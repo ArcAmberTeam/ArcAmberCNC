@@ -5,7 +5,7 @@ import os
 import tempfile
 from pathlib import Path
 
-from ._received import ACTIVE, _ID, _private, _sync
+from ._received import _ID, ACTIVE, _private, _sync
 
 
 class HomingRequests:

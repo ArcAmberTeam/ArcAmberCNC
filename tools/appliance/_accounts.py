@@ -174,6 +174,18 @@ def provision():
     directory("/var/log/betterlinuxcnc/launcher", OPERATOR, "cnc-logs", 0o2750)
     directory("/var/cache/betterlinuxcnc/update", mode=0o700)
     directory("/var/lib/betterlinuxcnc/update")
+    descriptor = os.open(
+        "/var/lib/betterlinuxcnc/configuration.lock",
+        os.O_CREAT | os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC,
+        0o644,
+    )
+    try:
+        info = os.fstat(descriptor)
+        if not stat.S_ISREG(info.st_mode) or info.st_uid != 0 or info.st_nlink != 1:
+            raise ValueError("Unsafe configuration lease")
+        os.fchmod(descriptor, 0o644)
+    finally:
+        os.close(descriptor)
 
 
 def prepare():

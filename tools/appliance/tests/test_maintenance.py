@@ -184,6 +184,12 @@ class MaintenanceTests(unittest.TestCase):
 
     def test_public_cli_rejects_path_arguments_and_shell_commands(self):
         for request in (
+            "pa manage /etc/shadow",
+            "pa manage ../ini",
+            "pa manage ini extra",
+            "pa manage ini; id",
+            "pa manage $(id)",
+            "pa execute ini",
             "logs /etc/shadow",
             "logs; id",
             "cat /etc/shadow",
@@ -200,6 +206,28 @@ class MaintenanceTests(unittest.TestCase):
             )
             self.assertEqual(result.returncode, 64, result.stdout + result.stderr)
             self.assertIn("error", json.loads(result.stdout))
+
+    def test_management_routes_exact_targets_without_a_shell_or_environment_inheritance(
+        self,
+    ):
+        for target in ("ini", "launcher.json"):
+            with self.subTest(target=target):
+                with (
+                    patch.object(sys, "argv", [str(SCRIPT)]),
+                    patch.dict(
+                        os.environ, {"SSH_ORIGINAL_COMMAND": f"pa manage {target}"}
+                    ),
+                    patch.object(
+                        maintenance.os, "execve", side_effect=SystemExit(0)
+                    ) as execute,
+                ):
+                    with self.assertRaises(SystemExit):
+                        maintenance.main()
+                execute.assert_called_once_with(
+                    "/usr/bin/pa",
+                    ["pa", "manage", target],
+                    {"PATH": "/usr/bin:/bin", "LANG": "C.UTF-8"},
+                )
 
 
 if __name__ == "__main__":

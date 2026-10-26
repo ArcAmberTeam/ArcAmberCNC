@@ -63,7 +63,67 @@ def machine_configuration(module, status):
         return {
             "schemaVersion": 1,
             "axes": axes,
+            "camEnvelope": cam_envelope(ini, axes),
             "kinematics": str(kinematics)[:256] if kinematics else None,
         }
     except Exception:
         return None
+
+
+def cam_envelope(ini, axes):
+    """Describe CAM display bounds without changing native limits or work offsets."""
+    source = ini.find("PA_CAM", "DIMENSION_SOURCE") or "axis_travel"
+    result = {
+        "source": source if source in ("axis_travel", "working_volume") else None,
+        "unit": "mm",
+        "coordinateSystem": "machine",
+        "dimensions": None,
+        "minimum": None,
+        "maximum": None,
+        "boundsKnown": False,
+        "withinAxisLimits": False,
+    }
+    active = {axis["name"]: axis for axis in axes if axis["name"] in "XYZ"}
+    if set(active) != set("XYZ") or result["source"] is None:
+        return result
+
+    def setting(key):
+        try:
+            value = float(ini.find("PA_CAM", key))
+        except (TypeError, ValueError, OverflowError):
+            return None
+        return value if math.isfinite(value) else None
+
+    if source == "axis_travel":
+        minimum = {axis: active[axis]["min"] for axis in "XYZ"}
+        maximum = {axis: active[axis]["max"] for axis in "XYZ"}
+        if any(value is None for value in (*minimum.values(), *maximum.values())):
+            return result
+        dimensions = {axis: maximum[axis] - minimum[axis] for axis in "XYZ"}
+    else:
+        dimensions = {axis: setting(f"TABLE_{axis}_MM") for axis in "XYZ"}
+        if any(value is None or value <= 0 for value in dimensions.values()):
+            return result
+        result["dimensions"] = dimensions
+        minimum = {axis: setting(f"ORIGIN_{axis}_MM") for axis in "XYZ"}
+        if any(value is None for value in minimum.values()):
+            return result
+        maximum = {axis: minimum[axis] + dimensions[axis] for axis in "XYZ"}
+    if any(not math.isfinite(value) or value <= 0 for value in dimensions.values()):
+        return result
+    if any(not math.isfinite(value) for value in maximum.values()):
+        return result
+    result.update(
+        dimensions=dimensions,
+        minimum=minimum,
+        maximum=maximum,
+        boundsKnown=True,
+        withinAxisLimits=all(
+            active[axis]["min"] is not None
+            and active[axis]["max"] is not None
+            and minimum[axis] >= active[axis]["min"]
+            and maximum[axis] <= active[axis]["max"]
+            for axis in "XYZ"
+        ),
+    )
+    return result

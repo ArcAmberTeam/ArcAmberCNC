@@ -79,6 +79,7 @@ class InstallationTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         for command in (
+            "pa",
             "betterlinuxcnc-cam-link",
             "betterlinuxcnc-updater",
             "betterlinuxcnc-mesa-update",

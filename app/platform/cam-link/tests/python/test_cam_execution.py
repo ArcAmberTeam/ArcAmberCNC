@@ -11,7 +11,7 @@ import unittest
 import uuid
 from pathlib import Path
 
-from bettercnc_controller import Controller
+from bettercnc_controller import Controller, StatusReader
 from betterlinuxcnc_service import serve as serve_control
 from service_process import serve as serve_cam
 from service_process import wait_ready
@@ -43,6 +43,7 @@ class CamExecutionNetworkTests(unittest.IsolatedAsyncioTestCase):
                 ini_path="/machine/machine.ini",
                 cam_inbox=self.inbox,
                 controller_factory=factory,
+                status_reader_factory=lambda **kwargs: StatusReader(module=self.module, **kwargs),
                 stop_event=self.control_stop,
             )
         )
@@ -125,6 +126,24 @@ class CamExecutionNetworkTests(unittest.IsolatedAsyncioTestCase):
             {"offset": 0, "data": base64.b64encode(body).decode()},
         )
         return await self.rpc(connection, "upload.finish", {})
+
+    async def test_cam_size_source_survives_unix_and_tcp_status_path(self):
+        for axis in "XYZ":
+            self.module.ini_values[(f"AXIS_{axis}", "MIN_LIMIT")] = "-10"
+            self.module.ini_values[(f"AXIS_{axis}", "MAX_LIMIT")] = "500"
+        connection = await self.connect()
+        status = (await self.rpc(connection, "status.get", {}))["result"]
+        self.assertEqual(status["configuration"]["camEnvelope"]["source"], "axis_travel")
+        self.module.ini_values[("PA_CAM", "DIMENSION_SOURCE")] = "working_volume"
+        for axis, size in zip("XYZ", (400, 300, 100), strict=True):
+            self.module.ini_values[("PA_CAM", f"TABLE_{axis}_MM")] = str(size)
+            self.module.ini_values[("PA_CAM", f"ORIGIN_{axis}_MM")] = "0"
+        status = (await self.rpc(connection, "status.get", {}))["result"]
+        self.assertEqual(
+            status["configuration"]["camEnvelope"]["dimensions"], {"X": 400, "Y": 300, "Z": 100}
+        )
+        self.assertEqual(status["configuration"]["axes"][0]["max"], 500)
+        self.assertEqual(self.module.calls, [])
 
     async def test_explicit_start_survives_disconnect_and_receipt_retry_never_restarts(
         self,

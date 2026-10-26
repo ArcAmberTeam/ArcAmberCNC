@@ -2,9 +2,8 @@
 
 import unittest
 
-from test_controller import FakeLinuxCNC
-
 from bettercnc_controller import StatusReader
+from test_controller import FakeLinuxCNC
 
 
 class MachineConfigurationTests(unittest.TestCase):
@@ -76,3 +75,55 @@ class MachineConfigurationTests(unittest.TestCase):
         self.vendor.available = True
         self.vendor.ini_values[("AXIS_X", "MAX_LIMIT")] = "400"
         self.assertEqual(self.reader.poll()["configuration"]["axes"][0]["max"], 400)
+
+    def test_cam_envelope_selects_table_without_replacing_axis_limits(self):
+        for axis in "XYZ":
+            self.vendor.ini_values[(f"AXIS_{axis}", "MIN_LIMIT")] = "-10"
+            self.vendor.ini_values[(f"AXIS_{axis}", "MAX_LIMIT")] = "500"
+        config = self.reader.poll()["configuration"]
+        self.assertEqual(config["camEnvelope"]["source"], "axis_travel")
+        self.assertEqual(config["camEnvelope"]["dimensions"], dict.fromkeys("XYZ", 510))
+        self.vendor.ini_values[("PA_CAM", "DIMENSION_SOURCE")] = "working_volume"
+        for axis, size in zip("XYZ", (400, 300, 100), strict=True):
+            self.vendor.ini_values[("PA_CAM", f"TABLE_{axis}_MM")] = str(size)
+        envelope = self.reader.poll()["configuration"]["camEnvelope"]
+        self.assertEqual(envelope["dimensions"], {"X": 400, "Y": 300, "Z": 100})
+        self.assertFalse(envelope["boundsKnown"])
+        self.assertIsNone(envelope["minimum"])
+        for axis in "XYZ":
+            self.vendor.ini_values[("PA_CAM", f"ORIGIN_{axis}_MM")] = "5"
+        config = self.reader.poll()["configuration"]
+        self.assertTrue(config["camEnvelope"]["boundsKnown"])
+        self.assertTrue(config["camEnvelope"]["withinAxisLimits"])
+        self.assertEqual(config["camEnvelope"]["maximum"], {"X": 405, "Y": 305, "Z": 105})
+        self.assertEqual(config["axes"][0]["min"], -10)
+        self.assertEqual(config["axes"][0]["max"], 500)
+        self.assertEqual(self.vendor.calls, [])
+
+    def test_cam_envelope_rejects_unknown_source_missing_axes_and_invalid_geometry(self):
+        self.vendor.ini_values[("PA_CAM", "DIMENSION_SOURCE")] = "unknown"
+        self.assertIsNone(self.reader.poll()["configuration"]["camEnvelope"]["source"])
+        self.vendor.ini_values[("PA_CAM", "DIMENSION_SOURCE")] = "working_volume"
+        for axis in "XYZ":
+            self.vendor.ini_values[("PA_CAM", f"TABLE_{axis}_MM")] = "100"
+            self.vendor.ini_values[("PA_CAM", f"ORIGIN_{axis}_MM")] = "0"
+        for value in ("nan", "inf", "-1", "0", "not-a-number"):
+            self.vendor.ini_values[("PA_CAM", "TABLE_X_MM")] = value
+            self.assertFalse(self.reader.poll()["configuration"]["camEnvelope"]["boundsKnown"])
+        self.vendor.ini_values[("PA_CAM", "TABLE_X_MM")] = "100"
+        self.vendor.status.axis_mask = 3
+        self.assertIsNone(self.reader.poll()["configuration"]["camEnvelope"]["dimensions"])
+
+    def test_cam_table_is_mm_even_for_inch_machine_and_reports_outside_limits(self):
+        self.vendor.status.linear_units = 1 / 25.4
+        self.vendor.ini_values[("PA_CAM", "DIMENSION_SOURCE")] = "working_volume"
+        for axis in "XYZ":
+            self.vendor.ini_values[(f"AXIS_{axis}", "MIN_LIMIT")] = "0"
+            self.vendor.ini_values[(f"AXIS_{axis}", "MAX_LIMIT")] = "10"
+            self.vendor.ini_values[("PA_CAM", f"TABLE_{axis}_MM")] = "100"
+            self.vendor.ini_values[("PA_CAM", f"ORIGIN_{axis}_MM")] = "0"
+        envelope = self.reader.poll()["configuration"]["camEnvelope"]
+        self.assertEqual(envelope["dimensions"]["X"], 100)
+        self.assertTrue(envelope["withinAxisLimits"])
+        self.vendor.ini_values[("PA_CAM", "ORIGIN_X_MM")] = "200"
+        self.assertFalse(self.reader.poll()["configuration"]["camEnvelope"]["withinAxisLimits"])

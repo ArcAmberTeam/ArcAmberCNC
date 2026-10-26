@@ -110,6 +110,8 @@ def check(name, kind='data', entry_type=tarfile.REGTYPE, mode=0o644, payload=b'a
     try: scope['inspect'](out, kind); return True
     except ValueError: return False
 assert check('./usr/bin/betterlinuxcnc')
+assert check('./usr/bin/pa')
+assert not check('./usr/bin/pa-helper')
 assert check('./usr/lib/betterlinuxcnc/python/bettercnc/__init__.py')
 assert check('./usr/sbin/betterlinuxcnc-appliance')
 assert check('./usr/lib/systemd/system/betterlinuxcnc-system-update.service')

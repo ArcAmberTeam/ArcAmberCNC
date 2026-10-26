@@ -1,6 +1,6 @@
 # Independent Mesa release checks and flashing entry point
 
-Follow root `AGENT.md`; no local/target builds or source tests. GitHub CI performs verification. `src/lib.rs::run_update`, `run_flash`, and the two CLIs are the only public entry points; internals remain private. Do not import `app/platform/updater` internals, depend on controller/desktop/HAL internals, or create generic utility modules. README files are maintained by humans.
+Follow root `AGENT.md`; no local/target builds or source tests. GitHub CI performs verification. `src/lib.rs::run_update`, `run_flash`, and the two CLIs are the only public entry points; internals remain private. Do not import `app/platform/updater` internals, depend on controller/desktop/HAL internals, or create generic utility modules. All Markdown follows the protection rules below.
 
 - `betterlinuxcnc-mesa-update check|status|download` is only for fixed ordinary account `linuxcnc`. An independent system timer/service runs `check` as that account; the timer never downloads, stops control, or flashes. `check` queries official latest Releases of fixed `ArcAmberTeam/ArcAmberCNC` and `ArcAmberTeam/CNC-Mesa`, reporting their common version. `download` queries only `v<version>` matching the fully installed `betterlinuxcnc-qt`; arbitrary versions, addresses, paths, and command arguments are forbidden.
 - `betterlinuxcnc-mesa-flash status|request|apply-system` is a separate binary/root system service. Ordinary `linuxcnc` can only start fixed `betterlinuxcnc-mesa-flash.service` through argument-free `request`; polkit permits only starting that unit. `apply-system` delegates to public argument-free `betterlinuxcnc-updater mesa-maintenance`, without reading user cache/manifests. Only explicit requests enter this flow; timers never request flashing.
@@ -15,3 +15,17 @@ Follow root `AGENT.md`; no local/target builds or source tests. GitHub CI perfor
 - CMake independently installs two binaries and three exact system units. Packages do not enable/start the timer or flash service; explicit appliance activate enables the check timer. Root flash must see real /tmp/native locks, so no PrivateTmp. Retain limited capabilities needed for runuser privilege reduction and backup reads. Do not impose these restrictions on the full real-time launcher. Update updater package allowlists for new install paths.
 - CI runs cargo fmt --check, cargo check --locked --all-targets, cargo clippy --locked --all-targets -- -D warnings, and cargo test --locked. Cover original-byte official manifest fixtures, argument boundaries for both public processes, version pairing, source-only releases, source commits, official URLs, hashes, independent root requests, cache links, actual inherited fds/process exits, missing/out-of-order guards, backup failure, identity mismatch, and write/readback failure. Use controlled HTTP adapters and temporary executable substitutes, never real network, machines, or mesaflash.
 - Root maintenance units also retain limited SETUID/SETGID/DAC_READ_SEARCH through AmbientCapabilities so NoNewPrivileges with User=root does not lose actual privilege-reduction ability. GitHub's real systemd sandbox verification runs only runuser/id, never maintenance entry points or flashing.
+
+## Reading and protected documentation
+
+Follow the root [AGENT.md](../../../AGENT.md) and every ancestor directory guide. Before implementation, read every Markdown file in this directory and each affected child directory, plus the relevant linked interface contracts. Inspect existing code and dependencies before choosing a location or library.
+
+This guide and all other Markdown are protected: AI must neither change them autonomously nor proactively propose changes. An explicit human request and a second confirmation of the intended scope are required before any write. Keep documentation and explanatory comments English; never append change records, progress reports, operational logs, email addresses, key material, or credentials.
+
+Extend an existing class/module when the new behavior belongs to it. Add a focused file/directory only for a distinct responsibility, lifecycle, interface, or privilege boundary. Reuse verified public APIs; do not invent dependencies, duplicate rules, or import sibling private internals. In long source files, bracket substantial feature-owning classes with the language-appropriate English BEGIN/END markers defined in root AGENT.md. Builds and source tests run only in GitHub CI.
+
+## Child directory guides
+
+- [packaging/AGENTS.md](packaging/AGENTS.md): Own independent check/flash services and the check-only timer.
+- [src/AGENTS.md](src/AGENTS.md): Own run_update/run_flash and private contract, release, storage, platform, service, guard, and hardware adapters.
+- [tests/AGENTS.md](tests/AGENTS.md): Verify manifests, version pairing, process guards, protected storage, and failure outcomes through public commands.

@@ -1,28 +1,19 @@
-# Python service internal responsibilities
+# Python service responsibilities
 
-[Service startup and protocol](../../README.md) · [Project module map](../../../../docs/module-map.md)
-
-## Role and language
-
-Python 3.11+, standard library only. Currently queries local service health without importing LinuxCNC, reading hardware, or sending motion commands.
-
-## Files and entry points
+Follow the local [AGENTS.md](AGENTS.md), [controller guide](../../AGENTS.md), and root [AGENT.md](../../../../AGENT.md). Markdown is protected: no autonomous edits or unsolicited proposals; only an explicit human request followed by second confirmation permits changes. Keep prose English and exclude change records, logs, email addresses, and key material.
 
 | File | Responsibility |
 | --- | --- |
-| `__init__.py` | Public package entry point exporting `main` |
-| `__main__.py` | Entry point for `python -m betterlinuxcnc_service` |
-| `_server.py` | Socket paths, permissions, listening, framing, timeouts, connection limits, and process-exit cleanup |
-| `_protocol.py` | JSON parsing, field/version validation, method selection, and result/error envelopes |
+| `__init__.py` | Public `main` and `serve` exports. |
+| `__main__.py` | Package CLI entry point. |
+| `_server.py` | Unix socket lifecycle, connections, sessions, and service composition. |
+| `_protocol.py` | Wire framing and protocol validation. |
+| `_controller_runtime.py` | Serialized dispatch to public Controller and StatusReader APIs. |
+| `_preview_jobs.py` | Isolated preview job lifecycle. |
+| `_wire_snapshot.py` | Public snapshot serialization. |
 
-Underscore-prefixed files are private. Callers use CLI and socket protocol rather than importing these files; tests likewise observe the installed package through CLI and communication endpoints.
+Underscore-prefixed files are private. Callers and external tests use package exports, installed CLI, and the [public protocol](../../../../docs/local-control-protocol.md). v2 supplies real status/control and preview; v1 health retains diagnostic compatibility. Service reachability and machine connectivity remain distinct.
 
-## Upstream, downstream, and boundaries
+Keep transport/session orchestration here, machine operation rules in `bettercnc_controller`, and file interpretation in `bettercnc_preview`. Neither downstream package depends back on transport. Do not duplicate interlocks in protocol handlers, block the worker on preview interpretation, or add a second native command/error-channel owner.
 
-Upstream is the Rust desktop environment; no downstream LinuxCNC connection exists yet. `health` always returns diagnostic mode and `machine_connected: false`; no other methods are accepted.
-
-Transport handlers own connections/messages; protocol parsers own the message contract. Future control additions must define separate machine-access and operation-rule owners rather than placing run, home, and jog logic directly in `_server.py`.
-
-Local socket permissions restrict users but cannot prove a client is Tauri. Persistent sessions, control ownership, and stop-on-disconnect remain unimplemented. Python does not run the real-time servo loop; preview interpretation must not block the controller service.
-
-See the parent service document for Ruff, package-build, and installed unittest commands; protocol changes also require Rust cross-process integration tests.
+Verification uses public interfaces and controlled external dependencies in GitHub CI only; do not start machines or simulators. See [controller overview](../../README.md).

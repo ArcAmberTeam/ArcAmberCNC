@@ -14,4 +14,18 @@ Follow root `AGENT.md`. `src/lib.rs::run` and the `betterlinuxcnc-updater` CLI a
 - The fixed root unit explicitly retains CAP_SETUID/CAP_SETGID ambient capabilities so User=root, NoNewPrivileges, and sandboxing still permit dropping to linuxcnc. The ordinary account does not receive these capabilities. GitHub-hosted runners verify actual systemd restrictions and runuser/id; a systemctl substitute alone cannot establish acceptance.
 - After normal launcher shutdown and release of control socket/native locks, execute fixed `/usr/sbin/betterlinuxcnc-appliance backup` with a sanitized environment before APT. Only successful backup permits APT. appliance independently owns backup of fixed machine configuration, mutable state, and host policies into root-private snapshots; no GUI-supplied source/destination paths or commands. Failure to start backup or a failing exit rejects installation and leaves control stopped.
 - Never report failure as success or automatically start a possibly mixed-version control stack. Restore a previously running managed launcher only after APT succeeds and installed version is rechecked. Do not grant the GUI firmware, INI/HAL, arbitrary-file, or system-command write access.
-- Tests use temporary directories, release metadata, real Unix sockets, and controlled processes, without real machines, real installation, or publishing Releases. Under current user requirements, run cargo fmt --check, cargo check --locked --all-targets, cargo clippy --locked --all-targets -- -D warnings, and cargo test --locked only in GitHub CI, never locally/on target. Real Debian archive regression must accept the fixed postinst and reject altered content/other scripts without executing package scripts. README files are maintained by humans.
+- Tests use temporary directories, release metadata, real Unix sockets, and controlled processes, without real machines, real installation, or publishing Releases. Under current user requirements, run cargo fmt --check, cargo check --locked --all-targets, cargo clippy --locked --all-targets -- -D warnings, and cargo test --locked only in GitHub CI, never locally/on target. Real Debian archive regression must accept the fixed postinst and reject altered content/other scripts without executing package scripts. All Markdown follows the protection rules below.
+
+## Reading and protected documentation
+
+Follow the root [AGENT.md](../../../AGENT.md) and every ancestor directory guide. Before implementation, read every Markdown file in this directory and each affected child directory, plus the relevant linked interface contracts. Inspect existing code and dependencies before choosing a location or library.
+
+This guide and all other Markdown are protected: AI must neither change them autonomously nor proactively propose changes. An explicit human request and a second confirmation of the intended scope are required before any write. Keep documentation and explanatory comments English; never append change records, progress reports, operational logs, email addresses, key material, or credentials.
+
+Extend an existing class/module when the new behavior belongs to it. Add a focused file/directory only for a distinct responsibility, lifecycle, interface, or privilege boundary. Reuse verified public APIs; do not invent dependencies, duplicate rules, or import sibling private internals. In long source files, bracket substantial feature-owning classes with the language-appropriate English BEGIN/END markers defined in root AGENT.md. Builds and source tests run only in GitHub CI.
+
+## Child directory guides
+
+- [packaging/AGENTS.md](packaging/AGENTS.md): Own the fixed root update service, narrow polkit rules, and installed updater configuration.
+- [src/AGENTS.md](src/AGENTS.md): Own library run and binary startup for the independent application updater.
+- [tests/AGENTS.md](tests/AGENTS.md): Verify public CLI outcomes and state gates using controlled release/process/socket inputs.

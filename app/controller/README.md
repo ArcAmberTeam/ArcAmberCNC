@@ -1,64 +1,21 @@
-# Local Python service
+# Local Python controller service
 
-[Internal file responsibilities](src/betterlinuxcnc_service/README.md) · [Project module map](../../docs/module-map.md)
+Read [AGENTS.md](AGENTS.md), [service responsibilities](src/betterlinuxcnc_service/AGENTS.md), and the [public control protocol](../../docs/local-control-protocol.md) before implementation. This document and all Markdown follow root [AGENT.md](../../AGENT.md): no autonomous changes or unsolicited proposals; an explicit human request and second confirmation are required. Use English and do not add change records, operational logs, email addresses, or key material.
 
-Currently provides a runnable Unix socket service accepting only `health` queries. It reports service reachability and always explicitly returns `machine_connected: false`; it has no LinuxCNC imports, motion commands, or HTTP listener.
+## Responsibilities and entry points
 
-## Development startup
+The service provides public v2 Unix socket status, control sessions, commands, CAM requests, and isolated interpreter preview. Legacy v1 `health` remains diagnostic compatibility only; its response is not evidence of machine connectivity.
 
-Run from the repository root with Python 3.11 or later (Debian 13 defaults to Python 3.13):
+- `betterlinuxcnc_service.main` and `serve`, `python -m betterlinuxcnc_service`, and installed `betterlinuxcnc-service` expose the service.
+- `bettercnc_controller.Controller` owns operation policy, validated machine writes, and the single command/error channels. `StatusReader` supplies read-only snapshots on the same serialized worker.
+- `bettercnc_preview.parse_program` and its CLI adapt the native `gcode` extension in a separate process.
 
-```sh
-python3 -m venv backend/.venv
-backend/.venv/bin/python -m pip install -e backend
-backend/.venv/bin/python -m betterlinuxcnc_service
-```
+The desktop and Rust CAM service use the documented socket protocol, never private implementation imports. The service does not start LinuxCNC or run the real-time servo loop. Unattached `machine.status` reads state without taking control or renewing jogging leases. Lost responses remain unknown; reconnect never replays motion.
 
-Keep that terminal running and start the desktop in another:
+## Installation and verification
 
-```sh
-cd frontend
-npm ci
-npm run desktop:dev
-```
+The package declares Python 3.11+ and no third-party Python runtime dependencies. Actual control and preview require the installed native LinuxCNC interfaces. Package installation, startup, and readiness do not establish physical motion acceptance.
 
-Both use the same user and `XDG_RUNTIME_DIR`. The default address is `$XDG_RUNTIME_DIR/betterlinuxcnc/control.sock`; if unset, use `betterlinuxcnc/control.sock` under the system temporary directory. Python 3.11+ on macOS supports communication-layer development, not LinuxCNC execution on macOS. The desktop does not automatically start or install the service.
+Build wheels and run Ruff, public-API tests, socket tests, and real file-only interpreter regressions only in GitHub CI. Local and target source builds/tests are prohibited. Install completed published packages on the target through the project update flow; use [local connection instructions](../../docs/linuxcnc-local-connection.md) for explicitly authorized runtime operations.
 
-`--socket /path/to/control.sock` is only for server debugging/tests; the desktop UI cannot select arbitrary paths. The socket directory must belong to the current user with mode `0700`; socket mode is `0600`. Normal exit removes the socket created by this process. If a crash leaves a stale file, confirm no service owns it before cleanup. A second instance will not overwrite an existing endpoint.
-
-## Protocol version 1
-
-Transport is a four-byte unsigned big-endian length followed by UTF-8 JSON, with a 65536-byte frame limit, at most eight simultaneous clients, and two seconds for each complete request and response.
-
-```json
-{ "version": 1, "request_id": "example", "method": "health" }
-```
-
-```json
-{
-  "version": 1,
-  "request_id": "example",
-  "result": {
-    "service": "betterlinuxcnc",
-    "mode": "diagnostics-only",
-    "machine_connected": false
-  }
-}
-```
-
-Errors preserve recognizable request IDs and express rejection through `error.code`. Unknown methods, extra/duplicate fields, nonstandard numbers, and mismatched versions are rejected. The service supports sequential queries on one connection; current Rust diagnostics opens a short connection for each query, without constructing unimplemented control sessions or state streams. Persistent control sessions and permission handshakes await machine integration.
-
-Unix socket permissions restrict users but do not prove the client is Tauri. This diagnostic-only protocol cannot grant machine control.
-
-## Checks and packaging
-
-```sh
-backend/.venv/bin/python -m pip install -r backend/requirements-ci.txt
-backend/.venv/bin/ruff check backend
-backend/.venv/bin/ruff format --check backend
-backend/.venv/bin/python -m build --no-isolation backend
-backend/.venv/bin/python -m pip install --force-reinstall --no-deps backend/dist/*.whl
-backend/.venv/bin/python -m unittest discover -s backend/tests -v
-```
-
-CI builds wheels/source distributions on Python 3.11 and 3.13 and tests the installed service. The package has no third-party runtime dependencies. Rust tests also start real Python processes to verify message compatibility without connecting to a real machine.
+Extend an existing owner for related behavior. Add a new file or directory only when a distinct responsibility requires isolation, and verify existing public APIs before introducing dependencies.

@@ -89,7 +89,7 @@ fn quiescent(state: &Value) -> bool {
         && ["job", "camJob"].iter().all(|field| {
             !matches!(
                 state[field]["state"].as_str(),
-                Some("accepted" | "loading" | "starting" | "running" | "unknown")
+                Some("accepted" | "homing" | "loading" | "starting" | "running" | "unknown")
             )
         })
 }

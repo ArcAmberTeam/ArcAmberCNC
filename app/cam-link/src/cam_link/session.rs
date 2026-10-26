@@ -1,10 +1,12 @@
 use super::{
     config::Options,
-    control,
     feedback::{self, Task, Writer},
-    inbox::{Inbox, Upload},
+    homing,
+    inbox::Inbox,
     manual::Jog,
     protocol::{self, params, Error, Result},
+    transfer::Transfer,
+    wf_transhoming,
 };
 use serde_json::{json, Value};
 use std::{collections::HashSet, sync::Arc, time::Duration};
@@ -25,24 +27,10 @@ struct Session {
     service: Arc<Service>,
     writer: Writer,
     _output: Task,
-    upload: Option<Upload>,
+    transfer: Transfer,
     jog: Jog,
     subscription: Option<Task>,
     failed: watch::Sender<bool>,
-}
-async fn storage<T: Send + 'static>(
-    work: impl FnOnce() -> Result<T> + Send + 'static,
-) -> Result<T> {
-    tokio::task::spawn_blocking(work)
-        .await
-        .map_err(|_| Error::new("storage_unavailable", "inbox worker failed"))?
-        .map_err(|e| {
-            if e.code == "io_error" {
-                Error::new("storage_unavailable", "inbox I/O failed")
-            } else {
-                e
-            }
-        })
 }
 impl Session {
     async fn route(&mut self, method: &str, p: Value) -> Result<Value> {
@@ -57,95 +45,14 @@ impl Session {
                 params(&p, &[])?;
                 Ok(json!({"alive":true}))
             }
-            "upload.begin" => {
-                params(&p, &["transferId", "filename", "size", "sha256"])?;
-                if self.upload.is_some() {
-                    return Err(Error::new(
-                        "upload_in_progress",
-                        "finish or abort the current upload",
-                    ));
-                }
-                let inbox = service.inbox.clone();
-                self.upload = Some(storage(move || inbox.begin(&p)).await?);
-                Ok(json!({"state":"receiving","nextOffset":0}))
+            "upload.begin" | "upload.chunk" | "upload.finish" | "upload.abort"
+            | "upload.receipt" => self.transfer.request(&service.inbox, method, p).await,
+            "home.start" | "home.status" | "home.cancel" => {
+                homing::request(&service.options, method, p).await
             }
-            "upload.chunk" => {
-                let mut upload = self
-                    .upload
-                    .take()
-                    .ok_or_else(|| Error::new("no_upload", "begin an upload first"))?;
-                params(&p, &["offset", "data"])?;
-                let (upload, result) = storage(move || {
-                    let result = upload.write(&p)?;
-                    Ok((upload, result))
-                })
-                .await?;
-                self.upload = Some(upload);
-                Ok(result)
-            }
-            "upload.finish" => {
-                let upload = self
-                    .upload
-                    .take()
-                    .ok_or_else(|| Error::new("no_upload", "begin an upload first"))?;
-                params(&p, &[])?;
-                let inbox = service.inbox.clone();
-                let mut result = storage(move || inbox.finish(upload)).await?;
-                if service.options.auto_run {
-                    let method = if result["duplicate"] == true {
-                        "cam.job.status"
-                    } else {
-                        "cam.job.start"
-                    };
-                    result["job"] = match control::job(
-                        &service.options.control_socket,
-                        method,
-                        result["transferId"].clone(),
-                    )
-                    .await
-                    {
-                        Ok(job) => job,
-                        Err(error) => {
-                            json!({"transferId":result["transferId"],"state":if error.code=="controller_unavailable"{"unknown"}else{"error"},"message":error.message})
-                        }
-                    };
-                }
-                Ok(result)
-            }
-            "upload.abort" => {
-                params(&p, &[])?;
-                self.upload = None;
-                Ok(json!({"aborted":true}))
-            }
-            "upload.receipt" | "job.start" | "job.status" => {
-                params(&p, &["transferId"])?;
-                if method.starts_with("job.") && !service.options.auto_run {
-                    return Err(Error::new(
-                        "auto_run_disabled",
-                        "CAM auto execution is disabled",
-                    ));
-                }
-                let inbox = service.inbox.clone();
-                let id = p["transferId"].clone();
-                let mut receipt = storage(move || inbox.receipt(&id)).await?;
-                if service.options.auto_run {
-                    let local = if method == "job.start" {
-                        "cam.job.start"
-                    } else {
-                        "cam.job.status"
-                    };
-                    let job = control::job(
-                        &service.options.control_socket,
-                        local,
-                        p["transferId"].clone(),
-                    )
-                    .await?;
-                    if method.starts_with("job.") {
-                        return Ok(json!({"job":job}));
-                    }
-                    receipt["job"] = job;
-                }
-                Ok(receipt)
+            "workflow.start" | "workflow.status" | "workflow.cancel" | "job.start"
+            | "job.status" | "job.cancel" => {
+                wf_transhoming::request(&service.options, &service.inbox, method, p).await
             }
             "status.get" => {
                 params(&p, &[])?;
@@ -217,7 +124,7 @@ pub(super) async fn run<S: AsyncRead + AsyncWrite + Unpin + Send + 'static>(
         service: service.clone(),
         writer,
         _output: output,
-        upload: None,
+        transfer: Transfer::default(),
         jog: Jog::default(),
         subscription: None,
         failed,
@@ -242,7 +149,7 @@ pub(super) async fn run<S: AsyncRead + AsyncWrite + Unpin + Send + 'static>(
                     .await?;
                 }
                 session.jog = Jog::default();
-                session.upload = None;
+                session.transfer = Transfer::default();
                 session.unsubscribe().await;
                 // Send FIN before discarding an invalid frame's unread body. This
                 // preserves the error receipt instead of resetting TCP immediately.
@@ -295,7 +202,7 @@ pub(super) async fn run<S: AsyncRead + AsyncWrite + Unpin + Send + 'static>(
             Err(error) => {
                 if matches!(request.method.as_str(), "upload.chunk" | "upload.finish") && !duplicate
                 {
-                    session.upload = None;
+                    session.transfer = Transfer::default();
                 }
                 feedback::send(
                     &session.writer,

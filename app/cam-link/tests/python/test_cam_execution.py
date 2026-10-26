@@ -126,12 +126,15 @@ class CamExecutionNetworkTests(unittest.IsolatedAsyncioTestCase):
         )
         return await self.rpc(connection, "upload.finish", {})
 
-    async def test_new_upload_runs_after_client_disconnect_and_receipt_retry_never_restarts(
+    async def test_explicit_start_survives_disconnect_and_receipt_retry_never_restarts(
         self,
     ):
         connection = await self.connect()
         transfer = str(uuid.uuid4())
         result = await self.upload(connection, transfer)
+        self.assertNotIn("job", result["result"])
+        self.assertEqual(self.module.calls, [])
+        result = await self.rpc(connection, "job.start", {"transferId": transfer})
         self.assertEqual(result["result"]["job"]["state"], "loading")
         connection[1].close()
         await connection[1].wait_closed()
@@ -172,6 +175,7 @@ class CamExecutionNetworkTests(unittest.IsolatedAsyncioTestCase):
         connection = await self.connect()
         transfer = str(uuid.uuid4())
         await self.upload(connection, transfer)
+        await self.rpc(connection, "job.start", {"transferId": transfer})
         writer.close()
         await writer.wait_closed()
         for _ in range(30):
@@ -185,11 +189,69 @@ class CamExecutionNetworkTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.module.calls[-1][0], "auto")
         self.assertEqual(self.factory_calls, 1)
 
-    async def test_offline_rejection_is_reported_in_receipt_without_program_open(self):
+    async def test_upload_is_pure_even_when_execution_is_enabled_and_controller_is_offline(self):
         self.module.available = False
         connection = await self.connect()
-        result = await self.upload(connection, str(uuid.uuid4()))
+        transfer = str(uuid.uuid4())
+        result = await self.upload(connection, transfer)
         self.assertEqual(result["result"]["state"], "received")
+        self.assertNotIn("job", result["result"])
+        self.assertEqual(self.factory_calls, 0)
+        result = await self.rpc(connection, "job.start", {"transferId": transfer})
         self.assertEqual(result["result"]["job"]["state"], "error")
-        self.assertIn("未连接", result["result"]["job"]["message"])
         self.assertEqual(self.module.calls, [])
+
+    async def test_standalone_home_has_no_transfer_and_cancel_cannot_launch_program(self):
+        connection = await self.connect()
+        operation = str(uuid.uuid4())
+        response = await self.rpc(connection, "home.start", {"operationId": operation})
+        self.assertIn("error", response)
+        params = {"operationId": operation, "clearanceConfirmed": True}
+        response = await self.rpc(connection, "home.start", params)
+        self.assertEqual(response["result"]["job"]["state"], "homing")
+        before = list(self.module.calls)
+        await self.rpc(connection, "home.start", params)
+        self.assertEqual(before, self.module.calls)
+        cancelled = await self.rpc(connection, "home.cancel", {"operationId": operation})
+        self.assertEqual(cancelled["result"]["job"]["state"], "unknown")
+        self.assertEqual(self.module.calls[-1][0], "abort")
+        state = await self.rpc(connection, "home.status", {"operationId": operation})
+        self.assertEqual(state["result"]["job"]["state"], "unknown")
+        self.assertFalse(any(method in ("program_open", "auto") for method, _ in self.module.calls))
+
+    async def test_workflow_waits_for_home_and_duplicate_upload_never_restarts(self):
+        connection = await self.connect()
+        transfer = str(uuid.uuid4())
+        await self.upload(connection, transfer)
+        params = {
+            "transferId": transfer,
+            "clearanceConfirmed": True,
+            "machiningConfirmed": True,
+        }
+        result = await self.rpc(connection, "workflow.start", params)
+        self.assertEqual(result["result"]["job"]["state"], "homing")
+        for _ in range(30):
+            if self.module.calls[-1][0] == "home":
+                break
+            self.module.confirm()
+            await asyncio.sleep(0.15)
+        self.assertEqual(self.module.calls[-1][0], "home")
+        self.module.confirm(apply=False)
+        self.module.status.joint[0]["homing"] = True
+        await asyncio.sleep(0.2)
+        self.assertFalse(any(method == "program_open" for method, _ in self.module.calls))
+        duplicate = await self.upload(connection, transfer)
+        self.assertTrue(duplicate["result"]["duplicate"])
+        self.module.status.joint[0]["homing"] = False
+        self.module.confirm()
+        for _ in range(40):
+            if self.module.calls[-1][0] == "auto":
+                break
+            self.module.confirm()
+            await asyncio.sleep(0.15)
+        self.assertEqual(self.module.calls[-1][0], "auto")
+        before = list(self.module.calls)
+        await self.rpc(connection, "workflow.start", params)
+        self.assertEqual(before, self.module.calls)
+        state = await self.rpc(connection, "workflow.status", {"transferId": transfer})
+        self.assertIn(state["result"]["job"]["state"], ("starting", "running"))

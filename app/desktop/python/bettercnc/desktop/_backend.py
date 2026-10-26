@@ -148,7 +148,7 @@ class DesktopBackend(QObject):
             or state.get("paused", False)
             or state.get("commandState") in ("accepted", "pending", "sent", "unknown")
             or (state.get("camJob") or {}).get("state")
-            in ("accepted", "loading", "starting", "running", "unknown")
+            in ("accepted", "homing", "loading", "starting", "running", "unknown")
         ):
             self.errorOccurred.emit(
                 "加工、命令尚未结束或状态未知，不能退出机床界面；请先在本地停止并确认空闲。"

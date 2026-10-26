@@ -246,30 +246,33 @@ TCP 拆包、粘包均按帧头中的长度处理。错误魔数、未知类型�
 `transferId` 只按本地路径关联收件，复制或本地编辑文件不构成新的作业记录。`received` 只表示完整接收，`idle` 只表示当前空闲，均不能证明加工成功。显式开启自动加工后，作业生命周期见下文；百分比、剩余时间、远程暂停及停止接口不在本次范围。
 
 
-## 收到 G-code 后自动加工
+## 独立传输、独立回零与组合加工
 
-用户于 2026-10-24 要求接收后自动加工，并取消自动返回加工前位置。本次只加载及运行，不生成返回、回零、解除急停或使能命令。LinuxCNC 核心仍由现场启动。
+2026-10-26 按用户最新要求拆分三种能力：`transfer.rs` 接收文件，`homing.rs` 请求独立回零，`wf-transhoming.rs` 请求回零后加工。原先 `upload.finish` 隐式自动加工的行为取消；即使传入 `--auto-run`，上传及查询接收回执也不调用控制服务、不触发运动。旧 CAM 客户端必须增加明确的启动请求，不能再把收到文件当作开始加工。
 
-控制服务增加 `--cam-inbox /home/cnc/cam-inbox`，网络服务增加 `--auto-run` 并使用同一 inbox。两端默认关闭此能力；只开启网络端而未配置控制端会明确拒绝加工。认证后的新文件 `upload.finish` 完整发布后，网络服务调用本地 `cam.job.start`；文件重复上传只查询 `cam.job.status`。不扫描既有收件箱、不在重启时补跑旧文件。
+控制服务配置 `--cam-inbox`，Rust 网络服务的 `--auto-run` 现在仅允许显式启动请求。未启用时拒绝启动，但允许查询与取消既有作业。上传流程仍为 `upload.begin` → `upload.chunk` → `upload.finish`，保留大小、SHA-256、UTF-8 校验与原子发布；重复文件只返回接收回执。
 
 | 外部方法 | 帧头 | 参数 | 结果 |
 | --- | --- | --- | --- |
-| `job.start` | `START_JOB` | `{transferId}` | `{job}`；显式启动一个已接收文件，同编号不会重启 |
-| `job.status` | `GET_JOB` | `{transferId}` | `{job}`；没有加工记录时 job 为 null |
+| `home.start` | `REQUEST` | `{operationId, clearanceConfirmed:true}` | `{job}`；只回零，不加载程序 |
+| `home.status` / `home.cancel` | `REQUEST` | `{operationId}` | `{job}`；查询或取消指定回零 |
+| `workflow.start` | `REQUEST` | `{transferId, clearanceConfirmed:true, machiningConfirmed:true}` | `{job}`；已接收文件校验 → 全部回零 → 加载 → 加工 |
+| `workflow.status` / `workflow.cancel` | `REQUEST` | `{transferId}` | `{job}`；查询或取消组合任务 |
+| `job.start` | `START_JOB` | `{transferId}` | `{job}`；已回零机床的单独加工入口，不自动回零 |
+| `job.status` | `GET_JOB` | `{transferId}` | `{job}`；无执行记录时为 null |
+| `job.cancel` | `REQUEST` | `{transferId}` | `{job}`；取消指定执行任务 |
 
-外部接口要求 session.auth 握手；配置令牌或 TLS 时继续执行对应校验。本地 v2 接口为 `cam.job.start/status`，参数同为 `{transferId}`，不授予 CAM 任意路径、任意 MDI 或开机权限。允许调用这些接口的是配置了收件目录的控制服务；所有 native 调用仍在现有单一工作线程、同一 Controller 内串行执行，不建立第二个命令写入口。
+`operationId` 和 `transferId` 是小写 UUID，区别于仅在当前连接去重的帧 `requestId`。独立回零记录在私有 inbox 的 `.homing/<operationId>.json`，不需要上传占位 G-code；程序意图仍记录在对应传输目录的 `execution.json`。同一编号不会再次执行；同一传输不能从单加工改成回零加工或反过来。重启后未完成意图为 unknown，不扫描补跑。
 
-Controller 核对私有收件目录、UUID、普通文件、接收回执、大小及 SHA-256，并将内容复制到同一任务目录下只读的 `.execution.ngc`，防止加载前后原收件文件变化影响加工。启动意图先持久化到 `execution.json`，再按确认顺序执行 `program_open`、AUTO 模式及 `AUTO_RUN(0)`。机床必须连接、已使能、未急停、所有 joint 已回零、空闲、无硬限位及限位覆盖，且未开启 block delete；不绕过 NO_FORCE_HOMING，也不自动回零。
+认证要求不变。本地 v2 方法为 `cam.home.start/status/cancel`、`cam.workflow.start`、`cam.job.start/status/cancel`；`workflow.status/cancel` 复用本地 job 接口。所有 native 调用由同一工作线程中的唯一 Controller 完成。Rust 不读取 HAL、不发送 MDI、不启停核心、不自动解除急停或使能。
 
-启动请求响应包含 `job`，`upload.finish`/`upload.receipt` 在自动模式下也附带此字段，机床状态附带当前服务作业。例如：
+组合请求先验证已接收文件、复制到只读 `.execution.ngc` 并持久化意图，然后按回执顺序切到手动/joint 模式，清除旧回零标志并确认，再执行 HOME ALL。只有全部 joint homed、无正在回零、解释器/运动队列空闲且 in-position，才能加载文件。随后确认正确文件、AUTO 模式，再发出一次 AUTO_RUN(0)。即使请求前已经回零，显式组合流程仍重新回零；希望复用当前回零结果时使用 `job.start`。
 
-```json
-{"state":"received","transferId":"550e8400-e29b-41d4-a716-446655440000","job":{"transferId":"550e8400-e29b-41d4-a716-446655440000","state":"starting","message":"等待 LinuxCNC 确认"}}
-```
+回零要求已连接、已使能、未急停、空闲、主轴停止、无限位覆盖、所有 joint 的回零配置有效。加工继续要求全部 joint 已回零、无硬限位、无覆盖且未启用 block delete。`clearanceConfirmed` 表示操作者确认当前刀具、工件及夹具条件下的整条回零路径无干涉；本机 Z 向下回零，先前空台无刀测试不能替代这个确认。`machiningConfirmed` 表示工件坐标系、刀具补偿与装夹已准备好；软件不会通过回零自动设定这些加工参数。
 
-作业状态为 accepted、loading、starting、running、completed、error、unknown。completed 要求该 AUTO_RUN 的 NML 序号确认 RCS_DONE，解释器和运动队列为空、机床 in-position；不以 idle 单独判定。错误、急停、断线、外部写入、中止请求和服务关闭不会报告完成或自动重试。已经启动的程序不随 CAM TCP 短连接关闭而中止，桌面断开也不撤销服务作业；重启后未完成记录返回 unknown，不自动续跑。
+作业状态为 accepted、homing、loading、starting、running、completed、error、unknown。独立回零 completed 只代表回零确认，组合任务 completed 要求 AUTO_RUN 的 NML 序号确认 RCS_DONE 且运动完成。活动回零步骤最长等待 300 秒；超时只取消后续步骤并报告 unknown，不声称实体轴已经停止。取消请求向当前指定活动任务发送一次 abort，返回 unknown 并要求观察实际状态，不把“请求取消”冒充“停止完成”。不存在或已经结束的编号不停止其他运动。
 
-如果文件已接收但控制服务不可达，接收回执附带 unknown 作业结果；查询回执不会再次调用启动。需要先查询 `job.status` 核实结果，禁止对状态不明的加工自动重发。机床联锁不满足时 job 为 error，原文件保留；同一编号后续查询仍返回失败，不会在机床后来使能时突然启动。忙碌时拒绝提交，不建立延迟执行队列。
+错误、急停、掉电、状态丢失、外部命令写入、取消及服务退出均阻止未发送的加工步骤；结果不明禁止自动重试。被服务接受的任务不会因 CAM/桌面连接断开而撤销，服务本身关闭则不再续发。忙碌时拒绝新任务，不排队等待后来使能或空闲。对丢失响应，只查询 `home.status`/`workflow.status`/`job.status`。
 
 ## XYZ 持续点动
 

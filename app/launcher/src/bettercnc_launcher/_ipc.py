@@ -55,5 +55,5 @@ def quiescent(value):
         and value.get("activeQueueDepth") == 0
         and not value.get("paused", False)
         and (value.get("job") or {}).get("state")
-        not in ("accepted", "loading", "starting", "running", "unknown")
+        not in ("accepted", "homing", "loading", "starting", "running", "unknown")
     )

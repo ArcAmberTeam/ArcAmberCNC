@@ -15,8 +15,8 @@ case "$scope" in
     package=app/controller
     paths=(app/controller/src/betterlinuxcnc_service app/controller/src/bettercnc_controller
            app/controller/tests/test_service.py app/controller/tests/test_control_service.py app/controller/tests/test_controller.py
-           app/controller/tests/test_received_jobs.py app/controller/tests/test_homing_policy.py)
-    tests=(test_service.py test_control_service.py test_controller.py test_received_jobs.py test_homing_policy.py)
+           app/controller/tests/test_received_jobs.py app/controller/tests/test_homing_policy.py app/controller/tests/test_cam_homing.py)
+    tests=(test_service.py test_control_service.py test_controller.py test_received_jobs.py test_homing_policy.py test_cam_homing.py)
     test_dir=app/controller/tests
     ;;
   preview)

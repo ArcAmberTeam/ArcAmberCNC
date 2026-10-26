@@ -10,6 +10,7 @@ from dataclasses import dataclass
 
 from ._config import AXES, SYSTEMS, Configuration
 from ._files import atomic_write, confined_path, tool_table
+from ._homing_requests import HomingRequests
 from ._received import ACTIVE, ReceivedPrograms
 from ._status import observe, offline
 
@@ -23,6 +24,7 @@ class _Step:
     serial: int | None = None
     sent_at: float = 0.0
     active_result: bool = False
+    phase: str | None = None
 
 
 class Controller:
@@ -36,6 +38,7 @@ class Controller:
 
     def __init__(self, ini_path=None, module=None, clock=None, cam_inbox=None):
         self._received = ReceivedPrograms(cam_inbox)
+        self._homing_requests = HomingRequests(cam_inbox)
         self._cam_job = None
         self._module = module
         self._clock = clock or time.monotonic
@@ -61,10 +64,10 @@ class Controller:
         if (
             self._cam_job
             and self._cam_job["state"] in ACTIVE
-            and self._action == "program.run-received"
+            and self._action in ("program.run-received", "machine.home-received")
             and state in ("completed", "error", "unknown")
         ):
-            self._received.update(self._cam_job, state, message)
+            self._update_cam(self._cam_job, state, message)
         self._command_state = state
         self._command_message = message
         if state in ("completed", "error", "unknown"):
@@ -99,7 +102,7 @@ class Controller:
     def _disconnect(self, message):
         if self._cam_job and self._cam_job["state"] in ACTIVE:
             try:
-                self._received.update(self._cam_job, "unknown", "连接中断；加工结果未知，不会重放")
+                self._update_cam(self._cam_job, "unknown", "连接中断；加工结果未知，不会重放")
             except (OSError, ValueError):
                 self._cam_job.update(
                     state="unknown", message="作业记录写入失败；结果未知，不会重放"
@@ -155,12 +158,12 @@ class Controller:
                 if (
                     not self._snapshot["powered"]
                     or self._snapshot["estop"]
-                    or not all(self._snapshot["homed"])
+                    or (self._cam_job["state"] != "homing" and not all(self._snapshot["homed"]))
                 ):
                     self._result("error", "自动加工联锁已失效，取消未发送步骤")
                 elif self._snapshot["busy"] and self._steps and self._steps[0].method == "auto":
                     if self._cam_job["state"] != "running":
-                        self._received.update(self._cam_job, "running", "加工中")
+                        self._update_cam(self._cam_job, "running", "加工中")
             if advance:
                 self._advance()
             self._publish()
@@ -176,6 +179,14 @@ class Controller:
             raise ValueError(message)
 
     def _guard(self, name):
+        if name == "camHoming":
+            self._guard("idle")
+            self._require(not self._snapshot["limitOverride"], "CAM 回零禁止限位覆盖")
+            self._require(self._snapshot["spindleDirection"] == 0, "CAM 回零要求主轴已停止")
+            self._require(
+                self._config.can_home_all(), self._config.homing_message or "回零配置无效"
+            )
+            return
         if name == "camReady":
             self._guard("homedIdle")
             self._require(
@@ -292,7 +303,12 @@ class Controller:
                     if not self._steps:
                         self._result("completed", "LinuxCNC 已确认命令：" + self._action)
                         return
-                elif elapsed > 10 and (done or not self._snapshot["busy"]):
+                elif elapsed > 300 and step.phase == "homing":
+                    self._result("unknown", "回零超时，取消后续加工；请检查实际机床状态")
+                    return
+                elif elapsed > 10 and (
+                    not self._snapshot["busy"] or (done and step.phase != "homing")
+                ):
                     self._result("unknown", "未能确认命令结果；不会重试：" + self._action)
                     return
                 else:
@@ -312,11 +328,11 @@ class Controller:
             if (
                 self._cam_job
                 and self._cam_job["state"] in ACTIVE
-                and self._action == "program.run-received"
+                and self._action in ("program.run-received", "machine.home-received")
             ):
-                self._received.update(
+                self._update_cam(
                     self._cam_job,
-                    "starting" if step.method == "auto" else "loading",
+                    step.phase or ("starting" if step.method == "auto" else "loading"),
                     "等待 LinuxCNC 确认",
                 )
             step.sent_at = self._clock()
@@ -365,7 +381,7 @@ class Controller:
                 raise ValueError("上一条命令尚未确认")
             if emergency:
                 if self._cam_job and self._cam_job["state"] in ACTIVE:
-                    self._received.update(
+                    self._update_cam(
                         self._cam_job,
                         "unknown",
                         "收到停止或联锁请求；不再续发加工步骤，请检查实际机床状态",
@@ -393,25 +409,106 @@ class Controller:
 
     def received_status(self, transfer_id):
         """Read durable execution state; never replay or resume a stored job."""
-        if self._cam_job and self._cam_job["transferId"] == transfer_id:
+        if self._cam_job and self._cam_job.get("transferId") == transfer_id:
             return deepcopy(self._cam_job)
         return self._received.status(transfer_id)
 
-    def start_received(self, transfer_id):
-        """Load and run one verified inbox program, with durable at-most-once intent."""
-        previous = self.received_status(transfer_id)
+    def _update_cam(self, record, state, message):
+        store = self._homing_requests if record.get("kind") == "homing" else self._received
+        store.update(record, state, message)
+
+    def _cam_idle(self):
+        self._require(not self._steps and not self._jogs, "上一条命令尚未完成")
+        self._require(not self._cam_job or self._cam_job["state"] not in ACTIVE, "已有 CAM 作业")
+
+    def _cam_home_steps(self, clearance_confirmed):
+        self._require(clearance_confirmed is True, "必须确认当前装夹下的全部回零路径无干涉")
+        self._guard("idle")
+        self._require(not self._snapshot["limitOverride"], "CAM 回零禁止限位覆盖")
+        self._require(self._snapshot["spindleDirection"] == 0, "CAM 回零要求主轴已停止")
+        self._require(
+            set(self._config.home_all_joints) == set(range(self._stat.joints)),
+            "CAM 回零要求全部 joint 均配置 HOME_SEQUENCE",
+        )
+        steps = self._plan("machine.home-all", {})
+        # Clear old flags with an acknowledged command before rehoming. A stale
+        # all-homed snapshot must never unlock machining on a repeated home.
+        index = next(i for i, step in enumerate(steps) if step.method == "home")
+        steps.insert(
+            index,
+            self._step(
+                "unhome", -1, guard="idle", expected=lambda: not any(self._snapshot["homed"])
+            ),
+        )
+        for step in steps:
+            step.phase = "homing"
+            step.guard = "camHoming"
+            if step.method == "home":
+                step.expected = lambda: all(self._snapshot["homed"]) and not self._snapshot["busy"]
+        return steps
+
+    def homing_status(self, operation_id):
+        """Read a standalone homing receipt without replaying any command."""
+        if self._cam_job and self._cam_job.get("operationId") == operation_id:
+            return deepcopy(self._cam_job)
+        return self._homing_requests.status(operation_id)
+
+    def start_homing(self, operation_id, *, clearance_confirmed=False):
+        """Explicit, durable standalone homing; never load or start a program."""
+        previous = self.homing_status(operation_id)
         if previous is not None:
             return previous
         self._refresh(False)
-        self._require(not self._steps and not self._jogs, "上一条命令尚未完成")
-        self._require(not self._cam_job or self._cam_job["state"] not in ACTIVE, "已有自动加工作业")
-        record = self._received.reserve(transfer_id)
+        self._cam_idle()
+        self._cam_job = self._homing_requests.reserve(operation_id)
+        self._action = "machine.home-received"
+        try:
+            self._steps = deque(self._cam_home_steps(clearance_confirmed))
+            self._command_state = "pending"
+            self._advance()
+        except (ValueError, OSError, RuntimeError) as error:
+            self._result("error", str(error))
+        self._publish()
+        return deepcopy(self._cam_job)
+
+    def cancel_cam(self, identifier, *, homing=False):
+        """Cancel only the identified active job; never stop an unrelated task."""
+        record = self.homing_status(identifier) if homing else self.received_status(identifier)
+        if record is None or record["state"] not in ACTIVE:
+            return record
+        key = "operationId" if homing else "transferId"
+        self._require(
+            self._cam_job and self._cam_job.get(key) == identifier,
+            "作业不属于当前控制会话，不能取消其他运动",
+        )
+        self.dispatch("program.stop")
+        return deepcopy(self._cam_job)
+
+    def start_received(
+        self, transfer_id, *, home_first=False, clearance_confirmed=False, machining_confirmed=False
+    ):
+        """Load and run one verified inbox program, with durable at-most-once intent."""
+        previous = self.received_status(transfer_id)
+        if previous is not None:
+            self._require(
+                (previous.get("kind") == "home-and-run") == home_first,
+                "transferId 已用于不同的执行流程",
+            )
+            return previous
+        self._refresh(False)
+        self._cam_idle()
+        record = self._received.reserve(transfer_id, home_first=home_first)
         self._cam_job = record
         self._action = "program.run-received"
         try:
-            self._guard("camReady")
+            if home_first:
+                self._require(machining_confirmed is True, "必须确认工件坐标、刀具及加工准备")
+                steps = self._cam_home_steps(clearance_confirmed)
+            else:
+                self._guard("camReady")
+                steps = []
             path = confined_path(record["path"])
-            steps = [
+            steps += [
                 self._step(
                     "program_open",
                     path,
@@ -419,7 +516,18 @@ class Controller:
                     expected=lambda: self._snapshot["file"] == path,
                 )
             ]
-            steps += self._mode_steps("auto", "camReady")
+            if home_first:
+                # Homing enters MANUAL even when the initial snapshot was AUTO.
+                steps.append(
+                    self._step(
+                        "mode",
+                        self._constant("MODE_AUTO"),
+                        guard="camReady",
+                        expected=lambda: self._snapshot["mode"] == "auto",
+                    )
+                )
+            else:
+                steps += self._mode_steps("auto", "camReady")
             # Unlike program.run's acceptance response, this final step waits for
             # RCS_DONE, empty queues and in-position; idle alone is insufficient.
             steps.append(
@@ -860,7 +968,7 @@ class Controller:
         if self._closed:
             return
         if self._cam_job and self._cam_job["state"] in ACTIVE:
-            self._received.update(self._cam_job, "unknown", "控制服务会话关闭；不重放加工")
+            self._update_cam(self._cam_job, "unknown", "控制服务会话关闭；不重放加工")
         self.stop_jog()
         # Stops are sent once; close never starts or replays another operation.
         self._steps.clear()

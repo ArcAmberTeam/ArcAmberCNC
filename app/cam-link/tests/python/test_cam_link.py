@@ -31,6 +31,8 @@ REQUEST_TYPES = {
     "status.get": "GET_STATUS",
     "status.subscribe": "SUB_STATUS",
     "status.unsubscribe": "UNSUB_STATUS",
+    "job.start": "START_JOB",
+    "job.status": "GET_JOB",
 }
 
 
@@ -158,6 +160,23 @@ class CamDirectTests(unittest.IsolatedAsyncioTestCase):
             "controller_unavailable",
         )
         self.assertFalse((self.root / "inbox" / transfer_id / "execution.json").exists())
+
+    async def test_motion_starts_are_disabled_without_auto_run(self):
+        await self.client.rpc("session.auth")
+        for method, params in (
+            ("home.start", {"operationId": str(uuid.uuid4()), "clearanceConfirmed": True}),
+            (
+                "workflow.start",
+                {
+                    "transferId": str(uuid.uuid4()),
+                    "clearanceConfirmed": True,
+                    "machiningConfirmed": True,
+                },
+            ),
+            ("job.start", {"transferId": str(uuid.uuid4())}),
+        ):
+            response = await self.client.rpc(method, params)
+            self.assertEqual(response["error"]["code"], "auto_run_disabled")
 
     async def test_direct_connection_still_requires_the_protocol_handshake(self):
         self.assertEqual((await self.client.rpc("ping"))["error"]["code"], "unauthorized")

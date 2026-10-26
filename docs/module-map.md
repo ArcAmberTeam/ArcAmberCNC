@@ -64,7 +64,7 @@ QML 功能模块
 
 `tools/diagnostics → Unix socket → Python v1 health` 为独立诊断链路；不获取控制会话，不代替 v2，不用于判断真实机床连接。Qt 的机床控制链路不经 Rust；应用更新另经独立 Rust CLI，二者不合并协议或新增 FFI。
 
-CAM 在另一台设备生成 G-code，经 TCP 6522 发送到 Rust `betterlinuxcnc-cam-link` 二进制。`protocol` 定义帧，`inbox` 接收程序，`feedback` 回传状态，`control` 适配 v2 Unix 协议，`manual` 管理点动租约；`session` 组合连接及订阅，`discovery` 拥有 UDP 8421 发现。显式开启 auto-run 后，新文件提交同一 Python Controller 加工，重复接收和服务重启不重放。协议见 [CAM 联动协议](cam-link-protocol.md)。
+CAM 在另一台设备生成 G-code，经 TCP 6522 发送到 Rust `betterlinuxcnc-cam-link` 二进制。`protocol` 定义帧，`inbox` 校验和保存程序，`transfer` 拥有纯文件上传生命周期，`homing` 提交独立回零，`wf-transhoming.rs` 提交回零后加工流程；`feedback` 回传状态，`control` 适配 v2 Unix 协议，`manual` 管理点动租约；`session` 组合连接及订阅，`discovery` 拥有 UDP 8421 发现。auto-run 只允许显式启动请求，上传永不触发运动。顺序、联锁、取消和持久化由同一 Python Controller 执行，重复请求和服务重启不重放。协议见 [CAM 联动协议](cam-link-protocol.md)。
 
 不知道机床 IP 时，可显式开启 UDP 局域网发现：机床广播 `ANNOUNCE`，CAM 回复 `DISCOVER_REPLY`，机床回传 `DISCOVER_ACK`。CAM 从报文源地址取得机床 IP，再连接公布的 TCP 端口并认证。发现消息由 Rust discovery 模块拥有，根入口负责生命周期；广播握手不授予文件或机床操作权限。
 

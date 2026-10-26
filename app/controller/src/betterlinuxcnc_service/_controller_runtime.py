@@ -152,7 +152,7 @@ class ControllerRuntime:
     def _release_desktop(self):
         # An accepted CAM job belongs to the service, not the upload/desktop socket.
         job = (self._snapshot or {}).get("camJob") or {}
-        if job.get("state") in ("accepted", "loading", "starting", "running"):
+        if job.get("state") in ("accepted", "homing", "loading", "starting", "running"):
             self._controller.stop_jog()
         else:
             self._close_controller()
@@ -200,7 +200,7 @@ class ControllerRuntime:
         job = (self._snapshot or {}).get("camJob")
         if job:
             result["job"] = deepcopy(job)
-            if result.get("file") == job.get("path"):
+            if job.get("transferId") and result.get("file") == job.get("path"):
                 result["transferId"] = job["transferId"]
         return result
 
@@ -244,16 +244,36 @@ class ControllerRuntime:
         self._snapshot = self._controller.snapshot
         return {"accepted": bool(accepted), "snapshot": wire_snapshot(self._snapshot)}
 
-    def _cam_request(self, method, transfer_id):
-        if method == "cam.job.start" and self._cam_jog_owner is not None:
-            raise ProtocolError("control_in_use", "CAM 正在点动，请先松开")
+    def _cam_request(self, method, params):
+        if method.endswith(".start") and (
+            self._cam_jog_owner is not None or self._lease_deadline is not None
+        ):
+            raise ProtocolError("control_in_use", "正在点动，请先松开")
         if self._controller is None:
             self._new_controller(self._generation)
-        if method == "cam.job.start":
-            result = self._controller.start_received(transfer_id)
+        controller = self._controller
+        if method == "cam.home.start":
+            result = controller.start_homing(
+                params["operationId"], clearance_confirmed=params["clearanceConfirmed"]
+            )
+        elif method == "cam.home.status":
+            result = controller.homing_status(params["operationId"])
+        elif method == "cam.home.cancel":
+            result = controller.cancel_cam(params["operationId"], homing=True)
+        elif method == "cam.workflow.start":
+            result = controller.start_received(
+                params["transferId"],
+                home_first=True,
+                clearance_confirmed=params["clearanceConfirmed"],
+                machining_confirmed=params["machiningConfirmed"],
+            )
+        elif method == "cam.job.start":
+            result = controller.start_received(params["transferId"])
+        elif method == "cam.job.cancel":
+            result = controller.cancel_cam(params["transferId"])
         else:
-            result = self._controller.received_status(transfer_id)
-        self._snapshot = self._controller.snapshot
+            result = controller.received_status(params["transferId"])
+        self._snapshot = controller.snapshot
         return {"job": result}
 
     async def handle(self, owner, method, params):
@@ -313,15 +333,31 @@ class ControllerRuntime:
             else:
                 self._cam_jog_deadline = time.monotonic() + JOG_LEASE_SECONDS
             return {"jogId": jog_id, "accepted": True}
-        if method in ("cam.job.start", "cam.job.status"):
-            self._params(params, required=("transferId",))
+        if method in (
+            "cam.job.start",
+            "cam.job.status",
+            "cam.job.cancel",
+            "cam.workflow.start",
+            "cam.home.start",
+            "cam.home.status",
+            "cam.home.cancel",
+        ):
+            keys = ("operationId",) if method.startswith("cam.home.") else ("transferId",)
+            if method in ("cam.home.start", "cam.workflow.start"):
+                keys += ("clearanceConfirmed",)
+            if method == "cam.workflow.start":
+                keys += ("machiningConfirmed",)
+            self._params(params, required=keys)
+            for key in ("clearanceConfirmed", "machiningConfirmed"):
+                if key in params and params[key] is not True:
+                    raise ProtocolError("invalid_params", key + " must be true")
             if self._cam_inbox is None:
                 raise ProtocolError(
                     "auto_run_disabled", "controller CAM execution is not configured"
                 )
             if self._releasing:
                 raise ProtocolError("session_busy", "controller session is releasing")
-            return await self._work(self._cam_request, method, params["transferId"])
+            return await self._work(self._cam_request, method, params)
         if method == "machine.status":
             self._params(params)
             return await self._work(self._read_status)

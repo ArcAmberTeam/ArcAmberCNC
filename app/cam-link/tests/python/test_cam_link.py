@@ -31,6 +31,8 @@ REQUEST_TYPES = {
     "status.get": "GET_STATUS",
     "status.subscribe": "SUB_STATUS",
     "status.unsubscribe": "UNSUB_STATUS",
+    "job.start": "START_JOB",
+    "job.status": "GET_JOB",
 }
 
 

@@ -143,40 +143,12 @@ async def main(backend_binary, cam_link_binary):
             transfer = str(uuid.uuid4())
             program = {"transferId": transfer, "filename": "fixture.nc", "gcode": "G21\nG90\nM2\n"}
             receipt = await rpc("POST", f"/machines/{device}/programs", program)
-            assert receipt["state"] == "received" and receipt["job"]["state"] in (
-                "loading",
-                "starting",
-                "running",
-            ), receipt
-
-            async def wait_job(state):
-                async with asyncio.timeout(5):
-                    while True:
-                        current = await rpc("POST", f"/machines/{device}/programs", program)
-                        if current["job"]["state"] == state:
-                            return current
-                        assert current["job"]["state"] in (
-                            "loading",
-                            "starting",
-                            "running",
-                        ), current
-                        await asyncio.sleep(0.05)
-
-            # Observe the controller's confirmed state before simulating completion.
-            # Merely seeing auto() does not mean its native receipt was processed.
-            await wait_job("running")
-            before = sum(name == "auto" for name, args in vendor.calls)
-            assert before == 1, vendor.calls
-            await rpc("POST", f"/machines/{device}/programs", program)
-            assert sum(name == "auto" for name, args in vendor.calls) == before
-            ticker.cancel()
-            await asyncio.gather(ticker, return_exceptions=True)
-            vendor.status.interp_state = vendor.INTERP_IDLE
-            vendor.status.state = vendor.RCS_DONE
-            vendor.status.inpos = True
-            vendor.status.queue = vendor.status.active_queue = 0
-            await wait_job("completed")
-            assert sum(name == "auto" for name, args in vendor.calls) == before
+            assert receipt["state"] == "received" and "job" not in receipt, receipt
+            assert not any(name in ("program_open", "auto", "home") for name, _ in vendor.calls)
+            # Repeating a transfer is still file-only even with --auto-run enabled.
+            repeated = await rpc("POST", f"/machines/{device}/programs", program)
+            assert repeated["state"] == "received", repeated
+            assert not any(name in ("program_open", "auto", "home") for name, _ in vendor.calls)
             print(
                 json.dumps(
                     {
@@ -184,9 +156,8 @@ async def main(backend_binary, cam_link_binary):
                         "oneClickPair": True,
                         "status": True,
                         "jogStartKeepaliveStop": True,
-                        "uploadAutoRun": True,
-                        "receiptRetryNoReplay": True,
-                        "completed": True,
+                        "uploadOnly": True,
+                        "receiptRetryNoMotion": True,
                         "hardware": "injected vendor only",
                     },
                     ensure_ascii=False,

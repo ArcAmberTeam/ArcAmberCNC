@@ -2,10 +2,14 @@ mod config;
 mod control;
 mod discovery;
 mod feedback;
+mod homing;
 mod inbox;
 mod manual;
 mod protocol;
 mod session;
+mod transfer;
+#[path = "wf-transhoming.rs"]
+mod wf_transhoming;
 
 use clap::Parser;
 use std::{io::Write, sync::Arc};

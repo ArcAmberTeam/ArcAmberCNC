@@ -63,16 +63,3 @@ pub(super) async fn once(
         )),
     }
 }
-pub(super) async fn job(path: &Path, method: &str, id: Value) -> Result<Value> {
-    let result = once(
-        path,
-        method,
-        json!({"transferId":id}),
-        Duration::from_secs(10),
-    )
-    .await?;
-    result
-        .get("job")
-        .cloned()
-        .ok_or_else(|| Error::new("controller_unavailable", "invalid local job result"))
-}

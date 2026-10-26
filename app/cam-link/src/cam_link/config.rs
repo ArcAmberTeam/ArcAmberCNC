@@ -34,6 +34,7 @@ pub(super) struct Options {
     #[arg(long, requires = "cert")]
     pub key: Option<PathBuf>,
     #[arg(long)]
+    /// Allow explicit CAM home/job/workflow starts; uploads never start motion.
     pub auto_run: bool,
     #[arg(long, requires = "device_id")]
     pub discover: bool,

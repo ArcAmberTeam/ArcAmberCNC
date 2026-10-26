@@ -8,7 +8,7 @@ import stat
 import tempfile
 from pathlib import Path
 
-ACTIVE = frozenset(("accepted", "loading", "starting", "running"))
+ACTIVE = frozenset(("accepted", "homing", "loading", "starting", "running"))
 _ID = re.compile(r"[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}")
 _NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,119}\.(?:ngc|nc|gcode)")
 
@@ -61,7 +61,7 @@ class ReceivedPrograms:
             }
         return record
 
-    def reserve(self, transfer_id):
+    def reserve(self, transfer_id, *, home_first=False):
         directory = self._directory(transfer_id)
         _private(directory / "receipt.json")
         receipt = json.loads((directory / "receipt.json").read_text(encoding="utf-8"))
@@ -86,6 +86,7 @@ class ReceivedPrograms:
             raise ValueError("CAM 加工文件路径超过 LinuxCNC 上限")
         record = {
             "transferId": transfer_id,
+            "kind": "home-and-run" if home_first else "program",
             "filename": name,
             "path": str(target),
             "size": receipt["size"],

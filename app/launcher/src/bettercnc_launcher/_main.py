@@ -8,6 +8,7 @@ from pathlib import Path
 
 from ._autostart import run_kiosk_session, start_session
 from ._config import load
+from ._configuration_lease import configuration_lease
 from ._supervisor import RecoveryBlocked, Runtime
 
 
@@ -28,14 +29,17 @@ def main(argv=None):
             return start_session()
         if args.config is not None and not args.config.expanduser().is_file():
             raise ValueError(f"启动配置不存在：{args.config}")
-        config = load(
-            (args.config or Path.cwd() / "launcher.json").expanduser().resolve(), args.ini
-        )
-        if args.check:
-            print(json.dumps(config.plan(), ensure_ascii=False, indent=2))
-            return 0
-        os.umask(0o077)
-        return Runtime(config, keep_alive=not args.once).run()
+        config_path = (args.config or Path.cwd() / "launcher.json").expanduser().resolve()
+        with configuration_lease(config_path, args.ini):
+            config = load(config_path, args.ini)
+            if args.check:
+                print(json.dumps(config.plan(), ensure_ascii=False, indent=2))
+                return 0
+            with configuration_lease(config_path, str(config.ini)):
+                # Resolve again under the final INI lease for external launcher files.
+                config = load(config_path, args.ini)
+                os.umask(0o077)
+                return Runtime(config, keep_alive=not args.once).run()
     except RecoveryBlocked as error:
         print(f"无法启动：{error}")
         return 78

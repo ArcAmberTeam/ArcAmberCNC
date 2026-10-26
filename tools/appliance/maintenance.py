@@ -1,4 +1,4 @@
-"""Read-only SSH command allowlist. Never evaluate SSH_ORIGINAL_COMMAND."""
+"""Fixed SSH command routing. Never evaluate SSH_ORIGINAL_COMMAND as a shell."""
 
 import json
 import os
@@ -11,6 +11,7 @@ from pathlib import Path
 
 LOG_ROOT = Path("/var/log/betterlinuxcnc/launcher")
 ALLOWED = ("help", "version", "status", "logs", "diagnostics")
+PA_COMMANDS = (("pa", "manage", "ini"), ("pa", "manage", "launcher.json"))
 RUN_NAME = re.compile(r"[0-9]{8}-[0-9]{6}-[1-9][0-9]*")
 LOG_NAME = re.compile(r"(?:controller|linuxcnc|cam-link)-[1-9][0-9]*\.log")
 DIRECTORY_FLAGS = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
@@ -136,6 +137,14 @@ def main():
         words = []
     if not words:
         words = ["help"]
+    if tuple(words) in PA_COMMANDS:
+        # PA verifies the actual OS account again. Inherit the SSH streams for
+        # its session; never buffer it through the one-shot diagnostics runner.
+        os.execve(
+            "/usr/bin/pa",
+            words,
+            {"PATH": "/usr/bin:/bin", "LANG": "C.UTF-8"},
+        )
     if len(words) != 1 or words[0] not in ALLOWED:
         print(
             json.dumps(
@@ -150,6 +159,7 @@ def main():
     if name == "help":
         payload = {
             "commands": ALLOWED,
+            "managementCommands": [" ".join(words) for words in PA_COMMANDS],
             "shell": False,
             "upload": False,
             "forwarding": False,

@@ -177,7 +177,7 @@ jobs:
         run: python -m pip install -r app/controller/requirements-ci.txt
       - name: Install Rust for the staged system-service installation
         run: |
-          for module in app/platform/cam-link app/platform/updater app/platform/mesa-update; do
+          for module in app/platform/cam-link app/platform/updater app/platform/mesa-update app/platform/manage-ini; do
             version=$(python3 -c 'import sys, tomllib; print(tomllib.load(open(sys.argv[1], "rb"))["toolchain"]["channel"])' "$module/rust-toolchain.toml")
             # Both crate manifests request these components; preinstall them before parallel builds.
             rustup toolchain install "$version" --profile minimal --component rustfmt --component clippy
@@ -243,6 +243,8 @@ jobs:
             name: Application updater
           - module: app/platform/mesa-update
             name: Mesa firmware checks and flash safeguards
+          - module: app/platform/manage-ini
+            name: PA maintenance terminal
     defaults:
       run:
         working-directory: ${{ matrix.module }}
@@ -257,12 +259,20 @@ jobs:
         run: |
           version=$(python3 -c 'import tomllib; print(tomllib.load(open("rust-toolchain.toml", "rb"))["toolchain"]["channel"])')
           rustup toolchain install "$version" --profile minimal --component rustfmt --component clippy
+      - name: Create the isolated maintenance identity for PA process tests
+        if: matrix.module == 'app/platform/manage-ini'
+        run: sudo useradd --system --no-create-home --shell /usr/sbin/nologin cnc-maint
       - name: Check library and Python protocol compatibility
         run: |
           cargo fmt --check
           cargo check --locked --all-targets
           cargo clippy --locked --all-targets -- -D warnings
           SERVICE_TEST_PYTHON=python3 cargo test --locked
+      - name: Verify PA terminal input through a real pseudoterminal
+        if: matrix.module == 'app/platform/manage-ini'
+        run: |
+          cargo build --locked --example terminal-preview
+          PA_PREVIEW_BINARY="$PWD/target/debug/examples/terminal-preview" python3 tests/terminal_input.py
 
   qt-build:
     name: ${{ matrix.name }}

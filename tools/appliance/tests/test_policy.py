@@ -26,7 +26,7 @@ authenticationmethods password
 kbdinteractiveauthentication no
 permituserenvironment no
 permituserrc no
-permittty no
+permittty yes
 permittunnel no
 disableforwarding yes
 x11forwarding no
@@ -68,7 +68,7 @@ class PolicyTests(unittest.TestCase):
             {"allowusers": "cnc-maint teto"},
             {"denyusers": "root linuxcnc"},
             {"disableforwarding": "no"},
-            {"permittty": "yes"},
+            {"permittty": "no"},
             {"permitrootlogin": "yes"},
             {"authenticationmethods": "any"},
         ):

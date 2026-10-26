@@ -45,7 +45,7 @@ AuthenticationMethods password
 KbdInteractiveAuthentication no
 PermitUserEnvironment no
 PermitUserRC no
-PermitTTY no
+PermitTTY yes
 PermitTunnel no
 DisableForwarding yes
 X11Forwarding no
@@ -64,6 +64,8 @@ Defaults env_reset
 Defaults use_pty
 Defaults secure_path="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 root ALL=(ALL:ALL) ALL
+Defaults!/usr/lib/betterlinuxcnc/manage-ini/pa-config !use_pty
+cnc-maint ALL=(root) NOPASSWD: /usr/lib/betterlinuxcnc/manage-ini/pa-config ""
 """,
     "/etc/sysctl.d/90-betterlinuxcnc.conf": "kernel.sysrq = 0\n",
     "/etc/polkit-1/rules.d/00-betterlinuxcnc-isolation.rules": """polkit.addRule(function(action, subject) {
@@ -86,7 +88,7 @@ SSH_EXPECTED = {
     "kbdinteractiveauthentication": "no",
     "permituserenvironment": "no",
     "permituserrc": "no",
-    "permittty": "no",
+    "permittty": "yes",
     "permittunnel": "no",
     "disableforwarding": "yes",
     "x11forwarding": "no",

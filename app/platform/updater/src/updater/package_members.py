@@ -29,6 +29,7 @@ TREES = (
     "usr/share/doc/betterlinuxcnc-qt",
 )
 FILES = {
+    "usr/bin/pa",
     "usr/bin/betterlinuxcnc",
     "usr/bin/betterlinuxcnc-service",
     "usr/bin/betterlinuxcnc-launch",

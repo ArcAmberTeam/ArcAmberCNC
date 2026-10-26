@@ -2,6 +2,7 @@
 
 import configparser
 import datetime
+import fcntl
 import grp
 import hashlib
 import json
@@ -61,9 +62,9 @@ def validate_deb_paths(package, source):
                 process.stdout.close()
 
 
-def ownership(path, user, group, mode):
+def ownership(path, user, group, mode, directory=True):
     value = Path(path).lstat()
-    require(stat.S_ISDIR(value.st_mode), f"Not a real directory: {path}")
+    require((stat.S_ISDIR if directory else stat.S_ISREG)(value.st_mode), f"Unexpected file type: {path}")
     require(value.st_uid == pwd.getpwnam(user).pw_uid, f"Unexpected owner: {path}")
     require(value.st_gid == grp.getgrnam(group).gr_gid, f"Unexpected group: {path}")
     require(stat.S_IMODE(value.st_mode) == mode, f"Unexpected permissions: {path}")
@@ -279,6 +280,72 @@ def verify_installed_homing(source, version):
     print("PASS installed HOMEMOD ELF, 20 public exports and fixed source/header provenance")
 
 
+def verify_pa_configuration():
+    """Exercise the installed fixed helper through the actual maintenance sudo grant."""
+    helper = "/usr/lib/betterlinuxcnc/manage-ini/pa-config"
+    ownership(helper, "root", "root", 0o755, directory=False)
+    require(Path(helper).read_bytes().startswith(b"\x7fELF"), "Missing PA configuration ELF")
+    launcher = Path("/etc/betterlinuxcnc/launcher.json")
+    previous_launcher = launcher.read_bytes()
+    require(json.loads(previous_launcher) == {"ciFixture": True}, "PA fixture must only replace the known CI retention fixture")
+    machine = Path("/etc/betterlinuxcnc/machine")
+    machine.mkdir(exist_ok=True)
+    ini = machine / "pa-ci.ini"
+    require(not ini.exists(), "PA fixture must not replace an existing INI")
+    initial = "[EMC]\nMACHINE = CI file-only fixture\n[AXIS_X]\nMIN_LIMIT = 0\nMAX_LIMIT = 400\n"
+    ini.write_text(initial)
+    ini.chmod(0o644)
+    launcher.write_text(json.dumps({"ini": str(ini)}))
+    launcher.chmod(0o644)
+
+    def request(value, ok=True, account="cnc-maint", extra=()):
+        result = subprocess.run(
+            ["/usr/sbin/runuser", "-u", account, "--", "/usr/bin/sudo", "-n", "--", helper, *extra],
+            input=json.dumps(value), text=True, capture_output=True, timeout=45,
+        )
+        require((result.returncode == 0) == ok, f"Unexpected PA helper result: {result.stdout} {result.stderr}")
+        return json.loads(result.stdout) if result.stdout else {}
+
+    try:
+        loaded = request({"operation": "read", "target": "ini"})["document"]
+        require(loaded["content"] == initial, "PA did not load current INI")
+        request({"operation": "read", "target": "/etc/shadow"}, ok=False)
+        request({"operation": "read", "target": "ini"}, ok=False, account="linuxcnc")
+        request({"operation": "read", "target": "ini"}, ok=False, extra=("--path", "/etc/shadow"))
+        updated = initial + "[PA_CAM]\nDIMENSION_SOURCE = working_volume\nTABLE_X_MM = 300\nTABLE_Y_MM = 200\nTABLE_Z_MM = 80\n"
+        save = {"operation": "save", "target": "ini", "revision": loaded["revision"], "content": updated}
+        with Path("/var/lib/betterlinuxcnc/configuration.lock").open() as lease:
+            fcntl.flock(lease, fcntl.LOCK_SH | fcntl.LOCK_NB)
+            request(save, ok=False)
+        lock = Path("/tmp/linuxcnc.lock")
+        with lock.open("x"):
+            try:
+                request(save, ok=False)
+            finally:
+                lock.unlink()
+        request({**save, "content": "[invalid"}, ok=False)
+        with Path("/var/lib/betterlinuxcnc/recovery/snapshots/.lock").open() as snapshot_lock:
+            fcntl.flock(snapshot_lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            response = request(save, ok=False)
+            require("Backup failed" in response["error"], "PA did not fail closed on backup failure")
+        require(ini.read_text() == initial, "Rejected PA save changed the INI")
+        saved = request(save)["document"]
+        require(ini.read_text() == updated, "PA save did not reach the installed INI")
+        require(saved["revision"] != loaded["revision"], "PA revision did not change")
+        require(ini.stat().st_uid == 0 and stat.S_IMODE(ini.stat().st_mode) == 0o644, "PA changed INI ownership")
+        request(save, ok=False)
+        current_launcher = request({"operation": "read", "target": "launcher.json"})["document"]
+        request({"operation": "save", "target": "launcher.json", "revision": current_launcher["revision"],
+                 "content": json.dumps({"ini": str(ini), "startup_timeout": 60})})
+        require(json.loads(launcher.read_text())["startup_timeout"] == 60, "Launcher save was lost")
+        ini.unlink()
+        ini.symlink_to("/etc/passwd")
+        request({"operation": "read", "target": "ini"}, ok=False)
+    finally:
+        ini.unlink(missing_ok=True)
+        launcher.write_bytes(previous_launcher)
+
+
 def main():
     require(os.environ.get("GITHUB_ACTIONS") == "true" and os.geteuid() == 0, "GitHub CI container required")
     package, source = map(Path, sys.argv[1:])
@@ -322,6 +389,21 @@ def main():
     require(installed_version == version, "Installed application version mismatch")
     verify_installed_homing(source, version)
 
+    # PA is installed in PATH without aliases, shell profiles, or elevated mode.
+    ownership("/usr/bin/pa", "root", "root", 0o755, directory=False)
+    require(Path("/usr/bin/pa").read_bytes().startswith(b"\x7fELF"), "Missing real PA binary")
+    for target in ("ini", "launcher.json"):
+        result = run("/usr/sbin/runuser", "-u", "cnc-maint", "--", "/usr/bin/pa", "manage", target, input="help\nexit\n")
+        require("interactive terminal" in result.stdout, "PA non-TTY mode must explain how to open the editor")
+        result = run("/usr/sbin/runuser", "-u", "cnc-maint", "--", "/usr/bin/env", f"SSH_ORIGINAL_COMMAND=pa manage {target}", "/usr/bin/python3", "-I", "/usr/lib/betterlinuxcnc/appliance/maintenance.py", input="exit\n")
+        require("PA /" in result.stdout, "SSH fixed-command routing did not reach PA")
+    for account in ("root", "linuxcnc"):
+        result = subprocess.run(
+            ["/usr/sbin/runuser", "-u", account, "--", "/usr/bin/env", "USER=cnc-maint", "LOGNAME=cnc-maint", "/usr/bin/pa", "manage", "ini"],
+            capture_output=True, text=True, timeout=10,
+        )
+        require(result.returncode == 77, "PA accepted an unauthorized OS account")
+
     # Exercise upgrade preservation with private, synthetic data, never machine commands.
     fixtures = {
         "/etc/betterlinuxcnc/launcher.json": b'{"ciFixture":true}\n',
@@ -354,13 +436,16 @@ def main():
     run("/usr/sbin/sshd", "-t")
     run("/usr/sbin/visudo", "-c")
     effective = run("/usr/sbin/sshd", "-T", "-C", "user=cnc-maint,host=localhost,addr=127.0.0.1").stdout
-    for setting in ("allowusers cnc-maint", "permitrootlogin no", "permittty no", "disableforwarding yes", "forcecommand /usr/bin/python3 -I /usr/lib/betterlinuxcnc/appliance/maintenance.py"):
+    for setting in ("allowusers cnc-maint", "permitrootlogin no", "permittty yes", "disableforwarding yes", "forcecommand /usr/bin/python3 -I /usr/lib/betterlinuxcnc/appliance/maintenance.py"):
         require(setting in effective.splitlines(), f"Missing effective SSH restriction: {setting}")
     sudo_rules = [
         line.strip() for line in Path("/etc/sudoers").read_text().splitlines()
-        if line.strip() and not line.lstrip().startswith(("#", "Defaults "))
+        if line.strip() and not line.lstrip().startswith(("#", "Defaults"))
     ]
-    require(sudo_rules == ["root ALL=(ALL:ALL) ALL"], "Unexpected ordinary-user sudo rule or include")
+    require(sudo_rules == [
+        "root ALL=(ALL:ALL) ALL",
+        'cnc-maint ALL=(root) NOPASSWD: /usr/lib/betterlinuxcnc/manage-ini/pa-config ""',
+    ], "Unexpected ordinary-user sudo rule or include")
     require("#include" not in Path("/etc/sudoers").read_text(), "Unexpected sudoers include")
     for account in ("linuxcnc", "cnc-maint"):
         # Listing as root can succeed while reporting that the selected user has no grants.
@@ -375,7 +460,8 @@ def main():
             f"Unexpected sudo execution by {account}: {result.stdout} {result.stderr}",
         )
     verify_installed_backup(version, policies)
-    print("DEB metadata, Rust binaries, provisioning, data retention, SSH/sudo and private backup rotation passed")
+    verify_pa_configuration()
+    print("DEB metadata, Rust binaries, provisioning, data retention, PA configuration, SSH/sudo and private backup rotation passed")
 
 
 if __name__ == "__main__":

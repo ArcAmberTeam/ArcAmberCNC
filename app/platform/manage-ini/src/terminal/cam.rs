@@ -3,6 +3,8 @@
 use super::{input::Key, language::Language, motion::Row};
 use crate::ini;
 
+//--------//
+// BEGIN: CamMetadataSettings
 pub(super) struct CamSettings {
     selected: usize,
     choice: Option<usize>,
@@ -168,3 +170,6 @@ impl CamSettings {
         }
     }
 }
+
+// END: CamMetadataSettings
+//--------//

@@ -130,6 +130,15 @@ impl Language {
             "Enter opens the managed INI at JOINT_0 for motor scale, pulse timing and encoder parameters. HAL wiring is not rewritten." => "Enter 開啟目前 INI 的 JOINT_0 段，編輯電機比例、脈衝時序與編碼器參數；不改寫 HAL 接線。",
             "Enter opens the managed INI at HAL. Signal mappings implemented in HAL remain in their own files; this editor only changes INI." => "Enter 開啟目前 INI 的 HAL 段。HAL 檔中的訊號接線仍由 HAL 管理；本編輯器僅修改 INI。",
             "Enter loads the current INI in the text editor. Ctrl+S saves after backup while CNC is stopped. Esc returns; unsaved edits require a choice." => "Enter 載入目前 INI。CNC 停止後，Ctrl+S 先備份再儲存。Esc 返回；有未儲存變更時會提示保留或放棄。",
+            "Saved changes" => "已儲存變更",
+            "Session only" => "僅本次工作階段",
+            "Stop CNC to save" => "停止 CNC 後可儲存",
+            "Saved to disk" => "已寫入檔案",
+            "The installed launcher selects the managed INI. External edits are detected before saving." => "由已安裝的啟動器設定指定 INI。儲存前會檢查檔案是否被外部修改。",
+            "Production saves require maintenance authorization, stopped CNC, a fresh file revision and successful backup." => "正式儲存需要運維授權、CNC 已停止、檔案版本一致且備份成功。",
+            "Structured edits and the text editor share one document. Production changes take effect after a manual CNC restart." => "參數選單與文字編輯器使用同一份設定。正式變更在手動重新啟動 CNC 後生效。",
+            "Enter saves structured edits. Ctrl+S saves the text editor. Preview saves remain in this session." => "Enter 儲存參數編輯，Ctrl+S 儲存文字編輯。預覽模式僅保留於本次工作階段。",
+            "Use Motion for structured settings or Advanced for the INI text editor. Launcher JSON opens from its Configuration item." => "移動參數提供選單編輯，進階設定提供 INI 文字編輯；啟動器 JSON 從設定檔項目開啟。",
             _ => english,
         }
     }

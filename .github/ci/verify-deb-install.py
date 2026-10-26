@@ -286,7 +286,8 @@ def verify_pa_configuration():
     ownership(helper, "root", "root", 0o755, directory=False)
     require(Path(helper).read_bytes().startswith(b"\x7fELF"), "Missing PA configuration ELF")
     launcher = Path("/etc/betterlinuxcnc/launcher.json")
-    require(not launcher.exists(), "PA fixture must not replace an existing machine")
+    previous_launcher = launcher.read_bytes()
+    require(json.loads(previous_launcher) == {"ciFixture": True}, "PA fixture must only replace the known CI retention fixture")
     machine = Path("/etc/betterlinuxcnc/machine")
     machine.mkdir(exist_ok=True)
     ini = machine / "pa-ci.ini"
@@ -342,7 +343,7 @@ def verify_pa_configuration():
         request({"operation": "read", "target": "ini"}, ok=False)
     finally:
         ini.unlink(missing_ok=True)
-        launcher.unlink(missing_ok=True)
+        launcher.write_bytes(previous_launcher)
 
 
 def main():
@@ -393,7 +394,7 @@ def main():
     require(Path("/usr/bin/pa").read_bytes().startswith(b"\x7fELF"), "Missing real PA binary")
     for target in ("ini", "launcher.json"):
         result = run("/usr/sbin/runuser", "-u", "cnc-maint", "--", "/usr/bin/pa", "manage", target, input="help\nexit\n")
-        require("not implemented yet" in result.stdout, "PA must report the editor as pending")
+        require("interactive terminal" in result.stdout, "PA non-TTY mode must explain how to open the editor")
         result = run("/usr/sbin/runuser", "-u", "cnc-maint", "--", "/usr/bin/env", f"SSH_ORIGINAL_COMMAND=pa manage {target}", "/usr/bin/python3", "-I", "/usr/lib/betterlinuxcnc/appliance/maintenance.py", input="exit\n")
         require("PA /" in result.stdout, "SSH fixed-command routing did not reach PA")
     for account in ("root", "linuxcnc"):

@@ -157,23 +157,25 @@ fn rows(
         ],
         4 => vec![
             ("Management target", "ini", "INI is a registered logical target, not an arbitrary caller-supplied path."),
-            ("Configuration source", "Not loaded", "File selection, include handling and configuration revisions are pending."),
-            ("Write access", "Unavailable", "This version does not open or save configuration files."),
+            ("Configuration source", "Not loaded", "The installed launcher selects the managed INI. External edits are detected before saving."),
+            ("Write access", "Unavailable", "Production saves require maintenance authorization, stopped CNC, a fresh file revision and successful backup."),
         ],
         5 => vec![
-            ("Pending changes", "None", "The preview has no persistent changes or connection to a machine."),
-            ("Save configuration", "Unavailable", "Configuration validation, backup and apply will be implemented separately."),
+            ("Saved changes", "None", "Structured edits and the text editor share one document. Production changes take effect after a manual CNC restart."),
+            ("Save configuration", "Enter / Ctrl+S", "Enter saves structured edits. Ctrl+S saves the text editor. Preview saves remain in this session."),
             ("Restart machine", "Unavailable", "This terminal does not start or restart machine services."),
         ],
         _ => vec![
             ("Management target", "ini", "Use pa manage ini or pa manage launcher.json to select a management target."),
             ("Session", if demo { "UI PREVIEW" } else { "cnc-maint" }, "Production PA validates the real and effective OS user IDs."),
             ("Machine connection", "Not connected", "This interface does not open the LinuxCNC controller connection."),
-            ("Editor", "Preview only", "Blue/gray terminal layout with keyboard navigation. Configuration editing is pending."),
+            ("Editor", if demo { "Preview only" } else { "INI / JSON" }, "Use Motion for structured settings or Advanced for the INI text editor. Launcher JSON opens from its Configuration item."),
         ],
     }
 }
 
+//--------//
+// BEGIN: ManagementTerminal
 struct State {
     target: String,
     demo: bool,
@@ -364,12 +366,29 @@ fn render(state: &State) -> io::Result<()> {
             }
         } else {
             for (index, (name, value, _)) in items.iter().enumerate() {
-                let name = language.text(name);
-                let value = if tab == 5 && index == 0 && motion.saved() {
-                    language.text("Session draft")
+                let value = if *name == "Configuration source" {
+                    state
+                        .session
+                        .document
+                        .as_ref()
+                        .map_or("Not loaded", |document| document.label.as_str())
+                } else if *name == "Write access" && state.session.document.is_some() {
+                    if demo {
+                        "Session only"
+                    } else {
+                        "Stop CNC to save"
+                    }
+                } else if tab == 5 && index == 0 && state.session.saved {
+                    if demo {
+                        "Session draft"
+                    } else {
+                        "Saved to disk"
+                    }
                 } else {
-                    language.text(value)
+                    value
                 };
+                let name = language.text(name);
+                let value = language.text(value);
                 let text = format!(
                     " {name}{} [{value}]",
                     " ".repeat(25_usize.saturating_sub(name.width()))
@@ -562,3 +581,6 @@ pub(super) fn open(target: &str, demo: bool) -> io::Result<()> {
         }
     }
 }
+
+// END: ManagementTerminal
+//--------//

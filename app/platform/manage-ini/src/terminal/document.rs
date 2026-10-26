@@ -6,11 +6,14 @@ use crate::{
 };
 use std::io;
 
+//--------//
+// BEGIN: ConfigurationDocumentSession
 pub(super) struct Session {
     pub target: String,
     pub document: Option<Document>,
     pub error: String,
     pub demo: bool,
+    pub saved: bool,
 }
 
 impl Session {
@@ -20,6 +23,7 @@ impl Session {
             document: None,
             error: String::new(),
             demo,
+            saved: false,
         };
         if demo {
             session.document = Some(Document {
@@ -69,6 +73,7 @@ impl Session {
             configuration::save(&self.target, &document.revision, content)?
         };
         self.document = Some(updated);
+        self.saved = true;
         self.error.clear();
         Ok(())
     }
@@ -80,6 +85,9 @@ impl Session {
         self.save(content)
     }
 }
+
+// END: ConfigurationDocumentSession
+//--------//
 
 fn preview_ini() -> String {
     let mut text = String::from("# Isolated preview. No machine connection.\n[EMC]\nMACHINE = PA Preview\n[KINS]\nJOINTS = 5\nKINEMATICS = trivkins coordinates=XYZAB\n[TRAJ]\nCOORDINATES = XYZAB\nLINEAR_UNITS = mm\nANGULAR_UNITS = degree\n[PA_CAM]\nDIMENSION_SOURCE = axis_travel\nTABLE_X_MM = 400\nTABLE_Y_MM = 300\nTABLE_Z_MM = 100\n");

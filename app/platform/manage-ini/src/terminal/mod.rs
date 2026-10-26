@@ -1,4 +1,4 @@
-//! Minimal session lifecycle until the full-screen editor interaction is agreed.
+//! Interactive management session with a bounded help-only non-TTY fallback.
 
 use crate::targets::Target;
 use std::io::{self, BufRead, Read, Write};
@@ -50,7 +50,7 @@ pub(crate) fn open(
             b"help\n" | b"help\r\n" | b"help" => {
                 writeln!(
                     output,
-                    "Commands: help, exit. Configuration editing is pending."
+                    "Commands: help, exit. Open an interactive terminal to edit configuration."
                 )?;
             }
             b"\n" | b"\r\n" => {}

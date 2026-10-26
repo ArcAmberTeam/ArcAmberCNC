@@ -261,10 +261,6 @@ impl MotionSettings {
         }
     }
 
-    pub fn saved(&self) -> bool {
-        self.saved
-    }
-
     pub fn title(&self) -> &'static str {
         if self.page {
             self.groups[self.group].name

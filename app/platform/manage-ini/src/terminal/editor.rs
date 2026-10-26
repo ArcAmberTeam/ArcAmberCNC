@@ -8,6 +8,8 @@ pub(super) enum Action {
     Close,
 }
 
+//--------//
+// BEGIN: ConfigurationTextEditor
 pub(super) struct Editor {
     lines: Vec<Vec<char>>,
     row: usize,
@@ -178,3 +180,6 @@ impl Editor {
         Action::None
     }
 }
+
+// END: ConfigurationTextEditor
+//--------//

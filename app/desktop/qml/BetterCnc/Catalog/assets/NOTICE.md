@@ -1,10 +1,10 @@
-# Qt 静态资产来源
+# Qt static asset sources
 
-本目录保存 Qt 使用的资源及从原 Web 界面继承的来源记录。历史资源快照对应仓库版本为 `607f246518b0f41bb7240ba8777751ce25889ff7`（基于 LinuxCNC 2.9.10）。原生 AXIS 的工具栏改绘和生成器现已撤回；Web 界面现已移除，Qt 保留所用资源的许可证与出处，构建不读取已删除目录，也不加载远程 CDN。
+This directory contains Qt assets and provenance inherited from the former Web UI. The historical resource snapshot corresponds to repository revision `607f246518b0f41bb7240ba8777751ce25889ff7` (based on LinuxCNC 2.9.10). Native AXIS toolbar redraws/generators were withdrawn; Web was removed. Qt retains licenses/attribution for assets it uses; builds neither read deleted directories nor load remote CDNs.
 
-## 已改绘的工具栏
+## Redrawn toolbar
 
-以下文件属于该历史快照中的 Lucide 改绘：
+These files belonged to the historical Lucide redraw:
 
 ```text
 tool_estop.gif      tool_power.gif       tool_open.gif
@@ -16,16 +16,16 @@ tool_axis_y.gif     tool_axis_y2.gif     tool_axis_p.gif
 tool_rotate.gif     tool_clear.gif       resume_inhibit.gif
 ```
 
-上游为 [Lucide](https://github.com/lucide-icons/lucide)，源版本 `951813ce76a859d4d8b145366972cbb237147a4e`。原始图标对应关系、尺寸、SVG 和改绘说明分别位于仓库的 [`manifest.json`](https://github.com/Xamber-Software/BetterLinuxCNC/blob/607f246518b0f41bb7240ba8777751ce25889ff7/share/axis/images/toolbar-source/manifest.json) 与 [`README.md`](https://github.com/Xamber-Software/BetterLinuxCNC/blob/607f246518b0f41bb7240ba8777751ce25889ff7/share/axis/images/toolbar-source/README.md)。改绘包括颜色、部分实心形状和 AXIS 专用标记；Qt 不再次改绘这些历史 GIF。
+Upstream: [Lucide](https://github.com/lucide-icons/lucide), source revision `951813ce76a859d4d8b145366972cbb237147a4e`. Original icon mappings, dimensions, SVGs, and redraw notes are in historical [manifest.json](https://github.com/Xamber-Software/BetterLinuxCNC/blob/607f246518b0f41bb7240ba8777751ce25889ff7/share/axis/images/toolbar-source/manifest.json) and [README.md](https://github.com/Xamber-Software/BetterLinuxCNC/blob/607f246518b0f41bb7240ba8777751ce25889ff7/share/axis/images/toolbar-source/README.md). Changes include colors, some solid shapes, and AXIS-specific marks; Qt does not redraw these historical GIFs again.
 
-版权与许可证：
+Copyright and licenses:
 
-- Copyright (c) 2026 Lucide Icons and Contributors — ISC。
-- 部分图标源于 Feather：Copyright (c) 2013-present Cole Bemis — MIT。
+- Copyright (c) 2026 Lucide Icons and Contributors — ISC.
+- Some icons derive from Feather: Copyright (c) 2013-present Cole Bemis — MIT.
 
-完整通知已原样保存为本目录的 [TOOLBAR-LICENSE](TOOLBAR-LICENSE)，来源是 [历史 LICENSE](https://github.com/Xamber-Software/BetterLinuxCNC/blob/607f246518b0f41bb7240ba8777751ce25889ff7/share/axis/images/toolbar-source/LICENSE)。适用 ISC and MIT，撤回原生资源不会改变已有副本的授权。GIF 透明边缘按 AXIS `#d9d9d9` 控件背景处理，这些 GIF 的来源记录作为历史说明保留，本目录不包含这些 GIF。当前深色工具栏使用 `BetterCnc.Ui` 中的原创矢量路径。
+Full notices are preserved unchanged in [TOOLBAR-LICENSE](TOOLBAR-LICENSE), from the [historical LICENSE](https://github.com/Xamber-Software/BetterLinuxCNC/blob/607f246518b0f41bb7240ba8777751ce25889ff7/share/axis/images/toolbar-source/LICENSE). ISC and MIT apply; withdrawal of native assets does not change licenses for existing copies. GIF transparent edges were processed for AXIS `#d9d9d9` controls. Their provenance remains historical documentation; this directory does not contain those GIFs. The current dark toolbar uses original vector paths in `BetterCnc.Ui`.
 
-## 其他 AXIS 图像
+## Other AXIS images
 
 ```text
 axis-16x16.png  axis-24x24.png  axis-32x32.png  axis-48x48.png
@@ -33,12 +33,12 @@ banner.gif     close.gif       spindle_ccw.gif spindle_cw.gif
 std_error.gif  std_info.gif    std_warning.gif tool_verify.gif
 ```
 
-这些文件来自相同 `share/axis/images/` 路径。按本仓库 [`debian/copyright`](../../../../../debian/copyright) 的 `Files: *` 归类，适用 `GPL-2+`，即 GPL version 2 或更高版本；版权为 The LinuxCNC Developers 及该文件所列贡献者。全文见仓库 [COPYING](../../../../../COPYING)。本目录目前保留 `axis-48x48.png`；上述历史列表不表示 Qt 包含或使用其余图像。
+These originated at the same `share/axis/images/` path. Under `Files: *` in repository [debian/copyright](../../../../../../debian/copyright), they are `GPL-2+`, GPL version 2 or later, copyright The LinuxCNC Developers and listed contributors. Full license: [COPYING](../../../../../../COPYING). This directory currently retains `axis-48x48.png`; the historical list does not mean Qt includes/uses the other images.
 
-## 程序样例与界面依据
+## Program examples and UI references
 
-原 Web 界面的程序样例从 [`share/axis/images/axis.ngc`](https://github.com/Xamber-Software/BetterLinuxCNC/blob/e470d7aa6268a4ff56963cb8e162f2004ba89736/share/axis/images/axis.ngc) 复制，前端中文化时仅翻译了说明性注释，程序指令、参数及行数保持不变；按仓库通用 GPL-2+ 条目记录。`BetterCnc.Catalog` 的 `sampleProgram` 继承此历史样例，不作为生产状态；程序注释明确这是 AXIS splash G-code，不是实际铣削作业。
+The former Web sample copied [share/axis/images/axis.ngc](https://github.com/Xamber-Software/BetterLinuxCNC/blob/e470d7aa6268a4ff56963cb8e162f2004ba89736/share/axis/images/axis.ngc). Chinese localization translated explanatory comments only, preserving instructions, parameters, and line count; it follows the repository's general GPL-2+ entry. `BetterCnc.Catalog` sampleProgram inherits this historical example, never production state. Comments identify it as AXIS splash G-code, not an actual milling job.
 
-界面结构参考历史 `share/axis/tcl/axis.tcl` 和 `src/emc/usr_intf/axis/scripts/axis.py`，其中保留的上游版权声明列出 Jeff Epler、Chris Radek，并使用 GPL-2.0-or-later。Qt 界面沿用仓库的 GPL-2.0-or-later 授权。
+UI structure references historical share/axis/tcl/axis.tcl and src/emc/usr_intf/axis/scripts/axis.py, whose upstream copyright notices name Jeff Epler and Chris Radek under GPL-2.0-or-later. Qt UI retains repository GPL-2.0-or-later licensing.
 
-原 Web 刀路区 SVG 为静态示意；当前 Qt 刀路区根据控制服务解释的线段与实际轨迹绘制。本文对仓库已有来源作记录，不改变各文件的原许可证；分发 Qt 界面时须一并保留适用的许可证和版权通知。
+The former Web toolpath SVG was illustrative. Current Qt draws service-interpreted segments and actual traces. This document records existing provenance without changing original licenses; distribute applicable licenses/copyright notices with Qt.

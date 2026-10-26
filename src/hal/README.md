@@ -1,23 +1,23 @@
-# 硬件抽象层
+# Hardware abstraction layer
 
-[全项目模块地图](../../docs/module-map.md)
+[Project module map](../../docs/module-map.md)
 
-## 作用与语言
+## Role and language
 
-C 为主，另有 C++、Python 和组件定义文件。
+Primarily C, with C++, Python, and component definition files.
 
-把软件功能和设备信号连接成引脚、信号、参数及执行函数，支撑运动模块、控制组件和硬件驱动协作。
+Connects software functions and device signals as pins, signals, parameters, and execution functions, supporting collaboration among motion, control components, and hardware drivers.
 
-## 关键代码与通信
+## Key code and communication
 
-`hal.h`、`hal_lib.c` 为核心接口和实现；`components/` 管控制组件，`drivers/` 管硬件驱动，`user_comps/` 管用户态组件，`utils/` 管配置工具。
+`hal.h` and `hal_lib.c` provide the core interface/implementation. `components/` owns control components, `drivers/` hardware drivers, `user_comps/` user-space components, and `utils/` configuration tools.
 
-上接运动模块和其他控制逻辑，下接驱动与设备。HAL 同时支持实时和非实时组件，执行上下文取决于组件及线程配置。
+Connects motion and other control logic above to drivers/devices below. HAL supports both real-time and non-real-time components; execution context depends on component/thread configuration.
 
-## 职责边界
+## Responsibility boundaries
 
-HAL 不等于一张控制卡，也不是整套系统都实时的保证。界面改版不应改 HAL 线路，普通按钮不应绕过控制服务任意写引脚。
+HAL is not a control card or a guarantee that the whole system is real time. UI redesign should not change HAL wiring, and ordinary buttons must not bypass the controller service to write arbitrary pins.
 
-这是保留的 LinuxCNC 核心代码，不属于当前 Web 静态构建产物。我们的 Python 服务尚未接入这些控制路径。此说明描述现有职责，不新增接口或改变上游依赖。
+This is retained LinuxCNC core code, not part of the current Web static build artifact. Our Python service has not yet connected to these control paths. This document describes existing responsibilities without adding interfaces or changing upstream dependencies.
 
-修改此处需要相应的 LinuxCNC 原生构建与功能验证；Web 或 Tauri 构建通过不能证明该模块可运行。涉及实时行为还需目标 Linux 主机验证。
+Changes here require appropriate native LinuxCNC builds and functional verification. A passing Web or Tauri build does not establish that this module runs. Real-time behavior additionally requires verification on the target Linux host.

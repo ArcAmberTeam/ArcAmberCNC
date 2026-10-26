@@ -1,23 +1,23 @@
-# 实时运动执行
+# Real-time motion execution
 
-[全项目模块地图](../../../docs/module-map.md)
+[Project module map](../../../docs/module-map.md)
 
-## 作用与语言
+## Role and language
 
-C 为主；`usrmotintf.cc` 是 C++ 用户态访问接口。
+Primarily C; `usrmotintf.cc` is the C++ user-space access interface.
 
-处理运动命令，执行周期性运动计算、点动、回零和运动状态检查，衔接轨迹规划、运动学和 HAL。
+Processes motion commands, performs periodic motion calculations, jogging, homing, and motion-state checks, and connects trajectory planning, kinematics, and HAL.
 
-## 关键代码与通信
+## Key code and communication
 
-`motion.c` 管模块初始化，`command.c` 管命令，`control.c` 管周期控制，`homing.c` 管回零，`usrmotintf.cc` 管用户态与运动共享内存。
+`motion.c` handles initialization, `command.c` commands, `control.c` cyclic control, `homing.c` homing, and `usrmotintf.cc` user-space/motion shared memory.
 
-Task 通过用户态运动接口读写共享内存；实时侧使用 `tp`、`kinematics` 和 HAL，向外提供命令位置与执行状态并读取反馈。
+Task reads/writes shared memory through the user-space motion interface. The real-time side uses `tp`, `kinematics`, and HAL, exposing commanded positions/execution state and reading feedback.
 
-## 职责边界
+## Responsibility boundaries
 
-这里与非实时界面的刷新循环独立；不能依赖 Python、JSON、网络往返或网页及时响应。共享内存不是给 Vue 或 Python 自行写入的应用接口。
+This is independent of non-real-time UI refresh loops; it must not depend on timely Python, JSON, network round trips, or webpage responses. Shared memory is not an application interface for Vue or Python to write directly.
 
-这是保留的 LinuxCNC 核心代码，不属于当前 Web 静态构建产物。我们的 Python 服务尚未接入这些控制路径。此说明描述现有职责，不新增接口或改变上游依赖。
+This is retained LinuxCNC core code, not part of the current Web static build artifact. Our Python service has not yet connected to these control paths. This document describes existing responsibilities without adding interfaces or changing upstream dependencies.
 
-修改此处需要相应的 LinuxCNC 原生构建与功能验证；Web 或 Tauri 构建通过不能证明该模块可运行。涉及实时行为还需目标 Linux 主机验证。
+Changes here require appropriate native LinuxCNC builds and functional verification. A passing Web or Tauri build does not establish that this module runs. Real-time behavior additionally requires verification on the target Linux host.

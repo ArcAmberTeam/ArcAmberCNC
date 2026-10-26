@@ -1,23 +1,23 @@
-# 外围动作协调
+# Peripheral operation coordination
 
-[全项目模块地图](../../../docs/module-map.md)
+[Project module map](../../../docs/module-map.md)
 
-## 作用与语言
+## Role and language
 
-C++；非实时用户态。
+C++; non-real-time user space.
 
-处理换刀、冷却及相关辅助 I/O 请求和握手，把完成或错误状态反馈给执行协调层。
+Handles tool-change, coolant, and related auxiliary I/O requests and handshakes, reporting completion/errors to the execution coordinator.
 
-## 关键代码与通信
+## Key code and communication
 
-`ioControl.cc` 与 `ioControl_v2.cc` 是现有 I/O 控制实现，具体使用由配置和启动方式决定。
+`ioControl.cc` and `ioControl_v2.cc` are the existing I/O control implementations; configuration and startup determine which is used.
 
-从 NML 接收相关任务命令，经 HAL 引脚连接外部逻辑，并报告动作状态。
+Receives relevant task commands through NML, connects external logic through HAL pins, and reports operation status.
 
-## 职责边界
+## Responsibility boundaries
 
-不是所有实时 I/O 的唯一入口；运动同步 I/O 和硬件读写还有对应的运动／HAL 路径。不要把实际电气握手伪造成 UI 按钮点击后的本地状态。
+This is not the sole entry point for all real-time I/O; motion-synchronized I/O and hardware access have their own motion/HAL paths. Never replace actual electrical handshakes with local state inferred from UI clicks.
 
-这是保留的 LinuxCNC 核心代码，不属于当前 Web 静态构建产物。我们的 Python 服务尚未接入这些控制路径。此说明描述现有职责，不新增接口或改变上游依赖。
+This is retained LinuxCNC core code, not part of the current Web static build artifact. Our Python service has not yet connected to these control paths. This document describes existing responsibilities without adding interfaces or changing upstream dependencies.
 
-修改此处需要相应的 LinuxCNC 原生构建与功能验证；Web 或 Tauri 构建通过不能证明该模块可运行。涉及实时行为还需目标 Linux 主机验证。
+Changes here require appropriate native LinuxCNC builds and functional verification. A passing Web or Tauri build does not establish that this module runs. Real-time behavior additionally requires verification on the target Linux host.

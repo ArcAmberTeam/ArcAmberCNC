@@ -1,36 +1,36 @@
-# Qt 白金界面与组件结构
+# Qt platinum UI and component structure
 
-2026-10-24 按用户提供的《CNC白金视觉风格手册与AI重构规范》调整原生 QML 加工工作区。视觉采用暖白、香槟金、红色停止语义和白色面板；保留现有 LinuxCNC 控制协议、动作 ID、操作许可和点动生命周期。
+On 2026-10-24, the native QML machining workspace was adjusted to the user's CNC Platinum Visual Style Manual and AI Refactoring Specification. It uses warm white, champagne gold, red stop semantics, and white panels while preserving LinuxCNC protocol, action IDs, operation permissions, and jogging lifecycle.
 
-## 文件职责
+## File responsibilities
 
-| 文件 | 职责 |
+| File | Responsibility |
 | --- | --- |
-| `qml/BetterCnc/Ui/Theme.qml` | 集中颜色、字体、基本控件尺寸与间距；`accentFill` 为金色填充，`accent` 为可读的深金文字与焦点 |
-| `qml/BetterCnc/Ui/Ui*.qml` | 公共按钮、输入、勾选、列表选择、滑块与图标的外观和焦点状态 |
-| `qml/Main.qml` | 默认 1440×900 窗口、关闭及焦点生命周期 |
-| `qml/Workspace.qml` | 宽窄布局、面板组合、后台反馈与点动按键所有权 |
-| `qml/WorkspaceShortcuts.qml` | 非持续点动快捷键，显式注入展示状态与动作接口 |
-| `qml/WorkspaceStatus.qml` | 底部持续可见的连接/操作状态与预览能力说明 |
-| `qml/BetterCnc/Chrome/MachineStatus.qml` | 将真实快照映射为状态文字和颜色，不决定操作许可 |
-| `qml/BetterCnc/Chrome/ChromeBar.qml` | 菜单与工具栏；停止按钮位于滚动区域之外 |
-| `qml/BetterCnc/Manual/ManualPanel.qml` | 手动分组与点动手势、释放/失焦停止，组合内部控件 |
-| `qml/BetterCnc/Manual/MdiControls.qml` | 内部 MDI 历史列表、输入和提交 |
-| `qml/BetterCnc/Manual/OverrideControls.qml` | 内部倍率/速度控件，将用户修改上报给面板 |
-| `qml/BetterCnc/Program/ProgramPanel.qml` | 程序文档、40 px 行高、选中行和执行行 |
-| `qml/BetterCnc/Toolpath/ToolpathPanel.qml`、`ToolpathCanvas.qml` | 原有坐标与线段绘制，金色切削路径、蓝色空移虚线和窄窗口适配 |
+| `qml/BetterCnc/Ui/Theme.qml` | Central colors, fonts, control sizes/spacing; `accentFill` is gold fill, `accent` readable dark gold text/focus |
+| `qml/BetterCnc/Ui/Ui*.qml` | Shared button/input/check/list/slider/icon appearance and focus |
+| `qml/Main.qml` | Default 1440×900 window, close/focus lifecycle |
+| `qml/Workspace.qml` | Wide/narrow layouts, panel composition, backend feedback, jog-key ownership |
+| `qml/WorkspaceShortcuts.qml` | Noncontinuous-jog shortcuts with explicitly injected state/actions |
+| `qml/WorkspaceStatus.qml` | Always-visible bottom connection/operation status and preview limitations |
+| `qml/BetterCnc/Chrome/MachineStatus.qml` | Maps actual snapshots to text/colors without deciding permissions |
+| `qml/BetterCnc/Chrome/ChromeBar.qml` | Menus/toolbar, with Stop outside scrolling |
+| `qml/BetterCnc/Manual/ManualPanel.qml` | Manual groups, jog gestures, release/focus-loss stop, internal controls |
+| `qml/BetterCnc/Manual/MdiControls.qml` | Internal MDI history/input/submission |
+| `qml/BetterCnc/Manual/OverrideControls.qml` | Internal override/velocity controls reporting user edits |
+| `qml/BetterCnc/Program/ProgramPanel.qml` | Program document, 40 px rows, selection/execution lines |
+| `qml/BetterCnc/Toolpath/ToolpathPanel.qml`, `ToolpathCanvas.qml` | Existing coordinates/segments, gold cutting paths, blue dashed rapids, narrow-window adaptation |
 
-`Manual` 的两个新控件在 `qmldir` 标记为 internal，其他模块仍通过 `ManualPanel` 使用。`MachineStatus` 为 Chrome 的公开展示类型。CMake 继续递归收集生产 QML 文件并整体安装；测试夹具位于 `tests/`，不进入安装目录。
+The two new Manual controls are internal in `qmldir`; other modules still use `ManualPanel`. `MachineStatus` is a public Chrome presentation type. CMake recursively collects/installs production QML; fixtures stay in `tests/` and are not installed.
 
-## 布局与行为
+## Layout and behavior
 
-- 当前支持简易/专业两套兼容界面，布局职责和交互说明见 [双界面说明](qt-dual-interface.md)。白金主题保持共用。
-- 专业模式左侧手动控制，右侧刀路/坐标与程序上下分区；简易模式按准备、预览、设备分页。最小窗口仍为 760×640；设备面板为 304 px，紧凑窗口为 280 px，独立滚动。
-- 顶部菜单与所有原有动作仍可访问。工具栏可横向滚动，停止按钮保持固定且带文字；急停与普通停止保持各自语义。
-- 快捷键继续隔离可编辑输入、弹窗和菜单。持续点动按下/释放留在 Workspace 和 ManualPanel，未迁入快捷键展示组件。
-- 状态显示由快照计算；断连优先于旧状态，未把空闲解释为加工完成，也没有生成加工百分比。
+- Guided/professional interfaces share the platinum theme; see [dual-interface notes](qt-dual-interface.md) for layout and interaction.
+- Professional places Manual left, Toolpath/Coordinates upper right, and Program lower right. Guided uses Prepare/Preview/Device pages. Minimum window remains 760×640; the device panel is 304 px, or 280 px compact, with independent scrolling.
+- All original menus/actions remain accessible. Toolbar scrolls horizontally while labeled Stop stays fixed; emergency stop and ordinary stop retain distinct semantics.
+- Shortcuts isolate editable input, dialogs, and menus. Continuous-jog press/release remains in Workspace/ManualPanel rather than the shortcut presentation component.
+- Snapshot-derived status prioritizes disconnect over stale state, never treats idle as completed machining, and generates no machining percentage.
 
-## 验证与本地预览
+## Verification and local preview
 
 ```sh
 cmake --build build --parallel
@@ -38,9 +38,9 @@ ctest --test-dir build --output-on-failure
 app/desktop/.venv/bin/python app/desktop/tests/visual_preview.py
 ```
 
-最后一条打开明确标记“视觉验收 · 测试数据”的真实界面，使用 QML FakeBackend；按钮只记录请求，不连接服务或操作机床。可传 `--scenario offline` 或 `--scenario error` 查看断连与错误。
+The final command opens the real UI explicitly labeled Visual Acceptance · Test Data with QML FakeBackend. Buttons record requests without service/machine access. Use `--scenario offline` or `--scenario error` for disconnection/errors.
 
-无屏截图示例：
+Headless screenshot:
 
 ```sh
 QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software \
@@ -48,12 +48,12 @@ app/desktop/.venv/bin/python app/desktop/tests/visual_preview.py \
   --width 1024 --height 768 --scenario offline --capture /tmp/cnc-offline.png
 ```
 
-初版白金截图位于本机 `app/desktop/artifacts/platinum/`（忽略入库），双界面当前截图位于 `app/desktop/artifacts/dual-ui/`。截图中的几何是固定测试线段，不能作为真实 G 代码解释结果。
+Initial platinum screenshots are in local Git-ignored `app/desktop/artifacts/platinum/`; current dual-interface screenshots are in `app/desktop/artifacts/dual-ui/`. Geometry is fixed test segments, not actual G-code interpreter output.
 
-新增布局测试验证四个窗口尺寸下的面板不重叠、预览宽度、停止入口和状态条；新增状态测试覆盖断连、急停、加工中、暂停和结果未知。原有菜单、输入、点动、文件编辑、程序选择和 Python 公共接口测试仍运行。测试行选择改用控件定位，避免依赖旧主题的固定像素坐标。
+New layout tests verify nonoverlapping panels, preview width, stop access, and status bars at four sizes. New status tests cover disconnected, emergency stop, running, paused, and unknown outcomes. Existing menu/input/jog/file-edit/program-selection/Python-interface tests remain. Line-selection tests use control targeting instead of old-theme fixed pixels.
 
-## 与参考图的差异
+## Differences from reference images
 
-当前应用是程序文本与刀路线段控制台，没有项目树、材料库、工艺编辑路由或材料去除引擎。因此左栏使用真实程序列表，中央明确称为刀路预览，不添加参考图中的虚构机型、工艺参数、模型实体或播放进度。
+The application is a program-text/toolpath-segment console without a project tree, materials library, process-edit routes, or material-removal engine. The left area therefore uses real program listings and the center is explicitly Toolpath Preview; do not add fictitious machine models, process parameters, solids, or playback progress from references.
 
-浮层采用规范允许的 `#FAF9F6` 实色回退，不引入背景模糊或新渲染依赖；状态和坐标立即更新，没有非必要动画。保留原有 Canvas 绘制架构。macOS 软件渲染与缩放截图不能替代 Debian 13 / Intel 核显目标机验收，也不证明机床操作已验收。
+Overlays use the permitted solid `#FAF9F6` fallback without background blur or new rendering dependencies. Status/coordinates update immediately without unnecessary animation. Existing Canvas drawing remains. macOS software-rendered/scaled screenshots do not replace Debian 13 / Intel target acceptance or establish machine-operation acceptance.

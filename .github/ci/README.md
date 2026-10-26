@@ -1,4 +1,7 @@
-# 桌面与网页 CI
+# Desktop and Web CI
+
+> Historical Web/Tauri CI record. Current build and release rules are in
+> [AGENT.md](../../AGENT.md); removed paths below are retained as historical references.
 
 The only active workflow is **Desktop and Web CI** (`.github/workflows/ci.yml`).
 It checks the Web UI, Python diagnostic service and Tauri desktop host. It
@@ -132,7 +135,7 @@ port 4173. Ordinary local tests still use the development server on port 5173.
 Screenshots and traces are uploaded if browser checks fail.
 
 Deployment transport, checksum verification, atomic activation, HTTP health
-checks and rollback belong to [`.github/staging`](../staging/README.md). Existing
+checks and rollback belong to the historical `.github/staging/README.md`. Existing
 VMs require its one-time Web installer/nginx migration before their first Web
 release. A repository edit or successful local test does not migrate a server.
 
@@ -151,5 +154,5 @@ them; they do not publish the Web or reinstall AXIS on staging.
 References: [setup-node](https://github.com/actions/setup-node) and
 [Playwright CI](https://playwright.dev/docs/ci-intro). Browser tests on Ubuntu or
 macOS, and headless Debian package builds, do not replace desktop acceptance
-on the target Debian 13/Intel graphics machine. See the [desktop startup and
-verification commands](../../frontend/README.md) and [Python service guide](../../backend/README.md).
+on the target Debian 13/Intel graphics machine. See the historical desktop startup and
+verification guide (`frontend/README.md`) and Python service guide (`backend/README.md`).

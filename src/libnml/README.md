@@ -1,23 +1,23 @@
-# 进程通信与公共基础库
+# Interprocess communication and shared support libraries
 
-[全项目模块地图](../../docs/module-map.md)
+[Project module map](../../docs/module-map.md)
 
-## 作用与语言
+## Role and language
 
-C/C++，以 C++ 通信类为主。
+C/C++, primarily C++ communication classes.
 
-提供 NML、CMS、RCS 等消息及通道基础设施；目录还包含 INI 读取、位姿数学等上游公共支持代码。
+Provides NML, CMS, RCS, and other messaging/channel infrastructure. The directory also contains upstream shared support code for INI parsing, pose mathematics, and related functions.
 
-## 关键代码与通信
+## Key code and communication
 
-`nml/`、`cms/`、`rcs/` 管通信基础；`inifile/` 管配置读取；`posemath/` 管位姿数学。
+`nml/`, `cms/`, and `rcs/` own communication foundations; `inifile/` configuration reading; `posemath/` pose mathematics.
 
-由 LinuxCNC 消息定义和控制进程使用；本机 NML 配置可使用共享内存通道。它与 Task↔Motion 的专用运动共享内存接口需要区分。
+Used by LinuxCNC message definitions and control processes. Local NML configuration may use shared-memory channels; distinguish these from the dedicated Task↔Motion shared-memory interface.
 
-## 职责边界
+## Responsibility boundaries
 
-不拥有机床运行规则，不是前端网络服务。我们的 Unix socket 用于 Rust↔Python，没有替换 LinuxCNC 内部 NML。
+Does not own machine operating rules and is not a frontend network service. Our Unix socket serves Rust↔Python communication and does not replace LinuxCNC internal NML.
 
-这是保留的 LinuxCNC 核心代码，不属于当前 Web 静态构建产物。我们的 Python 服务尚未接入这些控制路径。此说明描述现有职责，不新增接口或改变上游依赖。
+This is retained LinuxCNC core code, not part of the current Web static build artifact. Our Python service has not yet connected to these control paths. This document describes existing responsibilities without adding interfaces or changing upstream dependencies.
 
-修改此处需要相应的 LinuxCNC 原生构建与功能验证；Web 或 Tauri 构建通过不能证明该模块可运行。涉及实时行为还需目标 Linux 主机验证。
+Changes here require appropriate native LinuxCNC builds and functional verification. A passing Web or Tauri build does not establish that this module runs. Real-time behavior additionally requires verification on the target Linux host.

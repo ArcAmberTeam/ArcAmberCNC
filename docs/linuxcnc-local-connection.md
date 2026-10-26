@@ -1,54 +1,54 @@
-# LinuxCNC 专用机安装与维护
+# LinuxCNC dedicated-appliance installation and maintenance
 
-应用控制链路始终是同一主机、同一操作账户内的 QML → DesktopBackend → Unix socket → Python 控制服务 → LinuxCNC。SSH 只用于维护，不参与机床命令传输。
+The application control chain always runs on the same host under the same operating account: QML → DesktopBackend → Unix socket → Python controller service → LinuxCNC. SSH is for maintenance, not machine-command transport.
 
-本文区分历史已验证环境与 `26.10.26.1` 的部署步骤。步骤存在不代表已在目标机执行；实际发布、迁移、登录策略和窗口检查应另记提交、版本及结果。当前本地及目标机均禁止构建、源码测试，包括本地 Docker；只由 GitHub CI 构建并发布完整 DEB，目标机只下载安装和验收运行状态。
+This document distinguishes historically verified environments from `26.10.26.1` deployment steps. Written steps do not mean they were executed on the target; record commits, versions, and results for actual releases, migrations, login policies, and window checks separately. Local/target builds and source tests, including local Docker, are currently forbidden. GitHub CI alone builds/releases complete DEBs; targets only download, install, and accept runtime behavior.
 
-## 历史已验证环境
+## Historically verified environment
 
-2026-10-25，用户授权通过 `teto@192.168.109.67` 完成旧账户部署：
+On 2026-10-25, the user authorized deployment under the old account through `teto@192.168.109.67`:
 
-- 仓库 `/home/teto/ArcAmberCNC`，Debian 13、实时内核、Python 3.13.5、PySide6 6.8.2.1。
-- 原机床配置 `configs/zhulong-v2/烛龙V2.ini` 使用 `DISPLAY = betterlinuxcnc`；仓库根 `launcher.json` 包含已有 INI、CAM 地址与收件设置。
-- 当时 X11 为 `DISPLAY=:0`、`XAUTHORITY=/home/teto/.Xauthority`，控制端点 `/run/user/1000/betterlinuxcnc/control.sock`，实际 GUI 为 1024×600。
-- 从 `origin/main` 的 `6a190df` 安装后，入口及 QML 摘要一致，用户服务报告 ready，GUI 能读取真实 LinuxCNC 状态；用户确认可用。
-- 原 `launcher.json`、INI、VERSION/changelog 改动与未跟踪机床配置保留。未发送回零、点动、主轴、换刀或加工命令；当时读到的使能/急停状态不代表当前状态或运动验收。
+- Repository `/home/teto/ArcAmberCNC`, Debian 13, real-time kernel, Python 3.13.5, PySide6 6.8.2.1.
+- Original `configs/zhulong-v2/烛龙V2.ini` used `DISPLAY = betterlinuxcnc`; root `launcher.json` contained existing INI, CAM address, and inbox settings.
+- X11 then used `DISPLAY=:0`, `XAUTHORITY=/home/teto/.Xauthority`, control endpoint `/run/user/1000/betterlinuxcnc/control.sock`, and a 1024×600 GUI.
+- After installation from `origin/main` `6a190df`, entry-point/QML hashes matched, the user service reported ready, and the GUI read real LinuxCNC state; the user confirmed usability.
+- Existing `launcher.json`, INI, VERSION/changelog edits, and untracked machine configuration were preserved. No home, jog, spindle, tool-change, or machining commands were sent. Historical enable/emergency-stop state does not represent current state or motion acceptance.
 
-这些历史 UID、Xauthority 和路径不能直接套用到新 `linuxcnc` 账户。
+Do not reuse these historical UIDs, Xauthority, or paths for the new `linuxcnc` account.
 
-## 26.10.26.1 系统目录和账户
+## 26.10.26.1 system paths and accounts
 
-| 路径 | 内容及权限 |
+| Path | Content and permissions |
 | --- | --- |
-| `/usr/bin/betterlinuxcnc*` | 应用 CLI，由包管理，root 所有 |
-| `/usr/sbin/betterlinuxcnc-appliance` | 显式主机配置工具，管理操作要求 root |
-| `/usr/lib/betterlinuxcnc`、`/usr/share/betterlinuxcnc` | 应用模块、维护工具、QML，普通用户不可写 |
-| `/usr/lib/linuxcnc/modules/zhulong_homing.so` | 固定 HOMEMOD；仅通过匹配的 2.9.10 核心及头文件验证后显式启用 |
-| `/usr/share/betterlinuxcnc/homing/provenance.json` | HOMEMOD 摘要、核心头文件摘要、源码提交和软件验证记录 |
-| `/etc/betterlinuxcnc/launcher.json`、`machine/` | 迁移后的启动配置、INI/HAL 和相关配置副本，root 所有 |
-| `/etc/betterlinuxcnc/updater.json` | 固定 root 更新配置，Debian conffile |
-| `/usr/share/doc/betterlinuxcnc-qt/examples/launcher.example.json` | 示例；不覆盖现场配置 |
-| `/var/lib/betterlinuxcnc/home` | `linuxcnc` 的 HOME，0700 |
-| `/var/lib/betterlinuxcnc/{programs,inbox,machine}` | 程序、CAM 收件、可变刀具表/参数/位置，由 `linuxcnc` 写入 |
-| `/var/cache/betterlinuxcnc/user` | `linuxcnc` 私有 XDG 缓存 |
-| `/var/cache/betterlinuxcnc/update` | root 更新器私有缓存及安装日志 |
-| `/var/lib/betterlinuxcnc/recovery/snapshots` | root 私有的配置/机床数据快照，保留最近 3 份 |
-| `/var/log/betterlinuxcnc/launcher` | `linuxcnc:cnc-logs`，目录 2750；进程日志 0640 |
-| `/run/user/<linuxcnc UID>/betterlinuxcnc/control.sock` | 本次登录的私有控制端点，不固定 UID |
+| `/usr/bin/betterlinuxcnc*` | Package-managed, root-owned application CLIs |
+| `/usr/sbin/betterlinuxcnc-appliance` | Explicit host configuration; administrative operations require root |
+| `/usr/lib/betterlinuxcnc`, `/usr/share/betterlinuxcnc` | Application modules, maintenance tools, QML; not user-writable |
+| `/usr/lib/linuxcnc/modules/zhulong_homing.so` | Fixed HOMEMOD; explicitly enabled only after matching 2.9.10 core/header verification |
+| `/usr/share/betterlinuxcnc/homing/provenance.json` | HOMEMOD/header hashes, source commit, software verification |
+| `/etc/betterlinuxcnc/launcher.json`, `machine/` | Migrated startup/INI/HAL/configuration copies, root-owned |
+| `/etc/betterlinuxcnc/updater.json` | Fixed root updater configuration, Debian conffile |
+| `/usr/share/doc/betterlinuxcnc-qt/examples/launcher.example.json` | Example only; does not replace onsite configuration |
+| `/var/lib/betterlinuxcnc/home` | `linuxcnc` HOME, 0700 |
+| `/var/lib/betterlinuxcnc/{programs,inbox,machine}` | Programs, CAM inbox, mutable tool tables/parameters/positions, writable by `linuxcnc` |
+| `/var/cache/betterlinuxcnc/user` | Private `linuxcnc` XDG cache |
+| `/var/cache/betterlinuxcnc/update` | Root-private update cache/install logs |
+| `/var/lib/betterlinuxcnc/recovery/snapshots` | Root-private configuration/machine snapshots, latest three |
+| `/var/log/betterlinuxcnc/launcher` | `linuxcnc:cnc-logs`, directories 2750, process logs 0640 |
+| `/run/user/<linuxcnc UID>/betterlinuxcnc/control.sock` | Private endpoint for this login; UID is not fixed |
 
-`/var/lib/betterlinuxcnc`、`/var/cache/betterlinuxcnc` 和系统配置顶层保持 root 所有、不可被普通用户写入；不能递归将这些顶层交给 `linuxcnc`。启动器 `state.json`、socket 和锁保持私有，不随日志组共享。
+Top-level `/var/lib/betterlinuxcnc`, `/var/cache/betterlinuxcnc`, and system configuration remain root-owned and unwritable by ordinary users. Do not recursively assign these roots to `linuxcnc`. Launcher `state.json`, socket, and locks remain private, not shared with the log group.
 
-`linuxcnc` 只运行专用 X11 全屏会话和应用，没有通用 sudo 或 SSH 登录权限。`cnc-maint` 只通过固定 SSH 命令读取诊断，不能登录桌面、获得 shell、上传文件或提权。系统 root 身份仍用于显式主机配置和受限更新服务，不提供日常 root SSH 登录。
+`linuxcnc` runs only the dedicated fullscreen X11 session/application without general sudo or SSH login. `cnc-maint` reads diagnostics through fixed SSH commands, without desktop login, shell, uploads, or elevation. System root remains for explicit host configuration/restricted updating, not routine root SSH login.
 
-## 发布包与安装前准备
+## Release package and installation preparation
 
-产品版本是 `26.10.26.1`，Release 名称 `demo v26.10.26.1`，tag `v26.10.26.1`。正式 amd64 包为 `betterlinuxcnc-qt_26.10.26.1_amd64.deb`，同时发布 `SHA256SUMS`；必须为非 prerelease 的 latest Release。代码以 PR 合并到 main 并带 `build-release` 标签后，GitHub 验证同一提交的 CI 和包，再自动发布；完整约束见 [应用更新说明](firmware-updates.md)。
+Product version is `26.10.26.1`, Release name `demo v26.10.26.1`, tag `v26.10.26.1`. Official amd64 package is `betterlinuxcnc-qt_26.10.26.1_amd64.deb` with `SHA256SUMS`, published as non-prerelease latest. After PR merge into main with `build-release`, GitHub verifies same-commit CI/package and publishes automatically. See [application updates](firmware-updates.md).
 
-目标机只从已完成的 Release 下载 DEB 与校验文件，通过 apt/dpkg 安装；不拉源码构建，不安装 Rust/CMake 等构建工具。保留旧仓库的 `launcher.json`、机床目录及 VERSION/changelog 修改，供首次显式迁移审查；不使用 reset/clean 覆盖现场文件。GitHub 的源码 zip/tar 不能作为部署包。
+Targets download completed Release DEBs/checksums and install through apt/dpkg. Do not fetch/build source or install Rust/CMake build tools. Preserve old repository `launcher.json`, machine directories, and VERSION/changelog edits for initial explicit migration review; never overwrite onsite files with reset/clean. GitHub source zip/tar is not a deployment package.
 
-安装或切换会话之前，重新只读检查机床状态，并由操作员完成正常停机。确认旧启动器、LinuxCNC 和控制服务已退出；不强杀核心，也不将“服务 active”当作机床空闲。原有 CAM `auto_run` 配置保留，连接验证不能随意上传测试程序。
+Before installing/switching sessions, reread machine state and have the operator perform normal shutdown. Confirm old launcher, LinuxCNC, and controller exited; never force-kill the core or interpret service active as machine idle. Preserve CAM `auto_run`; connection checks must not casually upload test programs.
 
-以下操作只在已授权的目标机管理员环境进行。安装包的固定 postinst 自动 `provision` 专用账户和目录，不运行 `prepare`/`activate`、不创建机床副本、不写登录策略、不设置或重置密码。LightDM、Xorg 和 SSH 作为运行依赖安装，启用专用策略仍需显式执行。
+The following runs only in the authorized target administrator environment. Fixed postinst automatically provisions accounts/directories, without prepare/activate, machine copies, login policy, or password creation/reset. LightDM, Xorg, and SSH install as runtime dependencies; activating dedicated policy remains explicit.
 
 ```sh
 cd /var/tmp/betterlinuxcnc-release-v26.10.26.1
@@ -57,11 +57,11 @@ dpkg-deb --field betterlinuxcnc-qt_26.10.26.1_amd64.deb Package Version Architec
 sudo apt-get install ./betterlinuxcnc-qt_26.10.26.1_amd64.deb
 ```
 
-## 显式预演、准备与激活
+## Explicit staging, preparation, and activation
 
-先打开并保留可信的 root 维护会话，再执行迁移。激活会限制旧 `teto` 的 SSH 和 sudo；普通管理员 shell 不等于已取得的 root 会话。维护密码仅通过不回显的标准输入传入，不写进源码、环境变量、命令参数、包、脚本、日志或本文。
+Open and retain a trusted root maintenance session before migration. Activation restricts old `teto` SSH/sudo; an ordinary administrator shell is not an already-acquired root session. Supply maintenance passwords only through non-echoed stdin, never source, environment variables, arguments, packages, scripts, logs, or this document.
 
-在保留的 root 会话中：
+In the retained root session:
 
 ```sh
 betterlinuxcnc-appliance plan
@@ -71,29 +71,25 @@ betterlinuxcnc-appliance stage \
   --zhulong-homing-travel-mm 420 275 90 --zhulong-xyz-only
 ```
 
-`stage` 的目标目录必须尚不存在，只生成可审查副本，不改账户或系统登录策略。核对迁移后的 INI、HAL 引用、程序目录、刀具表、参数、位置文件和 CAM 收件目录。仅 G-code 程序扩展名被导入程序库；符号链接、特殊文件、INI include 与 CAM 私钥/令牌路径需要先单独审查。副本禁用外部编辑器和过滤器，原文件保持原样。
+The stage destination must not exist. It creates only a reviewable copy, without account/login-policy changes. Check migrated INI, HAL references, program directories, tool table, parameters, position files, and CAM inbox. Only G-code extensions enter the program library. Review symlinks, special files, INI includes, and CAM private-key/token paths separately first. Copies disable external editors/filters; originals stay unchanged.
 
-`420 275 90` 是用户于 2026-10-26 提供的 X/Y/Z 实测总行程，单位 mm；不可用于其他机床。此选项只将已审查的开关和回零配置合入现有机床副本，不用参考配置替换整套 INI。`stage` 标记安装验证待完成；正式 `prepare` 必须验证 `linuxcnc-uspace` 与 `linuxcnc-uspace-dev` 均为上游 2.9.10、已安装头文件摘要、HOMEMOD 来源及二进制摘要。缺少匹配的预编译开发包时停止，不能用 Debian 2.9.4 头文件或目标机构建绕过。
+`420 275 90` is the user's measured X/Y/Z total travel in mm supplied on 2026-10-26, not valid for other machines. This merges reviewed switches/homing into the existing copy, not a wholesale reference-INI replacement. stage marks installation verification pending. prepare must verify `linuxcnc-uspace` and `linuxcnc-uspace-dev` are both upstream 2.9.10, installed header hashes, HOMEMOD provenance, and binary hash. Stop if matching prebuilt development packages are missing; do not bypass with Debian 2.9.4 headers or target builds.
 
-若只需接入开关，可在两条命令中改用互斥选项 `--zhulong-inputs-only`，保持 `motion.homing-inhibit=true`。不传这两项时保留原迁移语义。用户已确认本机实际仅有 XYZ，故上述命令同时指定 `--zhulong-xyz-only`，严格移除已审查的预留 ABC 配置和 HAL 连线，将实际 joint 数改为 3；主轴、其他 IO 和板卡六路 stepgen 能力保留。若不指定此选项，仍保留 ABC 的真实回零联锁；不得用伪造 homed 绕过。本工具不触发 HOME 或其他运动。
+For switch-only integration, use mutually exclusive `--zhulong-inputs-only` in both commands and retain `motion.homing-inhibit=true`. Without either option, preserve original migration behavior. The user confirmed XYZ-only hardware, so the commands include `--zhulong-xyz-only`, strictly removing reviewed reserved ABC configuration/HAL wiring and setting actual joints to three while retaining spindle, other I/O, and six-stepgen board capacity. Without this option, retain real ABC homing interlocks; never fabricate homed state. The tool triggers no HOME or other motion.
 
-本次回零后的软限位为 X 0～410、Y −265～0、Z 0～80 mm；两端各留 5 mm。已有参数与刀具表保留，现场首次回零后必须核对工件坐标（如 G54）和刀长，旧坐标不能当作已验证可直接加工。
+Post-homing soft limits for this migration are X 0–410, Y −265–0, Z 0–80 mm, leaving 5 mm at each end. Preserve parameters/tool tables; after first actual homing, verify work coordinates such as G54 and tool length onsite. Old coordinates are not automatically validated for machining.
 
-审核后首次准备：
+After review, prepare for the first time:
 
 ```sh
-betterlinuxcnc-appliance prepare \
-  --source-config /home/teto/ArcAmberCNC/launcher.json \
-  --zhulong-homing-travel-mm 420 275 90 --zhulong-xyz-only
-systemd-ask-password '设置专用维护账户密码' | betterlinuxcnc-appliance set-maintenance-password
-runuser -u linuxcnc -- env HOME=/var/lib/betterlinuxcnc/home \
-  XDG_CACHE_HOME=/var/cache/betterlinuxcnc/user \
-  /usr/bin/betterlinuxcnc-launch --config /etc/betterlinuxcnc/launcher.json --check
+betterlinuxcnc-appliance prepare   --source-config /home/teto/ArcAmberCNC/launcher.json   --zhulong-homing-travel-mm 420 275 90 --zhulong-xyz-only
+systemd-ask-password 'Set the dedicated maintenance account password' | betterlinuxcnc-appliance set-maintenance-password
+runuser -u linuxcnc -- env HOME=/var/lib/betterlinuxcnc/home   XDG_CACHE_HOME=/var/cache/betterlinuxcnc/user   /usr/bin/betterlinuxcnc-launch --config /etc/betterlinuxcnc/launcher.json --check
 ```
 
-安装包已幂等准备账户与目录；`prepare` 显式复制配置和运行数据，不覆盖已存在的专用机配置，也不启动 LinuxCNC。已完成迁移的机器不在普通升级时重复执行；重复安装和更新不会重设维护密码。`--check` 只检查配置、依赖及启动计划，不证明硬件或控制连接正常。
+The package already provisions accounts/directories idempotently. prepare explicitly copies configuration/runtime data without overwriting existing appliance configuration or starting LinuxCNC. Do not repeat on migrated machines during ordinary updates; reinstall/update does not reset maintenance passwords. `--check` validates configuration, dependencies, and startup plan, not hardware/connectivity.
 
-确认准备结果后显式激活：
+After confirming preparation, activate explicitly:
 
 ```sh
 betterlinuxcnc-appliance activate
@@ -102,15 +98,15 @@ betterlinuxcnc-appliance activate
 /usr/sbin/visudo -c
 ```
 
-激活将固定 LightDM/X11/logind、SSH、sudo、Polkit 与 SysRq 策略写入系统。SSH 由工具管理完整 `/etc/ssh/sshd_config`，不依赖可被其他 Include/Match 覆盖的 drop-in；sudo 主配置仅保留 root 规则，不再通过旧授权授予普通账户 sudo。旧策略内容、权限及恢复记录存入 root 私有的 `/var/lib/betterlinuxcnc/recovery/<时间>/policies.json`。
+Activation writes fixed LightDM/X11/logind, SSH, sudo, Polkit, and SysRq policy. The tool manages complete `/etc/ssh/sshd_config`, not drop-ins vulnerable to other Include/Match overrides. Main sudo configuration retains root rules only, removing old ordinary-account grants. Original policy contents, permissions, and recovery records are saved in root-private `/var/lib/betterlinuxcnc/recovery/<timestamp>/policies.json`.
 
-`activate` 仅启用无写卡权限的 Mesa 自动检查 timer，不重载 SSH、重启图形会话或重启主机。先检查 `sshd -T` 的有效配置与 `visudo` 结果，再由保留的 root 会话按部署窗口重载 SSH，验证新的 `cnc-maint` 连接。LightDM、X11、logind 和内核策略在受控重启后验收；必须确认机床已停机，并保留现场恢复途径。全部验证完成前不要关闭既有 root 会话。没有通用 SSH 管理 shell 时，策略恢复由受控本机管理员处理，不通过维护命令绕过限制。
+activate enables only the Mesa check timer without card-write privileges; it does not reload SSH, restart graphics, or reboot. First verify effective `sshd -T` and visudo results, then reload SSH from the retained root session during the deployment window and verify new `cnc-maint` access. Accept LightDM/X11/logind/kernel policy after a controlled reboot, with the machine stopped and onsite recovery available. Keep the old root session until all checks pass. Without a generic SSH admin shell, controlled local administrators recover policy; maintenance commands must not bypass restrictions.
 
-## 专用会话与只读连接验收
+## Dedicated session and read-only connection acceptance
 
-LightDM 自动登录 `linuxcnc`，选择 `betterlinuxcnc-kiosk` X11 会话。该会话运行 `betterlinuxcnc-launch --kiosk-session`，导入实际 DISPLAY/Xauthority 后启动 `betterlinuxcnc-launcher.service` 用户服务，并持续维持会话；等待或启动失败时显示不连接机床的独立状态页，不退回普通桌面或登录选择器。不要再手动并行启动第二套 launcher。
+LightDM autologins `linuxcnc` into `betterlinuxcnc-kiosk` X11. The session runs `betterlinuxcnc-launch --kiosk-session`, imports actual DISPLAY/Xauthority, starts user `betterlinuxcnc-launcher.service`, and remains alive. Waiting/startup failure displays an independent status page without machine connection, not ordinary desktop/login selection. Do not start another launcher manually.
 
-在已登录的目标机 root 维护会话中，按实际 UID 做只读核查：
+In the existing target root maintenance session, use the actual UID for read-only checks:
 
 ```sh
 operator_uid=$(id -u linuxcnc)
@@ -123,13 +119,13 @@ runuser -u linuxcnc -- env XDG_RUNTIME_DIR="/run/user/$operator_uid" \
 dpkg-query -W -f='${Package} ${Version}\n' betterlinuxcnc-qt
 ```
 
-`--check-connection` 只发送 `machine.status`，不附着控制会话、不续租点动；不要与 `--ini` 或 `--program` 合用。退出码 0 为机床已连接，2 为服务可达但核心未连接，1 为端点/权限/协议错误。只有已建立真实图形用户会话时才能使用其用户 bus；不要以自建临时 bus 冒充正式会话。
+`--check-connection` sends only `machine.status`, without session attachment/jog renewal; do not combine with `--ini`/`--program`. Exit 0 means machine connected, 2 service reachable/core disconnected, 1 endpoint/permission/protocol error. Use the user bus only after a real graphical login; do not substitute a temporary bus.
 
-共同检查：实际全屏窗口和触控、当前账户、无普通桌面/终端入口、本次日志目录的私有 `state.json` ready、真实状态及 QML/Python 安装版本。进程日志在 `/var/log/betterlinuxcnc/launcher/<本次启动目录>/`；不要沿用历史 PID、截图或 `~/.local/state` 路径。应用界面文件选择限定程序库和收件目录，不能作为主机文件浏览器。
+Check together: actual fullscreen/touch UI, current account, absence of ordinary desktop/terminal access, private current-run `state.json` ready, real status, and installed QML/Python versions. Process logs live in `/var/log/betterlinuxcnc/launcher/<current-start-directory>/`; do not reuse old PIDs/screenshots/`~/.local/state`. UI file selection is confined to programs/inbox, not general host browsing.
 
-## 固定 SSH 维护接口
+## Fixed SSH maintenance interface
 
-专用策略生效后，仅允许 `cnc-maint@192.168.109.67`，且每次只接受一个无参数命令：
+After dedicated policy activation, only `cnc-maint@192.168.109.67` is allowed, with exactly one argument-free command:
 
 ```sh
 ssh cnc-maint@192.168.109.67 help
@@ -139,42 +135,42 @@ ssh cnc-maint@192.168.109.67 logs
 ssh cnc-maint@192.168.109.67 diagnostics
 ```
 
-`help` 列出允许命令；`version` 查询应用/核心包版本；`status` 查看 LightDM 和固定更新系统单元；`logs` 只返回最近三个运行目录内规定的进程日志尾部；`diagnostics` 返回固定的内核、存储和 `linuxcnc` 进程信息。没有任意路径参数，不提供文件编辑、上传/SFTP/SCP、TTY、端口转发、X11 转发或 sudo。任意 shell 命令和额外参数必须被拒绝。
+help lists commands; version queries application/core packages; status reads LightDM/fixed updater system units; logs returns only specified process-log tails from the latest three run directories; diagnostics returns fixed kernel/storage/linuxcnc-process information. No arbitrary paths, editing, upload/SFTP/SCP, TTY, port/X11 forwarding, or sudo. Reject arbitrary shell commands and extra arguments.
 
-维护 `status` 不读取控制 socket，不能证明机床空闲。未来常规升级由 GUI 请求固定 root 更新服务，维护账户不负责拉取源码、构建或安装包。
+Maintenance status does not read the control socket and cannot prove idle. Future ordinary upgrades are requested by GUI through fixed root updating; maintenance accounts do not pull source, build, or install packages.
 
-## 更新前备份与人工恢复边界
+## Pre-update backup and manual recovery boundaries
 
-root 更新服务在正常停止启动器、确认控制 socket 和原生锁已消失后，先执行固定 `betterlinuxcnc-appliance backup`，成功后才调用 apt 安装。备份失败会阻止安装并显示错误，控制系统保持停止；不会跳过备份或自动恢复旧内容。
+After normal launcher shutdown and confirmed control socket/native-lock disappearance, root updating executes fixed `betterlinuxcnc-appliance backup` before apt. Failure blocks installation, displays an error, and leaves control stopped; never skip backup or restore old content automatically.
 
-需要单独备份时，先正常停机，在保留的可信 root 维护会话中运行：
+For a separate backup, first stop normally and run in the retained trusted root session:
 
 ```sh
 betterlinuxcnc-appliance backup
 ```
 
-命令不接受任意路径，快照固定保存在 `/var/lib/betterlinuxcnc/recovery/snapshots`，只有 root 可访问。范围为 `/etc/betterlinuxcnc`、`/var/lib/betterlinuxcnc/machine` 的参数/刀具表/位置等可变数据，以及工具管理的 LightDM、X11、logind、SSH、sudo、Polkit 和 SysRq 固定策略文件；清单记录 SHA-256、应用版本与创建时间。只有新快照创建并校验成功后才清理旧快照，保留最近 3 份。
+No arbitrary paths are accepted. Snapshots live at root-only `/var/lib/betterlinuxcnc/recovery/snapshots`. Scope: `/etc/betterlinuxcnc`, mutable parameters/tool tables/positions in `/var/lib/betterlinuxcnc/machine`, and tool-managed fixed LightDM/X11/logind/SSH/sudo/Polkit/SysRq policies. Manifests record SHA-256, application version, and creation time. Clean older snapshots only after successful new creation/verification, retaining three.
 
-快照不包含大型程序库、CAM 收件、日志、缓存、账户密码或 SSH 私钥，也不包含整个系统镜像。它与 `activate` 保存的原登录策略清单用途不同，不会自动导入或恢复任何配置。恢复需由受控管理员先核对版本、摘要及现场状态，再决定具体恢复内容；`cnc-maint` 的固定维护命令不提供备份下载或恢复入口。
+Snapshots exclude large program libraries, CAM inbox, logs, cache, passwords, SSH private keys, and full-system images. They differ from activate's original-login-policy manifest and never automatically import/restore configuration. Controlled administrators verify versions, hashes, and onsite state before deciding restoration. Fixed `cnc-maint` commands provide neither backup download nor restore.
 
-这些快照与原数据位于同一块系统盘，不能防止磁盘损坏或整盘丢失。需要保留的程序、凭据及异盘备份应由现场另行管理；本功能不表示已完成灾难恢复或机床验收。
+Snapshots share the system disk with source data and cannot prevent disk damage/loss. Onsite management must separately preserve required programs, credentials, and off-disk backups. This is not proof of disaster recovery or machine acceptance.
 
-## 验收记录边界
+## Acceptance-record boundaries
 
-### 2026-10-26 三轴开关只读实测
+### Read-only three-axis switch measurements, 2026-10-26
 
-用户手动按压开关，通过已运行系统的 `halcmd getp` 只读采样，约每 100 ms 查询一次；未修改目标机文件、HAL 连线或机床使能，未发送运动命令。开始时原生状态为急停且未使能。
+The user pressed switches manually while existing-system `halcmd getp` sampled read-only about every 100 ms. No target files, HAL wiring, or enable state changed; no motion commands were sent. Initial native state was emergency stop and disabled.
 
-| 用户确认的物理轴 | 原始输入 | 松开 | 按下 | 观察到的保持时间 |
+| User-confirmed physical axis | Raw input | Released | Pressed | Observed hold time |
 | --- | --- | --- | --- | --- |
-| X | `hm2_7i92.0.gpio.020.in` | FALSE | TRUE | 两次约 1.34/1.44 秒，最后一次约 6.91 秒 |
-| Y | `hm2_7i92.0.gpio.021.in` | FALSE | TRUE | 连续六次约 1.34～2.79 秒 |
-| Z | `hm2_7i92.0.gpio.022.in` | FALSE | TRUE | 两次约 1.03/1.96 秒 |
+| X | `hm2_7i92.0.gpio.020.in` | FALSE | TRUE | About 1.34/1.44 s twice, then 6.91 s |
+| Y | `hm2_7i92.0.gpio.021.in` | FALSE | TRUE | Six consecutive holds, about 1.34–2.79 s |
+| Z | `hm2_7i92.0.gpio.022.in` | FALSE | TRUE | About 1.03/1.96 s twice |
 
-三路在保持期间的采样均无中途跳变，释放后恢复 FALSE；同时捕捉到快速点按响应。用户分别确认 Y、最后一次 X 和此前两次 Z 的物理轴标识。这支持此目标机使用 `.in` 作为有效高触发源；100 ms 采样不能测量更短的机械抖动，也不能替代防抖验证。
+All sampled holds remained stable and returned FALSE on release; quick taps were also captured. The user confirmed Y, final X, and previous two Z physical labels. This supports `.in` as active-high input for this target; 100 ms sampling cannot measure shorter mechanical bounce or replace debounce verification.
 
-当时旧配置的 `joint.0/1/2.home-sw-in` 以及 X 负/Y 正/Z 负限位仍为 FALSE，信号没有 GPIO 写入源。因此开关采样仅验证开关到板卡的输入及映射，未验证 LinuxCNC 限位响应或回零运动。用户随后另行提供 X/Y/Z 总行程 420/275/90 mm，作为完整配置迁移的输入。接线与回零模块仍须通过 PR/CI/Release 后部署，行程输入和软件测试都不等于现场运动验收。
+At that time, old `joint.0/1/2.home-sw-in` and X-negative/Y-positive/Z-negative limits remained FALSE without GPIO signal writers. Thus sampling verified switch-to-card inputs/mapping, not LinuxCNC limit responses or homing motion. The user later supplied X/Y/Z travel 420/275/90 mm for full migration. Wiring/homing modules still require PR/CI/Release deployment; travel input/software tests are not onsite motion acceptance.
 
-分别记录发布提交与包摘要、安装版本、配置/数据保留、账户和文件权限、SSH 正负访问结果、专用会话、日志和只读控制连接。两种 UI 布局的坐标、轴数、回零标志、程序文本应与实际状态一致。
+Separately record release commit/package hash, installed version, configuration/data retention, account/file permissions, positive/negative SSH results, dedicated session, logs, and read-only control connectivity. Coordinates, axis count, homing flags, and program text in both layouts must match actual state.
 
-软件包、登录隔离和只读状态通过，不代表已完成回零、点动、主轴、换刀或加工验收。程序加载、解释预览与加工运行须分别验收；实际机床动作由本机操作员确认。断线不重放命令，服务只停止本会话点动并取消未发送步骤，不自动中止已运行的程序。
+Passing package/login isolation/read-only status checks does not establish home, jog, spindle, tool-change, or machining acceptance. Accept program loading, interpreter preview, and machining separately; local operators confirm actual actions. Disconnect never replays commands; the service stops only its session's jogging and cancels unsent steps, without aborting already-running programs.

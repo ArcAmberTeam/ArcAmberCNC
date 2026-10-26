@@ -1,64 +1,64 @@
-# Vue 到 Qt Quick/QML 的迁移与控制接入
+# Vue to Qt Quick/QML migration and control integration
 
-2026-10-02 引入原生 QML 界面，保留 Vue 的布局、资源、中文文案、动作 ID、快捷键与面板交互。2026-10-08 删除 Vue/Web、Tauri 和部署脚本；历史 Web 资料从 Git 获取。2026-10-25 按职责整理为 `app/desktop/`，独立 Rust v1 诊断库归入 `tools/diagnostics/`。用户要求接入完整操作，并明确先使用 Unix socket、不运行模拟器。
+The native QML UI was introduced on 2026-10-02, retaining Vue layout, assets, Chinese copy, action IDs, shortcuts, and panel interactions. Vue/Web, Tauri, and deployment scripts were removed on 2026-10-08; historical Web material remains in Git. On 2026-10-25, responsibility-based organization moved the desktop to `app/desktop/` and independent Rust v1 diagnostics to `tools/diagnostics/`. The user requested complete operations, explicitly using Unix sockets first and no simulator.
 
-当前链路为 **QML → PySide6 QObject → Unix socket → 独立 Python 服务 → LinuxCNC**。Qt 进程不导入 LinuxCNC，服务不依赖 Qt。初版 C++ 应用启动器已由 PySide6 替换，C++ 只保留 Qt Quick Test 启动器；页面仍是原生 QML，没有 WebView。G 代码解释、插补、运动规划和实时执行继续由 LinuxCNC 核心负责，Python 做控制适配和隔离预览调度。
+The current chain is **QML → PySide6 QObject → Unix socket → independent Python service → LinuxCNC**. Qt does not import LinuxCNC; the service does not depend on Qt. PySide6 replaced the initial C++ application launcher; only the Qt Quick Test launcher remains C++. Pages are native QML without WebView. LinuxCNC retains G-code interpretation, interpolation, motion planning, and real-time execution; Python adapts control and schedules isolated previews.
 
-## 模块边界
+## Module boundaries
 
-| 公开入口 | 职责 |
+| Public entry point | Responsibility |
 | --- | --- |
-| `bettercnc.desktop` | QML 引擎、只读快照、程序文档、桌面文件对话框、历史记录、显式工具启动 |
-| `bettercnc.session` | v2 Unix socket 客户端；连接恢复只读取状态，不重发命令 |
-| `betterlinuxcnc_service` | 私有 socket、会话唯一所有者、命令线程、点动租约、预览子进程 |
-| `bettercnc_controller.Controller` | LinuxCNC stat/command/error channel、配置、操作条件、命令确认、程序与刀具表写入 |
-| `bettercnc_preview` | 子进程调用 LinuxCNC `gcode.parse`，隔离参数副本，输出毫米制线段 |
-| `BetterCnc.Ui`、`BetterCnc.Catalog` | 通用样式、控件、菜单元数据和本地资源 |
-| `BetterCnc.Manual`、`Toolpath`、`Program` | 观察注入的公开数据，发出操作意图，保存各自展示状态 |
-| `BetterCnc.Chrome`、`Workspace.qml` | 菜单、对话框、快捷键与功能组合 |
+| `bettercnc.desktop` | QML engine, read-only snapshots, program documents, desktop file dialogs, history, explicit tool startup |
+| `bettercnc.session` | v2 Unix socket client; reconnect reads state without resending commands |
+| `betterlinuxcnc_service` | Private socket, sole session owner, command thread, jogging leases, preview subprocesses |
+| `bettercnc_controller.Controller` | LinuxCNC stat/command/error channel, configuration, operation conditions, acknowledgements, program/tool-table writes |
+| `bettercnc_preview` | Subprocess LinuxCNC `gcode.parse`, isolated parameter copies, millimeter segments |
+| `BetterCnc.Ui`, `BetterCnc.Catalog` | Shared styles, controls, menu metadata, local assets |
+| `BetterCnc.Manual`, `Toolpath`, `Program` | Observe injected public data, emit operation intent, retain presentation state |
+| `BetterCnc.Chrome`, `Workspace.qml` | Menus, dialogs, shortcuts, feature composition |
 
-Python 跨模块只导入公开包入口，QML 跨模块只使用 `qmldir` 公开类型。`app/desktop/scripts/check_boundaries.py` 同时检查两种边界。预览进程可使用**只读** `linuxcnc.stat().poll()` 初始化 LinuxCNC 2.9 的 tooldata 映射；命令和 error channel 仍仅由 Controller 持有。这是独立解释器所需的 vendor 初始化，不允许预览发送机床命令。
+Python cross-module imports use public package entry points; QML uses public `qmldir` types. `app/desktop/scripts/check_boundaries.py` checks both. Preview processes may use **read-only** `linuxcnc.stat().poll()` to initialize LinuxCNC 2.9 tooldata mappings; only Controller holds command/error channels. This vendor initialization supports independent interpretation and never permits preview machine commands.
 
-## 已接入的行为
+## Integrated behavior
 
-- 真实连接、急停、电源、模式、joint/axis、回零状态、实际/指令位置、偏置、倍率、主轴、冷却、活动 G/M 代码及错误反馈。
-- 急停、电源、回零/取消回零、joint/world 模式、连续/增量点动、MDI、主轴与抱闸、冷却、倍率、速度上限、工件与刀具对刀。
-- 程序打开、重载、编辑保存、启动、从选中行启动、单步、暂停、恢复、停止、可选停止与跳行。保存由服务检查最新空闲状态后执行；显示文件必须与控制器加载文件一致才可运行。
-- 刀具表显示、编辑保存与重载，保存路径取服务的实际 INI，格式在服务侧校验。编辑受单条 64 KiB 协议帧限制；大文件仍可从磁盘打开，不能截断保存。
-- 解释器线段、执行行、投影切换、缩放、实际轨迹、坐标系与单位展示。离线时显示未知状态，不载入演示坐标或示意刀路。
-- HAL 配置、仪表、示波器等菜单显式启动本机已安装的 LinuxCNC 工具；未安装或无配置的工具明确报错。
+- Real connection, emergency stop, power, modes, joint/axis, homing state, actual/commanded positions, offsets, overrides, spindle, coolant, active G/M codes, and errors.
+- Emergency stop, power, home/unhome, joint/world mode, continuous/incremental jogging, MDI, spindle/brake, coolant, overrides, velocity limits, and work/tool touch-off.
+- Program open, reload, edit/save, run, run from selected line, step, pause, resume, stop, optional stop, and block delete. Service saves only after checking fresh idle state; displayed and controller-loaded files must match before running.
+- Tool-table display, edit/save, and reload. Save paths come from actual service INI; format validation is server-side. Editing is limited by a single 64 KiB protocol frame; large files may still open from disk but must not be truncated on save.
+- Interpreter segments, execution lines, projection switching, zoom, actual traces, coordinate systems, and units. Offline shows unknown state, never demo coordinates or illustrative toolpaths.
+- HAL configuration, meters, scopes, and similar menus explicitly start installed local LinuxCNC tools; missing/unconfigured tools produce explicit errors.
 
-capability 用于界面可用性，服务在执行前重新检查条件。命令受理与 LinuxCNC 确认分别表示。协议、单位及连接生命周期见 [本地控制协议](local-control-protocol.md)。
+Capabilities drive UI availability; the service rechecks conditions before execution. Command acceptance and LinuxCNC acknowledgement remain distinct. See [local control protocol](local-control-protocol.md) for protocol, units, and connection lifecycle.
 
-## 启动
+## Startup
 
-已安装目标机的新版 GUI/服务同步、只读连接诊断及切换步骤见 [LinuxCNC 本机连接说明](linuxcnc-local-connection.md)。
+See the [LinuxCNC local connection guide](linuxcnc-local-connection.md) for target GUI/service synchronization, read-only diagnostics, and switching steps.
 
-目标环境为 Debian 13、Qt/PySide6 6.8+、Python 3.11+ 和已安装的 LinuxCNC 2.9。`.deb` 同时安装 GUI 与独立服务启动器，并声明运行依赖；安装用户服务与会话启动入口；由启动器按现有配置启动 LinuxCNC，不改 INI/HAL。
+Target environment: Debian 13, Qt/PySide6 6.8+, Python 3.11+, and installed LinuxCNC 2.9. The `.deb` installs GUI and independent service launchers, declares runtime dependencies, and installs user-service/session entries. The launcher starts LinuxCNC using existing configuration without rewriting INI/HAL.
 
-在已经由用户启动的 LinuxCNC 会话旁，使用同一系统用户分别执行：
+Alongside a LinuxCNC session already started by the user, run separately as the same system user:
 
 ```sh
 betterlinuxcnc-service --ini /absolute/path/machine.ini
 betterlinuxcnc --ini /absolute/path/machine.ini
 ```
 
-默认端点为 `$XDG_RUNTIME_DIR/betterlinuxcnc/control.sock`；未设置运行目录时使用 `/tmp/betterlinuxcnc/control.sock`。可为两条命令传相同的 `--socket /private/directory/control.sock`。父目录必须由当前用户拥有且为 0700，socket 为 0600。Qt 的 `--ini`（兼容 LinuxCNC 传入的 `-ini`）要求服务配置匹配；不会借此启动服务或切换机床配置。
+Default endpoint: `$XDG_RUNTIME_DIR/betterlinuxcnc/control.sock`, or `/tmp/betterlinuxcnc/control.sock` if no runtime directory is set. Both commands may receive the same `--socket /private/directory/control.sock`. The current user must own the 0700 parent; socket mode is 0600. Qt `--ini` (also accepting LinuxCNC's `-ini`) requires matching service configuration; it does not start the service or switch machine configuration.
 
-Qt 关闭时请求停止本会话点动、取消未发送操作和预览；服务仍独立运行。不自动停止已经运行的加工程序。作为 LinuxCNC DISPLAY 使用时，其退出如何影响整套 LinuxCNC 生命周期以实际启动配置为准，不能假设后台永久运行。
+On closing, Qt requests stopping its jogging and cancels unsent operations/preview; the service stays independent. It does not automatically stop already-running machining. As LinuxCNC DISPLAY, the actual startup configuration determines how its exit affects the entire LinuxCNC lifecycle; do not assume permanent background operation.
 
-源码运行（LinuxCNC 扩展需来自目标机匹配的系统安装）：
+Run from source, with LinuxCNC extensions from the target-matching system installation:
 
 ```sh
 PYTHONPATH=app/controller/src python3 -m betterlinuxcnc_service --ini /absolute/path/machine.ini
 python3 app/desktop/app/main.py --ini /absolute/path/machine.ini
 ```
 
-macOS 开发界面可使用 `python3.12 -m venv app/desktop/.venv` 后安装 `PySide6==6.8.3`，再运行 `app/desktop/.venv/bin/python app/desktop/app/main.py`。LinuxCNC 不可用时保留离线界面，不模拟机床。
+For macOS UI development, create `python3.12 -m venv app/desktop/.venv`, install `PySide6==6.8.3`, and run `app/desktop/.venv/bin/python app/desktop/app/main.py`. Without LinuxCNC, retain the offline UI rather than simulating the machine.
 
-## 构建与检查
+## Build and checks
 
-在安装 Qt 开发工具和 PySide6 的环境中：
+In an environment with Qt development tools and PySide6:
 
 ```sh
 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
@@ -67,9 +67,9 @@ cmake --build build --parallel
 ctest --test-dir build --output-on-failure
 ```
 
-macOS 配置时增加 `-DCMAKE_PREFIX_PATH="$HOME/Qt/current/macos"` 与 `-DPython3_EXECUTABLE="$PWD/app/desktop/.venv/bin/python"`。不同平台使用不同构建目录。
+On macOS add `-DCMAKE_PREFIX_PATH="$HOME/Qt/current/macos"` and `-DPython3_EXECUTABLE="$PWD/app/desktop/.venv/bin/python"`. Use separate build directories per platform.
 
-完整 Debian 13 CI 入口：
+Complete Debian 13 CI entry:
 
 ```sh
 docker run --rm --init --platform linux/amd64 \
@@ -78,18 +78,18 @@ docker run --rm --init --platform linux/amd64 \
   debian:13-slim bash app/desktop/scripts/ci-check.sh --install-deps
 ```
 
-脚本安装容器依赖、构建并执行 UI/Python/socket/解释器测试，不生成发布包或部署到目标机。offscreen/software 仅用于 CI，正常运行使用目标桌面的图形环境。服务和 Qt 桌面也各自提供 wheel/sdist 构建入口；服务 wheel 不内置 LinuxCNC 本机扩展。
+The script installs container dependencies, builds, and runs UI/Python/socket/interpreter tests without creating release packages or deploying to the target. offscreen/software is for CI only; normal operation uses target desktop graphics. Service and Qt desktop also provide separate wheel/sdist builds; the service wheel does not embed native LinuxCNC extensions.
 
-GitHub 工作流仍是 `.github/workflows/ci.yml`，`qt-build` 分别检查 Python 界面后端和 QML；Python 3.11/3.13 job 验证服务包，Rust job 验证独立 socket 库。保留原生六模块、真实解释器预览与 HAL/INI/Tcl 配置检查。Web/Tauri 和部署 job 已删除，CI 仅构建、测试并上传诊断。
+GitHub workflow remains `.github/workflows/ci.yml`: `qt-build` separately checks the Python UI backend and QML, Python 3.11/3.13 jobs verify the service package, and Rust jobs verify the independent socket library. Retain six native-module checks, real interpreter preview, and HAL/INI/Tcl configuration checks. Web/Tauri and deployment jobs were removed; CI only builds, tests, and uploads diagnostics.
 
-## 验证界限
+## Verification limits
 
-本次按要求不启动模拟器或真实机床。控制测试通过公开 Controller 的 vendor 替身检查调用、条件与命令序列；socket 测试使用真实本地连接；几何测试调用 Debian LinuxCNC 的真实 `gcode` 扩展，所需状态初始化在无机床测试中使用替身。因此这些结果不能证明实际 NML、回零、换刀、硬件动作或目标 INI 已验收。
+As requested, no simulator or real machine was started. Control tests use vendor substitutes through public Controller to check calls, conditions, and sequences; socket tests use real local connections. Geometry tests invoke Debian LinuxCNC's real `gcode` extension, with required state initialization substituted for machine-free tests. These do not establish actual NML, homing, tool changes, hardware actions, or target INI acceptance.
 
-预览不是完整加工仿真：当前展示 XYZ 刀尖线段，旋转轴参与坐标数据但没有机床实体运动学/碰撞模型。Python REMAP、探测和依赖实际执行的用户代码不生成误导性预览；含 `#INCLUDE` 的 INI 需提供展开版本。参数写入只发生于临时副本。默认限制 32 MiB 程序、200,000 线段、20 秒解释，服务还有进程总超时；超过限制或解释错误明确显示原因。
+Preview is not full machining simulation: it displays XYZ tool-tip segments; rotary axes participate in coordinate data without a physical machine kinematics/collision model. Python REMAP, probing, and execution-dependent user code must not produce misleading previews. INI files containing `#INCLUDE` require an expanded version. Parameter writes affect temporary copies only. Defaults limit programs to 32 MiB, 200,000 segments, and 20 seconds of interpretation, plus an overall service process timeout; limit/interpretation errors display explicit reasons.
 
-M66 等外部输入由 LinuxCNC 预览解释器提供预览值，依赖输入的条件分支不能保证与实际执行一致。刀具对刀保存后，若已有非零刀长补偿，会显式从当前刀号重新加载 G43，替换动态 G43.1/G43.2 或其他 H 补偿；原为 G49 时不自动启用补偿。该语义在界面提交前提示。
+External inputs such as M66 receive preview values from LinuxCNC's preview interpreter; input-dependent branches may differ from actual execution. After saving tool touch-off, existing nonzero tool-length compensation is explicitly reloaded with G43 for the current tool number, replacing dynamic G43.1/G43.2 or other H compensation. Existing G49 does not automatically enable compensation. The UI explains this before submission.
 
-GUI 心跳和服务 600 ms 点动租约是软件失联防护。LinuxCNC 原生命令发送可能等待 NML 回执并持有 Python GIL，停止请求可能延迟到该调用返回；不能将租约作为硬实时停机保证。物理安全链仍由机床系统负责。
+GUI heartbeat and the service's 600 ms jogging lease provide software disconnect protection. Native LinuxCNC commands may await NML acknowledgement while holding Python's GIL; stop requests may wait until the call returns. The lease is not a hard real-time shutdown guarantee. Physical safety chains remain the machine system's responsibility.
 
-Debian 13 Intel 核显上的中文字体、缩放、最小窗口、弹窗、释放/失焦行为与实际 INI/HAL 会话仍需现场验收。不同渲染栈不能仅凭本机截图宣称跨所有环境像素完全一致。README 继续由人工维护。
+Chinese fonts, scaling, minimum windows, dialogs, release/focus-loss behavior, and actual INI/HAL sessions on Debian 13 Intel graphics still require onsite acceptance. Local screenshots cannot establish identical pixels across rendering stacks. README maintenance remains manual.

@@ -1,8 +1,8 @@
-# LinuxCNC 上游项目介绍
+# LinuxCNC upstream project introduction
 
-[返回项目首页](../README.md)
+[Back to the project home page](../README.md)
 
-以下保留原仓库的上游介绍和声明。当前项目状态以首页及模块文档为准。
+The upstream introduction and notices from the original repository are retained below. Refer to the home page and module documents for current project status.
 
 [![Badge GPL2]][License]
 [![Badge LGPL]][License]

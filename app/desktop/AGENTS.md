@@ -40,4 +40,20 @@ First follow the root [AGENT.md](../../AGENT.md). `app/desktop/` is the native d
 - Public UI tests observe behavior through `objectName`, keyboard, and mouse input. Python tests use public interfaces and real Unix sockets with controlled service substitutes. Do not expose private internals for testing or start simulators/machines.
 - macOS builds and headless tests cannot replace Debian 13, Intel integrated graphics, Chinese font, scaling, and window lifecycle acceptance. Container builds do not verify target graphics or the machine.
 - `.github/workflows/ci.yml` separately displays “Python: Qt UI backend” and “QML: Qt desktop UI.” `scripts/ci-check.sh --suite desktop` verifies the installed Python package; `--suite qml` runs QML, module-boundary, and startup checks. Without `--suite`, the full suite still runs. The desktop suite installs test wheels only in isolated environments; root builds and a separate CI job own the official DEB. Release rules follow root AGENT and do not deploy to the target.
-- See the [Qt migration notes](../../docs/qt-qml-migration.md) for build, startup, and acceptance steps. All README files are maintained by humans.
+- See the [Qt migration notes](../../docs/qt-qml-migration.md) for build, startup, and acceptance steps. All Markdown follows the protection rules below.
+
+## Reading and protected documentation
+
+Follow the root [AGENT.md](../../AGENT.md) and every ancestor directory guide. Before implementation, read every Markdown file in this directory and each affected child directory, plus the relevant linked interface contracts. Inspect existing code and dependencies before choosing a location or library.
+
+This guide and all other Markdown are protected: AI must neither change them autonomously nor proactively propose changes. An explicit human request and a second confirmation of the intended scope are required before any write. Keep documentation and explanatory comments English; never append change records, progress reports, operational logs, email addresses, key material, or credentials.
+
+Extend an existing class/module when the new behavior belongs to it. Add a focused file/directory only for a distinct responsibility, lifecycle, interface, or privilege boundary. Reuse verified public APIs; do not invent dependencies, duplicate rules, or import sibling private internals. In long source files, bracket substantial feature-owning classes with the language-appropriate English BEGIN/END markers defined in root AGENT.md. Builds and source tests run only in GitHub CI.
+
+## Child directory guides
+
+- [app/AGENTS.md](app/AGENTS.md): Own the thin executable wrapper and Python startup entry for the Qt desktop.
+- [python/AGENTS.md](python/AGENTS.md): Contain the installed bettercnc package and its public presentation and transport boundaries.
+- [qml/AGENTS.md](qml/AGENTS.md): Own Main, Workspace, guided/professional layouts, settings pages, file-selection presentation, and the standalone kiosk-status screen.
+- [scripts/AGENTS.md](scripts/AGENTS.md): Own the desktop/qml CI entry script and static dependency-boundary checker.
+- [tests/AGENTS.md](tests/AGENTS.md): Own the Qt Quick Test launcher, public QML behavior tests, controlled backends, and visual-preview support.

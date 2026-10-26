@@ -1,7 +1,11 @@
 # Agent entry point
 
-Read and follow [AGENT.md](AGENT.md). When modifying a module, also follow its directory's `AGENTS.md`: `app/desktop/`, `app/launcher/`, `tools/diagnostics/`, `app/platform/`, `app/platform/cam-link/`, `app/platform/updater/`, `app/platform/mesa-update/`, `src/hal/`, `src/hal/drivers/`, `src/hal/user_comps/`, and `app/controller/`.
+Read and follow [AGENT.md](AGENT.md) before any work. It defines the project map, architecture, feature-placement rules, English-only comments and PR format, and verification constraints.
 
-The `$code-boundary-standards` skill is permanently disabled in this repository and is no longer a prerequisite for development, testing, or review. Continue following the architecture, public-interface, and verification rules in `AGENT.md` and each module's `AGENTS.md`.
+All Markdown, including this file and `AGENT.md`, is protected. AI must not autonomously change it or proactively propose changes. Only an explicit human request followed by a second confirmation of the intended scope permits a write. Coding, PR, and merge authorization do not grant Markdown permission. Never append change records, progress reports, operational logs, email addresses, key material, or credentials to Markdown.
 
-The new GUI and real LinuxCNC integration have been installed on the target. See “Target machine and update conventions” in [AGENT.md](AGENT.md) for development and remote-update conventions, and the [local connection guide](docs/linuxcnc-local-connection.md) for installation, startup, and troubleshooting commands. Do not interpret historical “local source edits only” instructions as prohibiting remote builds, installation, or startup that the user has authorized.
+Read every Markdown file directly in each directory along the root-to-target path, and in every affected child directory. Follow the owner guides and relevant linked architecture/interface contracts before implementation. Start application work at [app/AGENTS.md](app/AGENTS.md); root `AGENT.md` also routes native, tool, configuration, and CI work.
+
+The `$code-boundary-standards` skill is permanently disabled in this repository. Continue following the architecture, public interfaces, and verification requirements in `AGENT.md` and scoped `AGENTS.md` files.
+
+Builds and source tests run only in GitHub-hosted CI, never locally or on the target. Deployment uses published packages and explicit task authorization; it does not authorize motion. See [target conventions](AGENT.md#target-machine-and-update-conventions) and the [local connection guide](docs/linuxcnc-local-connection.md).

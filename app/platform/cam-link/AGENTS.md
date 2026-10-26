@@ -1,6 +1,6 @@
 # Rust system service boundaries
 
-Follow the root `AGENT.md`. README files are maintained by humans.
+Follow the root `AGENT.md`. All Markdown follows the protection rules below.
 
 - `run` in `src/lib.rs` and installed binary `betterlinuxcnc-cam-link` are the public entry points. `cam_link` internals are private. This module owns only CAM integration; other applications belong in sibling modules by responsibility, not the diagnostics library or Python package.
 - CAM Link owns TCP 6522, optional UDP 8421 discovery, its separate inbox, status subscriptions, and network connection lifecycles. It does not load Python, create LinuxCNC/NML/HAL channels, or start/supervise other processes. Startup order and process supervision belong to `app/launcher`.
@@ -11,3 +11,16 @@ Follow the root `AGENT.md`. README files are maintained by humans.
 - Run disk uploads in the blocking task pool so they cannot delay jogging timers. Only the Upload lifecycle cleans incomplete directories; published files must not be overwritten.
 - Tests use real Rust CLI, TCP/UDP/Unix sockets, and public Python service entry points. Vendor substitutes come from test directories; do not start machines or simulators. Python is used only as a test client and the existing local controller service, not as the CAM network service.
 - In this directory, run `cargo fmt --check`, `cargo check --locked --all-targets`, `cargo clippy --locked --all-targets -- -D warnings`, and `cargo test --locked`; cross-process tests require Python 3.11+ (`SERVICE_TEST_PYTHON`). Test Python follows Ruff rules from `app/controller/pyproject.toml`.
+
+## Reading and protected documentation
+
+Follow the root [AGENT.md](../../../AGENT.md) and every ancestor directory guide. Before implementation, read every Markdown file in this directory and each affected child directory, plus the relevant linked interface contracts. Inspect existing code and dependencies before choosing a location or library.
+
+This guide and all other Markdown are protected: AI must neither change them autonomously nor proactively propose changes. An explicit human request and a second confirmation of the intended scope are required before any write. Keep documentation and explanatory comments English; never append change records, progress reports, operational logs, email addresses, key material, or credentials.
+
+Extend an existing class/module when the new behavior belongs to it. Add a focused file/directory only for a distinct responsibility, lifecycle, interface, or privilege boundary. Reuse verified public APIs; do not invent dependencies, duplicate rules, or import sibling private internals. In long source files, bracket substantial feature-owning classes with the language-appropriate English BEGIN/END markers defined in root AGENT.md. Builds and source tests run only in GitHub CI.
+
+## Child directory guides
+
+- [src/AGENTS.md](src/AGENTS.md): Own the library run entry and binary startup, delegating private CAM responsibilities into cam_link.
+- [tests/AGENTS.md](tests/AGENTS.md): Verify the Rust executable and public Python service contract over TCP, UDP, and Unix sockets.

@@ -4,7 +4,7 @@ use std::{env, path::PathBuf, process::Command};
 fn public_cam_and_controller_contracts() {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .ancestors()
-        .nth(2)
+        .nth(3)
         .unwrap()
         .to_owned();
     let python = env::var_os("SERVICE_TEST_PYTHON").unwrap_or_else(|| "python3".into());
@@ -15,7 +15,7 @@ fn public_cam_and_controller_contracts() {
     .unwrap();
     let output = Command::new(python)
         .args(["-m", "unittest", "discover", "-s", "tests/python", "-v"])
-        .current_dir(root.join("app/cam-link"))
+        .current_dir(root.join("app/platform/cam-link"))
         .env(
             "CAM_LINK_BINARY",
             env!("CARGO_BIN_EXE_betterlinuxcnc-cam-link"),

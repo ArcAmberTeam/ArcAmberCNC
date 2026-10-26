@@ -177,7 +177,7 @@ jobs:
         run: python -m pip install -r app/controller/requirements-ci.txt
       - name: Install Rust for the staged system-service installation
         run: |
-          for module in app/cam-link app/updater app/mesa-update; do
+          for module in app/platform/cam-link app/platform/updater app/platform/mesa-update; do
             version=$(python3 -c 'import sys, tomllib; print(tomllib.load(open(sys.argv[1], "rb"))["toolchain"]["channel"])' "$module/rust-toolchain.toml")
             # Both crate manifests request these components; preinstall them before parallel builds.
             rustup toolchain install "$version" --profile minimal --component rustfmt --component clippy
@@ -237,11 +237,11 @@ jobs:
         include:
           - module: tools/diagnostics
             name: Local diagnostics
-          - module: app/cam-link
+          - module: app/platform/cam-link
             name: CAM integration
-          - module: app/updater
+          - module: app/platform/updater
             name: Application updater
-          - module: app/mesa-update
+          - module: app/platform/mesa-update
             name: Mesa firmware checks and flash safeguards
     defaults:
       run:

@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.22)
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
     project(BetterLinuxCNCCamLink LANGUAGES NONE)
-    include("${CMAKE_CURRENT_SOURCE_DIR}/../../cmake/ApplicationInstall.cmake")
+    include("${CMAKE_CURRENT_SOURCE_DIR}/../../../cmake/ApplicationInstall.cmake")
 endif()
 
 set(BETTERCNC_CAM_LINK_BINARY "" CACHE FILEPATH "Prebuilt CAM Link binary for the target architecture")

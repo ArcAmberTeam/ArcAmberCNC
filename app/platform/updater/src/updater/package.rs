@@ -35,7 +35,7 @@ pub(super) fn validate(path: &Path) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    const POSTINST: &[u8] = include_bytes!("../../../../tools/appliance/packaging/postinst");
+    const POSTINST: &[u8] = include_bytes!("../../../../../tools/appliance/packaging/postinst");
 
     #[test]
     fn validates_real_debian_data_and_control_archives() {

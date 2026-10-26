@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.22)
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
     project(BetterLinuxCNCMesaUpdate LANGUAGES NONE)
-    include("${CMAKE_CURRENT_SOURCE_DIR}/../../cmake/ApplicationInstall.cmake")
+    include("${CMAKE_CURRENT_SOURCE_DIR}/../../../cmake/ApplicationInstall.cmake")
 endif()
 
 set(BETTERCNC_MESA_UPDATE_BINARY "" CACHE FILEPATH "Prebuilt Mesa release downloader for the target architecture")

@@ -153,9 +153,8 @@ mod tests {
             }
         }
         let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .parent()
-            .unwrap()
-            .parent()
+            .ancestors()
+            .nth(3)
             .unwrap()
             .to_owned();
         let python = env::var_os("SERVICE_TEST_PYTHON").unwrap_or_else(|| "python3".into());
@@ -175,7 +174,7 @@ mod tests {
             fs::set_permissions(directory.path(), fs::Permissions::from_mode(0o700)).unwrap();
             let path = directory.path().join("control.sock");
             let child = Command::new(&python)
-                .arg(root.join("app/updater/tests/observer_host.py"))
+                .arg(root.join("app/platform/updater/tests/observer_host.py"))
                 .arg(&path)
                 .arg(scenario)
                 .env("PYTHONPATH", &paths)

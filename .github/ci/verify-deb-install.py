@@ -34,7 +34,7 @@ def require(condition, message):
 
 def validate_deb_paths(package, source):
     """Apply the root broker's exact archive contract before APT or postinst."""
-    validator = source / "app/updater/src/updater/package_members.py"
+    validator = source / "app/platform/updater/src/updater/package_members.py"
     for kind, option in (("data", "--fsys-tarfile"), ("control", "--ctrl-tarfile")):
         with tempfile.TemporaryFile() as errors:
             process = subprocess.Popen(

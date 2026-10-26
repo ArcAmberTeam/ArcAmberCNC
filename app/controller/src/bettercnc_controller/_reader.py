@@ -4,6 +4,8 @@ import importlib
 import math
 import os
 
+from ._machine_configuration import machine_configuration
+
 
 class StatusReader:
     """Poll fresh NML status on the service worker, independently of UI ownership.
@@ -78,6 +80,7 @@ class StatusReader:
                     command_state = label
             return {
                 "connected": True,
+                "configuration": machine_configuration(module, s),
                 "programState": state,
                 "busy": busy,
                 "velocity": velocity,
@@ -103,6 +106,7 @@ class StatusReader:
             self._stat = None
             return {
                 "connected": False,
+                "configuration": None,
                 "programState": "unknown",
                 "file": None,
                 "currentLine": None,

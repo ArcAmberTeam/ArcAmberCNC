@@ -28,6 +28,10 @@ v2 请求：
 
 `machine.status` 还返回 `busy`（解释器、执行状态或队列尚未静止）、`velocity`（原生单位/秒；缺失或非有限值为 null）与 `nativeCommandState`（NML `stat.state` 的 RCS_DONE/RCS_EXEC/RCS_ERROR 分别归一为 done/executing/error，其余为 unknown）。`nativeCommandState` 仅表示原生通道观察值，不表示某个 GUI 请求已经完成。服务若仍跟踪 accepted/pending/sent/unknown 的桌面命令，会额外返回该请求的 `commandState`；不要将两者混同。更新器必须同时确认新鲜原生状态、队列和请求状态可停止，并由启动器正常退出；只读观察不能替代机床物理联锁。
 
+`machine.status.configuration` 为只读机床配置，无法读取或离线时为 null；旧服务可缺省该字段。格式为 `{schemaVersion:1, axes:[...], kinematics:string|null}`。轴列表按 `XYZABCUVW` 排序，仅包含 NML `axis_mask` 中实际启用的轴，不根据 joint 数或预留 INI 段推断。配置来自当前运行实例的 `ini_filename`，通过 LinuxCNC INI 读取器处理 include。
+
+每个轴包含 `name`、`kind`（linear/rotary）、`unit`（mm/deg）、`min`、`max`、`maxVelocity`。ABC 为旋转轴，其余为直线轴。软限位来自 `AXIS_<name>.MIN_LIMIT/MAX_LIMIT`，按原生单位比例转换为毫米或度；最大速度来自 `MAX_VELOCITY`，转换为每分钟。未知或无效数值为 null；上下限颠倒时两者均为 null。软限位范围属于机床坐标，不能直接用作工件坐标下的刀路边界，也不代表机械总行程。`kinematics` 为 INI 的 `KINS.KINEMATICS`（最多 256 字符），不包含配置文件路径。存在四/五个轴不证明支持四/五轴同时加工，客户端不得据此猜测旋转中心或自动套用运动学模型。
+
 ## 状态与操作
 
 `connected` 是 LinuxCNC 状态有效，Qt 另外维护 `serviceConnected`，不得将二者混为一谈。位置数组按 `XYZABCUVW` 排列；长度为 LinuxCNC 原生单位、角度为原生角度单位，`linearUnits` 是原生单位/毫米，`angularUnits` 是原生单位/度。joint 编号独立于 axis，未知运动学映射不能猜测。预览输出 XYZ 的单位统一为毫米。

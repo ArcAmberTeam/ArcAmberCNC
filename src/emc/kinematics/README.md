@@ -1,23 +1,23 @@
-# 机床运动学
+# Machine kinematics
 
-[全项目模块地图](../../../docs/module-map.md)
+[Project module map](../../../docs/module-map.md)
 
-## 作用与语言
+## Role and language
 
-C 为主，部分 C++；通常由运动模块在实时计算中调用。
+Primarily C, with some C++; usually called by the motion module during real-time calculations.
 
-将刀具／工件空间的轴坐标与机床各关节位置相互转换，表达具体机械结构。
+Converts between tool/workspace axis coordinates and machine joint positions to represent a specific mechanical structure.
 
-## 关键代码与通信
+## Key code and communication
 
-`kinematics.h` 定义接口；`trivkins.c`、`xyzac-trt-kins.c`、`xyzbc-trt-kins.c` 等实现不同结构。
+`kinematics.h` defines interfaces; `trivkins.c`, `xyzac-trt-kins.c`, `xyzbc-trt-kins.c`, and others implement different structures.
 
-由运动模块通过正逆运动学接口调用；具体实现依照机床配置加载。
+The motion module calls forward/inverse kinematics interfaces; machine configuration selects the implementation.
 
-## 职责边界
+## Responsibility boundaries
 
-轴坐标与关节不是同一概念。这里不解析程序文本、不决定按钮布局、不直接驱动硬件；不能把某种五轴模型当作适用于所有五轴机床。
+Axis coordinates and joints are distinct concepts. This module does not parse program text, determine button layouts, or directly drive hardware. Do not assume one five-axis model fits every five-axis machine.
 
-这是保留的 LinuxCNC 核心代码，不属于当前 Web 静态构建产物。我们的 Python 服务尚未接入这些控制路径。此说明描述现有职责，不新增接口或改变上游依赖。
+This is retained LinuxCNC core code, not part of the current Web static build artifact. Our Python service has not yet connected to these control paths. This document describes existing responsibilities without adding interfaces or changing upstream dependencies.
 
-修改此处需要相应的 LinuxCNC 原生构建与功能验证；Web 或 Tauri 构建通过不能证明该模块可运行。涉及实时行为还需目标 Linux 主机验证。
+Changes here require appropriate native LinuxCNC builds and functional verification. A passing Web or Tauri build does not establish that this module runs. Real-time behavior additionally requires verification on the target Linux host.

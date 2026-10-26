@@ -1,23 +1,23 @@
-# Python 启动编排边界
+# Python startup orchestration boundaries
 
-遵循根目录 [AGENT.md](../../AGENT.md)。本仓库永久停用 `$code-boundary-standards`，不将其作为开发、测试或审查前置要求。
+Follow the root [AGENT.md](../../AGENT.md). `$code-boundary-standards` is permanently disabled in this repository and is not a prerequisite for development, testing, or review.
 
-- `bettercnc_launcher` 的 `main`、`python -m bettercnc_launcher` 和 `betterlinuxcnc-launch` 是公开入口。下划线文件私有，运行时仅依赖 Python 标准库。
-- 启动器拥有配置校验、单实例锁、子进程、日志、启动顺序和就绪探测；只通过已安装 CLI 和只读公开 Unix 协议协作，不导入 Qt、LinuxCNC、服务或控制器实现，不获取控制会话，不发送机床命令。
-- 原生 `linuxcnc <ini>` 继续拥有实时核心、HAL、DISPLAY 和底层清理。启动器不改写 INI/HAL，不接管已有服务。默认保活只重启已退出的模块，不重放命令；核心重启必须先确认原进程组和原生锁均已释放。
-- 安装产物提供 XDG 自动启动项、专用 X11 会话与 systemd 用户服务，不启动 root GUI。`--kiosk-session` 持续维持专用会话，通过已安装桌面 CLI 显示不连接机床的启动状态页；启动器失败时不退回普通桌面。主进程 SIGINT/SIGTERM/SIGKILL 不触发 systemd 重启。退出 78 表示需人工处理的运行状态，禁止通过 systemd 循环抢占其他实例。
-- 控制服务先就绪，LinuxCNC 状态连接后才开启 CAM。核心已启动后的异常必须保留核心/控制服务供本地操作员处理；停止信号只在新鲜状态明确空闲时请求原生清理，不强杀核心进程组。
-- 测试从公开 CLI、真实进程及 Unix socket 观察行为，使用可执行程序替身，不运行 LinuxCNC、模拟器、实时线程或硬件。构建安装 wheel 后测试；同时验证依赖边界和桌面安装入口。当前用户禁止本地及目标机构建、源码测试，包括本地 Docker；这些验证只由 GitHub CI 执行，目标机仅安装完成的 DEB。README 只由人工维护。
+- `main` in `bettercnc_launcher`, `python -m bettercnc_launcher`, and `betterlinuxcnc-launch` are public entry points. Underscore-prefixed files are private. Runtime dependencies are limited to the Python standard library.
+- The launcher owns configuration validation, single-instance locking, child processes, logs, startup order, and readiness probes. It uses only installed CLIs and the read-only public Unix protocol; it must not import Qt, LinuxCNC, service, or controller implementation, obtain control sessions, or send machine commands.
+- Native `linuxcnc <ini>` continues to own the real-time core, HAL, DISPLAY, and low-level cleanup. The launcher does not rewrite INI/HAL or take over existing services. Default supervision restarts only exited modules without replaying commands. Core restart requires confirmation that the original process group and native lock have been released.
+- Installation provides XDG autostart, a dedicated X11 session, and systemd user services, without starting a root GUI. `--kiosk-session` continuously maintains the dedicated session and uses the installed desktop CLI to show a startup-status page without machine connectivity; launcher failure does not fall back to the ordinary desktop. SIGINT/SIGTERM/SIGKILL of the main process must not trigger systemd restart. Exit 78 indicates a runtime condition requiring human intervention; never use systemd loops to preempt other instances.
+- Start the controller service first; enable CAM only after LinuxCNC status connects. Failures after core startup must leave the core/controller available for the local operator. Stop signals request native cleanup only when fresh state explicitly shows idle; never force-kill the core process group.
+- Tests observe public CLI, real processes, and Unix sockets using executable substitutes, without LinuxCNC, simulators, real-time threads, or hardware. Test installed wheels and verify dependency boundaries and desktop install entry points. The user currently prohibits local/target builds and source tests, including local Docker; only GitHub CI performs these checks. The target installs completed DEBs only. README files are maintained by humans.
 
-## 专用机启动与历史迁移
+## Dedicated-appliance startup and historical migration
 
-- 专用会话的 Exec 使用固定安装路径且不加 shell 引号。Debian Xsession 将整条 Exec 作为一个参数，再以第一个空格前的字符串查找程序；引号会变成文件名的一部分并触发默认桌面回退。正式 DEB CI 必须经过发行版真实参数解析脚本验证，不启动图形服务或机床。
+- Dedicated-session Exec uses a fixed installed path without shell quotes. Debian Xsession receives the entire Exec as one argument and looks up the program using the text before the first space. Quotes become part of the filename and cause fallback to the default desktop. Official DEB CI must verify actual distribution argument parsing without starting graphical services or the machine.
 
-- 目标机部署已获用户授权；源码仍在本地修改并通过 Git 同步。具体环境和命令遵循 [本机连接说明](../../docs/linuxcnc-local-connection.md)，不要另建并行启动脚本或改写机床配置。
-- 应用 `26.10.26.1` 使用 `/usr` 安装前缀，CMake 的 `BETTERCNC_PROJECT_DIR` 默认并在正式发布时固定为 `/etc/betterlinuxcnc`。用户服务读取其中的 `launcher.json`；旧 `/home/teto/ArcAmberCNC/launcher.json` 仅作为显式迁移的输入，安装包不覆盖真实配置。`--check` 只验证配置和依赖，不证明机床已连接。
-- DEB 的固定 postinst 通过 `betterlinuxcnc-appliance provision` 幂等准备账户与目录；`prepare` 显式导入机床配置，`activate` 显式配置专用登录，后两者不由安装包或启动器自动执行。LightDM 以 `linuxcnc` 运行 `betterlinuxcnc-kiosk` X11 会话，由它导入实际 DISPLAY/Xauthority 并启动 `betterlinuxcnc-launcher.service`。不要复用旧账户的 UID/Xauthority，也不要同时手动启动另一套 launcher。服务 active 之后仍须检查日志、私有 `state.json` 的 ready、公开机床状态及 GUI 窗口。
-- 操作账户 HOME 为 `/var/lib/betterlinuxcnc/home`，缓存为 `/var/cache/betterlinuxcnc/user`；父目录保持 root 所有。systemd 模式日志位于 `/var/log/betterlinuxcnc/launcher/<本次启动目录>/`。`BETTERCNC_SHARE_LOGS=1` 仅放宽日志目录和日志文件供维护组读取，state、socket 和锁仍私有。直接 CLI 启动默认写入配置所在目录的 `.runtime/launcher/`。按最新启动目录读 controller、linuxcnc、cam-link 日志，不硬编码旧 PID 或日志目录。
-- `cnc-maint` 只通过固定 SSH 命令读取诊断，不拥有任意 shell、启动/停止服务或 sudo 权限。需要变更登录策略时按本机连接说明保留既有 root 维护会话；不通过启动器新增提权通道。
-- 保留已有 CAM 配置。当前目标机启用了 `auto_run`，不能为连接验证随意上传测试程序或改变自动运行设置。启动成功不代表 CAM 收件加工或机床运动已验收。
+- The user has authorized target deployment; source changes remain local and are synchronized through Git. Follow the [local connection guide](../../docs/linuxcnc-local-connection.md) for environment and commands; do not create parallel startup scripts or rewrite machine configuration.
+- Application `26.10.26.1` uses installation prefix `/usr`. CMake `BETTERCNC_PROJECT_DIR` defaults to `/etc/betterlinuxcnc` and is fixed there for official releases. User services read its `launcher.json`; old `/home/teto/ArcAmberCNC/launcher.json` is only explicit migration input. Packages do not overwrite real configuration. `--check` validates configuration/dependencies, not machine connectivity.
+- The fixed DEB postinst idempotently prepares accounts/directories through `betterlinuxcnc-appliance provision`. `prepare` explicitly imports machine configuration; `activate` explicitly configures dedicated login. Neither is automatically invoked by the package or launcher. LightDM runs the `betterlinuxcnc-kiosk` X11 session as `linuxcnc`; it imports actual DISPLAY/Xauthority and starts `betterlinuxcnc-launcher.service`. Do not reuse the old account's UID/Xauthority or manually start a second launcher. Even after service active, check logs, private `state.json` ready, public machine status, and the GUI window.
+- The operating account HOME is `/var/lib/betterlinuxcnc/home` and cache is `/var/cache/betterlinuxcnc/user`; parent directories remain root-owned. systemd logs live in `/var/log/betterlinuxcnc/launcher/<current-start-directory>/`. `BETTERCNC_SHARE_LOGS=1` relaxes only log directory/file permissions for the maintenance group; state, sockets, and locks stay private. Direct CLI startup defaults to `.runtime/launcher/` under the configuration directory. Read controller, linuxcnc, and cam-link logs from the latest startup directory; do not hardcode old PIDs or log directories.
+- `cnc-maint` reads diagnostics through fixed SSH commands only, with no arbitrary shell, service start/stop, or sudo. When changing login policy, retain an existing root maintenance session as directed by the local connection guide; do not add elevation channels through the launcher.
+- Preserve existing CAM configuration. The current target has `auto_run` enabled; do not casually upload test programs or change automatic-run settings for connection checks. Successful startup does not establish CAM inbox machining or machine motion acceptance.
 
-- 专用 X11 会话通过 xset 关闭自动屏保、黑屏和 DPMS，普通桌面启动不改变显示策略。失败必须记录但不重启核心；该措施不等同于系统睡眠恢复已验收。
+- The dedicated X11 session uses xset to disable automatic screensaver, blanking, and DPMS; ordinary desktop startup does not change display policy. Log failures without restarting the core. This does not establish acceptance of system sleep/resume.

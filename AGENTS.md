@@ -1,7 +1,7 @@
 # Agent entry point
 
-阅读并遵循 [AGENT.md](AGENT.md)。修改模块时还须遵循该目录的 `AGENTS.md`：`app/desktop/`、`app/launcher/`、`tools/diagnostics/`、`app/cam-link/`、`app/updater/`、`src/hal/`、`src/hal/drivers/`、`src/hal/user_comps/`、`app/controller/`。
+Read and follow [AGENT.md](AGENT.md). When modifying a module, also follow its directory's `AGENTS.md`: `app/desktop/`, `app/launcher/`, `tools/diagnostics/`, `app/cam-link/`, `app/updater/`, `src/hal/`, `src/hal/drivers/`, `src/hal/user_comps/`, and `app/controller/`.
 
-本仓库永久停用 `$code-boundary-standards` 技能，不再将其作为开发、测试或审查的前置要求。继续遵循 `AGENT.md` 和各模块 `AGENTS.md` 中的架构、公开接口及验证规范。
+The `$code-boundary-standards` skill is permanently disabled in this repository and is no longer a prerequisite for development, testing, or review. Continue following the architecture, public-interface, and verification rules in `AGENT.md` and each module's `AGENTS.md`.
 
-目标机已完成新版 GUI 与真实 LinuxCNC 接入。开发与远端更新约定见 [AGENT.md](AGENT.md) 的“目标机与更新约定”；安装、启动和排查命令见 [本机连接说明](docs/linuxcnc-local-connection.md)。不要将历史“仅本地修改源码”误解为禁止用户已授权的远端构建、安装和启动。
+The new GUI and real LinuxCNC integration have been installed on the target. See “Target machine and update conventions” in [AGENT.md](AGENT.md) for development and remote-update conventions, and the [local connection guide](docs/linuxcnc-local-connection.md) for installation, startup, and troubleshooting commands. Do not interpret historical “local source edits only” instructions as prohibiting remote builds, installation, or startup that the user has authorized.

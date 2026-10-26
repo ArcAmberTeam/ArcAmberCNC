@@ -1,23 +1,23 @@
-# 任务执行协调
+# Task execution coordination
 
-[全项目模块地图](../../../docs/module-map.md)
+[Project module map](../../../docs/module-map.md)
 
-## 作用与语言
+## Role and language
 
-C++；非实时用户态。
+C++; non-real-time user space.
 
-接收界面命令，协调手动、自动和手动输入模式，调用 G 代码解释器，并按运动和 I/O 的前后条件安排执行。
+Receives UI commands, coordinates manual, automatic, and MDI modes, invokes the G-code interpreter, and schedules execution according to motion and I/O preconditions and postconditions.
 
-## 关键代码与通信
+## Key code and communication
 
-`emctaskmain.cc` 是主循环；`emccanon.cc` 连接解释器的规范动作与执行命令；`taskintf.cc` 等提供子系统接口。
+`emctaskmain.cc` is the main loop; `emccanon.cc` connects interpreter canonical actions to execution commands; `taskintf.cc` and others expose subsystem interfaces.
 
-上游通过 NML 命令、状态和错误通道通信；下游调用运动接口并协调 I/O。运动接口再通过共享内存与实时模块交换数据。
+Communicates upstream through NML command, status, and error channels. Downstream, it calls the motion interface and coordinates I/O; that interface exchanges data with the real-time module through shared memory.
 
-## 职责边界
+## Responsibility boundaries
 
-Task 的模式和执行约束仍是 LinuxCNC 自身的职责；Python 的应用前置检查不能代替它。这里不画界面，不直接承担每个周期的电机输出。
+Task modes and execution constraints remain LinuxCNC responsibilities; Python application prechecks cannot replace them. This module does not draw the UI or directly produce each cycle of motor output.
 
-这是保留的 LinuxCNC 核心代码，不属于当前 Web 静态构建产物。我们的 Python 服务尚未接入这些控制路径。此说明描述现有职责，不新增接口或改变上游依赖。
+This is retained LinuxCNC core code, not part of the current Web static build artifact. Our Python service has not yet connected to these control paths. This document describes existing responsibilities without adding interfaces or changing upstream dependencies.
 
-修改此处需要相应的 LinuxCNC 原生构建与功能验证；Web 或 Tauri 构建通过不能证明该模块可运行。涉及实时行为还需目标 Linux 主机验证。
+Changes here require appropriate native LinuxCNC builds and functional verification. A passing Web or Tauri build does not establish that this module runs. Real-time behavior additionally requires verification on the target Linux host.

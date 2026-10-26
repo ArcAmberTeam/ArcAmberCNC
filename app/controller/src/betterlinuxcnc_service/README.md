@@ -1,28 +1,28 @@
-# Python 服务内部职责
+# Python service internal responsibilities
 
-[服务启动与协议说明](../../README.md) · [全项目模块地图](../../../docs/module-map.md)
+[Service startup and protocol](../../README.md) · [Project module map](../../../../docs/module-map.md)
 
-## 作用与语言
+## Role and language
 
-Python 3.11+，使用标准库。当前只做本机服务健康查询，不导入 LinuxCNC、不读取硬件、不发送运动命令。
+Python 3.11+, standard library only. Currently queries local service health without importing LinuxCNC, reading hardware, or sending motion commands.
 
-## 文件与入口
+## Files and entry points
 
-| 文件           | 拥有的职责                                                  |
-| -------------- | ----------------------------------------------------------- |
-| `__init__.py`  | 包公开入口，导出 `main`                                     |
-| `__main__.py`  | `python -m betterlinuxcnc_service` 启动入口                 |
-| `_server.py`   | socket 路径、权限、监听、分帧、超时、连接数量与进程退出清理 |
-| `_protocol.py` | JSON 解析、字段和版本校验、方法选择、结果与错误封装         |
+| File | Responsibility |
+| --- | --- |
+| `__init__.py` | Public package entry point exporting `main` |
+| `__main__.py` | Entry point for `python -m betterlinuxcnc_service` |
+| `_server.py` | Socket paths, permissions, listening, framing, timeouts, connection limits, and process-exit cleanup |
+| `_protocol.py` | JSON parsing, field/version validation, method selection, and result/error envelopes |
 
-下划线文件是私有实现。调用方使用命令行和 socket 协议，不导入这些文件；测试也从已安装包的命令行及通信端点观察行为。
+Underscore-prefixed files are private. Callers use CLI and socket protocol rather than importing these files; tests likewise observe the installed package through CLI and communication endpoints.
 
-## 上下游与边界
+## Upstream, downstream, and boundaries
 
-上游是 Rust 桌面环境；当前没有连接 LinuxCNC 的下游。`health` 始终返回诊断模式和 `machine_connected: false`，不接受其他方法。
+Upstream is the Rust desktop environment; no downstream LinuxCNC connection exists yet. `health` always returns diagnostic mode and `machine_connected: false`; no other methods are accepted.
 
-传输处理器只处理连接和报文，协议解析器只处理消息契约。后续增加控制时，应明确独立的机床接入与操作规则所有者；不能把运行、回零、点动逻辑直接堆进 `_server.py`。
+Transport handlers own connections/messages; protocol parsers own the message contract. Future control additions must define separate machine-access and operation-rule owners rather than placing run, home, and jog logic directly in `_server.py`.
 
-本地 socket 权限限制访问用户，不能证明客户端一定来自 Tauri。持续会话、控制权和失联停止仍待实现。Python 不承担实时伺服循环，预览解释工作也不能阻塞控制服务。
+Local socket permissions restrict users but cannot prove a client is Tauri. Persistent sessions, control ownership, and stop-on-disconnect remain unimplemented. Python does not run the real-time servo loop; preview interpretation must not block the controller service.
 
-验证命令见上级服务说明：Ruff、安装包构建、安装后的 unittest；协议变化还需 Rust 跨进程集成测试。
+See the parent service document for Ruff, package-build, and installed unittest commands; protocol changes also require Rust cross-process integration tests.

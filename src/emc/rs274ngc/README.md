@@ -1,23 +1,23 @@
-# G 代码解释器
+# G-code interpreter
 
-[全项目模块地图](../../../docs/module-map.md)
+[Project module map](../../../docs/module-map.md)
 
-## 作用与语言
+## Role and language
 
-C++ 为主，包含 Python 扩展集成；通常运行于非实时上下文。
+Primarily C++, with Python extension integration; normally runs in a non-real-time context.
 
-解释 G/M 代码、模态、坐标变换、刀具补偿和固定循环，并产生规范动作。
+Interprets G/M codes, modal state, coordinate transforms, tool compensation, and canned cycles, producing canonical actions.
 
-## 关键代码与通信
+## Key code and communication
 
-`rs274ngc_interp.hh`、`interp_base.hh` 为解释器接口；`interp_read.cc` 负责读取解析，`interp_convert.cc`、`interp_arc.cc` 等负责具体转换。
+`rs274ngc_interp.hh` and `interp_base.hh` are interpreter interfaces. `interp_read.cc` reads/parses; `interp_convert.cc`, `interp_arc.cc`, and others implement specific conversions.
 
-由 Task 或专用解释工具调用；通过 `../nml_intf/canon.hh` 约定的规范动作接口交给执行端。预览工具可以使用不同的动作接收端。
+Called by Task or dedicated interpretation tools. It passes actions to execution through canonical interfaces in `../nml_intf/canon.hh`. Preview tools can use a different action receiver.
 
-## 职责边界
+## Responsibility boundaries
 
-不承担 GUI 绘制或硬件驱动，不替代实时轨迹规划。我们当前的 SVG 预览尚未接入此解释器；未来预览解释应独立处理。
+It does not draw the GUI, drive hardware, or replace real-time trajectory planning. Our current SVG preview is not connected to this interpreter; future preview interpretation should be handled separately.
 
-这是保留的 LinuxCNC 核心代码，不属于当前 Web 静态构建产物。我们的 Python 服务尚未接入这些控制路径。此说明描述现有职责，不新增接口或改变上游依赖。
+This is retained LinuxCNC core code, not part of the current Web static build artifact. Our Python service has not yet connected to these control paths. This document describes existing responsibilities without adding interfaces or changing upstream dependencies.
 
-修改此处需要相应的 LinuxCNC 原生构建与功能验证；Web 或 Tauri 构建通过不能证明该模块可运行。涉及实时行为还需目标 Linux 主机验证。
+Changes here require appropriate native LinuxCNC builds and functional verification. A passing Web or Tauri build does not establish that this module runs. Real-time behavior additionally requires verification on the target Linux host.

@@ -1,44 +1,44 @@
-# 简易与专业 Qt 界面
+# Guided and professional Qt interfaces
 
-两套界面共享白金主题、同一个后端连接、程序文档及功能面板。默认进入专业模式；顶部“设置”进入全屏设置页，在“界面布局”中切换简易/专业。模式与步骤是本次窗口的展示状态，当前不跨应用重启保存。
+Both interfaces share the platinum theme, one backend connection, program document, and feature panels. Professional mode is the default. Top-level Settings opens fullscreen settings; switch Guided/Professional under Interface Layout. Mode and step are presentation state for the current window and are not persisted across application restarts.
 
-## 参考与取舍
+## References and choices
 
-- [QtDragon 官方说明与布局截图](https://www.linuxcnc.org/docs/html/gui/qtdragon.html)：参考其集中的手动控制、坐标、刀路与程序区组织方式。专业界面左侧常驻手动/MDI 与倍率，右侧上方刀路/坐标、下方程序，可拖动分隔条调整高度。
-- [Bambu Studio 官方项目](https://github.com/bambulab/BambuStudio)及[窗口源码](https://github.com/bambulab/BambuStudio/blob/master/src/slic3r/GUI/MainFrame.cpp)：参考 Prepare / Preview / Device 的任务分页。简易界面适配为“准备程序 / 检查刀路 / 设备控制”，使用文字工具栏、状态卡片与下一步入口。
+- [Official QtDragon documentation and screenshots](https://www.linuxcnc.org/docs/html/gui/qtdragon.html): reference for grouped manual controls, coordinates, toolpaths, and programs. Professional mode keeps manual/MDI and overrides on the left, with toolpath/coordinates above the program on the right and a draggable height divider.
+- [Official Bambu Studio project](https://github.com/bambulab/BambuStudio) and [window source](https://github.com/bambulab/BambuStudio/blob/master/src/slic3r/GUI/MainFrame.cpp): reference for Prepare / Preview / Device task pages. Guided mode adapts these to Prepare Program / Check Toolpath / Device Control, with text toolbars, status cards, and next-step actions.
 
-这是对 CNC 工作流的适配，没有复制这两个项目的源码、图标或商标，也没有接入 Bambu 云服务、切片、摄像头或材料去除引擎。准备页读取已有 G 代码；不会把 3D 打印机的温度、耗材或切片参数当作 CNC 参数。简易模式不降低服务端的操作限制，不根据卡片内容推断可以安全加工。
+This adapts CNC workflow without copying either project's source, icons, or trademarks or integrating Bambu cloud, slicing, cameras, or material removal. Preparation reads existing G-code; 3D-printer temperature, filament, and slicing parameters are not CNC parameters. Guided mode does not relax server restrictions or infer machining safety from cards.
 
-## 布局与复用
+## Layout and reuse
 
-| 文件 | 所有权 |
+| File | Ownership |
 | --- | --- |
-| `qml/Workspace.qml` | 组合唯一的 ManualPanel、ToolpathPanel、ProgramPanel；持有展示状态与点动生命周期；将操作交给现有后端 |
-| `qml/WorkspaceLayout.qml` | 布局输入和各面板矩形/可见性的公共契约，不接触机床状态 |
-| `qml/ProfessionalLayout.qml` | 专业布局：左手动，右上刀路/坐标，右下程序 |
-| `qml/GuidedLayout.qml` | 简易布局：准备、预览、设备三个步骤的面板几何与可见性 |
-| `qml/WorkspaceGuide.qml` | 简易引导卡片，观察现有状态，调用公开 ChromeActions；底部操作固定，说明区可滚动 |
-| `qml/BetterCnc/Chrome/ChromeBar.qml` | 共用菜单、模式切换、步骤导航；专业完整工具栏、简易文字工具栏；固定停止入口 |
-| `qml/WorkspaceShortcuts.qml` | 共用快捷键；F3/F5 在简易模式定位到设备页，隐藏手动区不响应点动/回零快捷键 |
+| `qml/Workspace.qml` | Composes the sole ManualPanel, ToolpathPanel, and ProgramPanel; owns presentation/jogging lifecycle; delegates actions to the existing backend |
+| `qml/WorkspaceLayout.qml` | Public contract for layout inputs and panel rectangles/visibility, without machine state |
+| `qml/ProfessionalLayout.qml` | Manual left, toolpath/coordinates upper right, program lower right |
+| `qml/GuidedLayout.qml` | Geometry/visibility for prepare, preview, and device steps |
+| `qml/WorkspaceGuide.qml` | Guided cards observing existing state and public ChromeActions; fixed bottom actions and scrollable explanations |
+| `qml/BetterCnc/Chrome/ChromeBar.qml` | Shared menus, mode switching, step navigation; full professional toolbar, guided text toolbar, fixed stop |
+| `qml/WorkspaceShortcuts.qml` | Shared shortcuts; F3/F5 selects Device in guided mode; hidden manual controls ignore jog/home shortcuts |
 
-简易准备页在 1280 px 及以上同时显示程序、预览、引导卡片；窄窗口显示程序与引导卡片，预览在下一步显示。预览页显示大刀路区域和引导卡片。设备页显示刀路/坐标及完整手动控制，因此无需复制或简化机床规则。默认窗口为 1024×600；同时保留 760 像素最小宽度。
+At widths of at least 1280 px, guided preparation shows program, preview, and guidance together; narrower windows show program/guidance and move preview to the next step. Preview shows a large toolpath area plus guidance. Device shows toolpath/coordinates and complete manual controls, avoiding copied/simplified machine rules. Default window is 1024×600; minimum width remains 760 px.
 
-面板不通过 Loader 销毁重建，因此切换会保留 MDI 未提交文本、选中程序行、视角、单位、倍率反馈、选轴和点动步长。切换本身不提交加工命令；切换模式或步骤会取消当前点动手势并调用原有停止点动入口。程序运行状态继续来自后端，页面切换不会将运行解释为已完成。
+Panels are not destroyed/recreated through Loader, so switching preserves unsubmitted MDI, selected program line, view, units, override feedback, selected axis, and jog increment. Switching submits no machining command; mode/step changes cancel the current jog gesture and call existing jog stop. Execution state still comes from the backend; page changes never imply completion.
 
-## 操作与本地交互验收
+## Operation and local interactive acceptance
 
-生产界面在“设置 → 界面布局”中选择“简易”或“专业”，点击“返回工作台”继续。原有 F1 急停、Esc 停止、F3 手动、F5 MDI 和菜单保留。简易工具栏的暂停按钮在后端报告 paused 后显示“继续”，并提交原有 `program.resume`。两套布局共享 `ChromeActions.canActivate` 与服务端能力限制。
+Choose Guided or Professional under Settings → Interface Layout, then Return to Workspace. Existing F1 emergency stop, Esc stop, F3 manual, F5 MDI, and menus remain. Guided Pause becomes Resume after backend paused feedback and submits existing `program.resume`. Both layouts share `ChromeActions.canActivate` and service capabilities.
 
-无需 LinuxCNC 的交互窗口：
+Interactive windows without LinuxCNC:
 
 ```sh
 app/desktop/.venv/bin/python app/desktop/tests/visual_preview.py --interface guided
 app/desktop/.venv/bin/python app/desktop/tests/visual_preview.py --interface professional
 ```
 
-还可使用 `--stage preview`、`--stage device`、`--scenario offline` 或 `--scenario error`。这是明确标注“测试数据”的 FakeBackend，按钮记录请求，不控制硬件，也不自动模拟真实机床状态变化。两种模式的切换在同一个窗口内完成。
+Also available: `--stage preview`, `--stage device`, `--scenario offline`, and `--scenario error`. FakeBackend is explicitly labeled Test Data; buttons record requests without hardware control or automatic simulation of real machine state. Switch modes within the same window.
 
-截图命令：
+Screenshot command:
 
 ```sh
 QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software \
@@ -46,56 +46,56 @@ app/desktop/.venv/bin/python app/desktop/tests/visual_preview.py \
   --interface guided --stage preview --width 760 --height 640 --capture /tmp/guided.png
 ```
 
-本地截图保存在忽略入库的 `app/desktop/artifacts/dual-ui/`。固定测试线段不代表实际 G 代码解释结果。
+Local screenshots are in Git-ignored `app/desktop/artifacts/dual-ui/`. Fixed test segments are not actual G-code interpreter output.
 
-## 验证
+## Verification
 
-使用 CMake/CTest 执行 QML UI、qmllint、模块边界、Python/后端集成及启动测试。新增交互回归覆盖：
+Use CMake/CTest for QML UI, qmllint, module boundaries, Python/backend integration, and startup. Added interactive regressions cover:
 
-- 模式切换保留 MDI 文本、程序选中行、刀路视角与步长，不提交额外命令。
-- 简易步骤导航、隐藏手动区域拒绝方向键点动、离开设备页停止点动、F5 定位 MDI。
-- 两套入口共用运行权限，离线/忙碌/后端拒绝时禁用；暂停、继续、停止提交原有命令。
-- 760、1024、1280、1440 px 下三个简易步骤的面板互不重叠，停止与步骤入口可见，引导主操作不被滚动区域遮挡。
-- 专业布局在相同宽度范围内保留程序分隔条与控制区。
+- Switching retains MDI text, selected program line, toolpath view, and increment without extra commands.
+- Guided navigation, rejection of arrow-key jogging with hidden manual controls, stopping jog on leaving Device, and F5 targeting MDI.
+- Shared run permissions; disabled when offline/busy/rejected by backend; pause/resume/stop use original commands.
+- Nonoverlapping panels at 760, 1024, 1280, and 1440 px for all three guided steps, visible stop/navigation, and primary guidance actions unobscured by scrolling.
+- Professional divider and controls retained at the same widths.
 
-macOS 无屏与本地窗口检查不能替代 Debian 13 / Intel 核显或真实机床验收。
+macOS headless/local-window checks do not replace Debian 13 / Intel graphics or real-machine acceptance.
 
-## 刀路视图与触屏交互
+## Toolpath views and touch interaction
 
-两套布局共用 `ToolpathState` 的缩放、平移和旋转状态；切换界面不重置视图。`ViewportGestures` 只发出相机操作信号，`ViewportControls` 提供触屏按钮，`ToolpathCanvas` 负责投影与绘制。它们是 Toolpath 模块内部类型，不提交机床命令。程序中心作为旋转支点；旋转期间保持投影基准比例，避免每次拖动重新适配造成尺寸跳动。坐标状态更新仍只重绘轻量覆盖层。
+Both layouts share zoom, pan, and rotation in `ToolpathState`; switching does not reset the view. `ViewportGestures` emits camera signals only, `ViewportControls` provides touch buttons, and `ToolpathCanvas` projects/draws. These are internal Toolpath types and submit no machine commands. Rotation pivots around program center while preserving the projection base scale to prevent size jumps from repeated fitting. Coordinate updates redraw only lightweight overlays.
 
-| 输入 | 行为 |
+| Input | Behavior |
 | --- | --- |
-| 左键 / 单指拖动 | 默认平移；选择“旋转”后绕程序中心旋转 |
-| 鼠标中键 / 右键拖动 | 分别固定为平移 / 旋转 |
-| 鼠标滚轮 | 以指针为锚点缩放，范围 10%–2000% |
-| 双指触摸 | 捏合缩放，同时平移；不把双指动作解释为单指旋转 |
-| 触控板 | Qt 原生捏合用于缩放；像素滚动用于平移，Ctrl + 像素滚动缩放 |
-| 双击 / 双点触摸 | 清除平移、旋转与缩放，适配当前投影视图 |
-| 视图聚焦后的方向键 / PageUp、PageDown / Home | 平移 / 缩放 / 复位；不触发点动、回零或对刀 |
+| Left mouse / one-finger drag | Pan by default; rotate around program center in Rotate mode |
+| Middle / right mouse drag | Fixed pan / rotate |
+| Mouse wheel | Pointer-anchored zoom, 10%–2000% |
+| Two-finger touch | Pinch zoom plus pan; never interpreted as one-finger rotation |
+| Trackpad | Qt native pinch zoom; pixel scrolling pans; Ctrl + pixel scrolling zooms |
+| Double click / double tap | Clear pan, rotation, zoom and fit the current projection |
+| Focused view arrows / PageUp, PageDown / Home | Pan / zoom / reset; no jog, home, or touch-off |
 
-预览标题栏提供平移、旋转、缩小、放大、复位、俯视按钮，触摸高度为 44 个逻辑像素。窄窗口可横向滑动该按钮栏。选择投影预设会清除自由旋转、平移和缩放；俯视恢复为 XY 投影。视图区与工具栏聚焦时暂停手动区的点动、选轴、回零、对刀快捷键；F1、Esc 等原有全局命令保留。
+Preview header offers pan, rotate, zoom out/in, reset, and top view with 44-logical-pixel touch height. Narrow windows scroll this toolbar horizontally. Projection presets clear free rotation/pan/zoom; Top returns to XY. View/toolbar focus suspends manual jogging, axis-selection, homing, and touch-off shortcuts; global F1/Esc remain.
 
-点动按钮增大为 48×44，并显示触屏提示。鼠标按下即请求点动；触屏或笔需持续按住 250 毫秒才请求点动，短点与滚动手势不启动。移动超过系统拖动阈值、松开、失焦、窗口失活或控件禁用时取消；取消后移回按钮不会重启。长按等待期间失焦也会取消等待。原有能力检查、服务租约与停止入口保留。
+Jog buttons are 48×44 with touch guidance. Mouse press requests jogging immediately; touch/pen requires 250 ms hold, so taps/scroll gestures do not start. Movement beyond the system drag threshold, release, focus loss, inactive window, or disabled controls cancels. Moving back onto a canceled button does not restart. Focus loss during the hold delay cancels the pending start. Existing capability checks, service leases, and stop entry points remain.
 
-使用原界面、原桌面后端及原控制服务，只从外部注入 LinuxCNC 接口替身的入口：
+Use the original UI, desktop backend, and controller service with only an externally injected LinuxCNC interface substitute:
 
 ```sh
 app/desktop/.venv/bin/python app/desktop/tests/interactive/main.py
 ```
 
-QML 测试通过鼠标、键盘和 `touchEvent()` 注入覆盖平移、旋转、锚点缩放、双指转换、双点复位、焦点隔离及点动取消。Qt Quick Test 的鼠标释放会人为推进 500 毫秒事件时间戳，因此双点识别测试使用触摸事件，避免把测试框架的间隔当作产品行为。参考 [Qt TapHandler](https://doc.qt.io/qt-6/qml-qtquick-taphandler.html) 和 [Qt Quick Test 事件实现](https://github.com/qt/qtdeclarative/blob/dev/src/qmltest/quicktestevent.cpp)。macOS 上的注入测试不代表实体触摸屏、Debian 图形驱动或真实机床已验收。
+QML tests inject mouse, keyboard, and `touchEvent()` for pan, rotation, anchored zoom, two-finger transitions, double-tap reset, focus isolation, and jog cancellation. Qt Quick Test mouse release artificially advances event timestamps by 500 ms, so double-tap tests use touch events to avoid treating test-framework intervals as product behavior. See [Qt TapHandler](https://doc.qt.io/qt-6/qml-qtquick-taphandler.html) and [Qt Quick Test events](https://github.com/qt/qtdeclarative/blob/dev/src/qmltest/quicktestevent.cpp). macOS injected tests do not establish physical touchscreen, Debian driver, or real-machine acceptance.
 
-## 1024×600 与全屏设置页
+## 1024×600 and fullscreen settings
 
-“设置”占满应用客户区，覆盖主工作台，顶部固定返回、急停和停止入口；不会打开另一个系统窗口或切换操作系统全屏状态。页面分为界面布局、刀路与坐标、加工选项，内容可触摸滚动，分类导航保留在顶部。
+Settings fills the application client area over the workspace, with fixed Back, Emergency Stop, and Stop at the top. It does not open another system window or toggle OS fullscreen. Sections are Interface Layout, Toolpath and Coordinates, and Machining Options, with touch scrolling and top navigation.
 
-- 界面模式选择从主界面移入设置；专业界面移除原模式行和品牌标题行；在 1024 像素及以上宽度，菜单、设置与加工按钮合并为 52 像素高的一行。简易界面另保留 44 像素高的步骤导航，总计 96 像素。窄于 1000 像素时菜单与设置单独成行，避免挤压操作按钮。系统窗口标题仅显示当前程序文件名，未加载时显示“未打开程序”。
-- 主工具栏移除重复的视角、缩放和轨迹按钮，以及可选停止、跳行开关。刀路上的平移、旋转、缩放、复位和俯视按钮保留。其他投影、单位、坐标源、网格和显示开关统一在设置中操作；原菜单仍兼容。
-- 最大速度从手动栏移至加工选项，仍观察同一只读状态与提交同一 `velocity.max` 命令。进给、快移、主轴倍率及点动速度保留在手动栏。可选停止、跳行状态等待控制器反馈，不在点击后乐观修改。
-- 在 600 像素高的窗口首次启动时，程序区域默认 120 像素，扩大刀路可视区；分隔条仍可调整。设置不会销毁工作台面板，返回保留刀路视角、选中程序行、MDI 输入和点动步长。
-- 进入设置先停止本会话点动；设置页禁用点动、运行、回零、F2/F3/F5 等工作台快捷键。F1 急停、Esc 停止及页头按钮继续可用。显示偏好当前只保留在会话中，不写入 INI 或跨启动持久化。
+- Layout selection moved from the workspace into settings. Professional mode removes the old mode/brand rows. At widths of at least 1024 px, menus, settings, and machining actions share one 52 px row; Guided adds 44 px step navigation, totaling 96 px. Below 1000 px, menus/settings get a separate row to avoid squeezing actions. Window titles show only the program filename, or No Program Open.
+- The main toolbar removes duplicate view/zoom/trace actions and optional-stop/block-delete switches. Toolpath pan/rotate/zoom/reset/top actions remain. Other projections, units, coordinate sources, grids, and visibility options are centralized in settings; existing menus remain compatible.
+- Maximum velocity moves from Manual to Machining Options, observing the same read-only state and issuing `velocity.max`. Feed, rapid, spindle overrides, and jog speed remain in Manual. Optional-stop/block-delete switches await controller feedback rather than optimistic updates.
+- At initial startup in a 600 px high window, program height defaults to 120 px to enlarge toolpath space; the divider remains adjustable. Settings does not destroy workspace panels; returning preserves view, selected line, MDI text, and jog increment.
+- Entering settings first stops this session's jogging. Settings disables jog/run/home/F2/F3/F5 and other workspace shortcuts; F1 emergency stop, Esc stop, and header actions remain. Display preferences remain session-only, without INI writes or persistence across starts.
 
-`WorkspaceSettings.qml` 负责页面组合；`ToolpathSettings` 和 `ManualSettings` 是各自能力模块的公开设置组件，复用原展示状态及命令入口。未增加新控制后端。
+`WorkspaceSettings.qml` composes the page. Public `ToolpathSettings` and `ManualSettings` reuse their modules' existing presentation state and command entry points. No new control backend is added.
 
-外部注入交互测试入口默认也使用 1024×600，可通过 `--width`、`--height` 覆盖。验收覆盖两套布局、设置页尺寸、滚动与焦点、离线显示设置、反馈驱动开关、停止点动与快捷键隔离；实体触屏和目标 Linux 图形栈仍须实测。
+External-injection interactive tests also default to 1024×600, overridable with `--width`/`--height`. Acceptance covers both layouts, settings size, scroll/focus, offline display preferences, feedback-driven switches, jogging stop, and shortcut isolation. Physical touchscreens and target Linux graphics still require measurement.

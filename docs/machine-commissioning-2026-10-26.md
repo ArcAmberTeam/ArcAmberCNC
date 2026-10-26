@@ -1,29 +1,29 @@
-# 2026-10-26 现场轴映射与 v4 修复
+# Onsite axis mapping and v4 fix, 2026-10-26
 
-用户现场点动确认了原配置的电机输出和正向运动：
+The user confirmed original motor outputs and positive motion through onsite jogging:
 
-| 原 joint / stepgen | 实机轴 | 原正向动作 | v4 逻辑轴与调整 |
+| Original joint / stepgen | Physical axis | Original positive motion | v4 logical axis and adjustment |
 | --- | --- | --- | --- |
-| 0 / 00 | Y（左右，275 mm） | 向右 | joint 1 / Y 使用 stepgen.00，保持正向 |
-| 1 / 01 | X（前后，420 mm） | 向前 | joint 0 / X 使用 stepgen.01，保持正向 |
-| 2 / 02 | Z（上下，90 mm） | 向下 | joint 2 / Z 使用 stepgen.02，STEP_SCALE 200 → -200 |
+| 0 / 00 | Y (left/right, 275 mm) | Right | joint 1 / Y uses stepgen.00; retain polarity |
+| 1 / 01 | X (forward/back, 420 mm) | Forward | joint 0 / X uses stepgen.01; retain polarity |
+| 2 / 02 | Z (up/down, 90 mm) | Down | joint 2 / Z uses stepgen.02; STEP_SCALE 200 → -200 |
 
-修正后 X+向前、Y+向右、Z+向上。回零按用户指定的 X向后、Y向左、Z向下，三轴 HOME_SEARCH_VEL=-2 mm/s、HOME_LATCH_VEL=-0.5 mm/s、HOME_OFFSET=-5 mm、HOME=0、HOME_FINAL_VEL=2 mm/s；按 X→Y→Z 依次进行。输入仍为 GPIO020/021/022、有效高及五周期防抖，分别接对应 joint 的 home 和负限位，正限位继续保留。回零后软限位为 X 0～410、Y 0～265、Z 0～80 mm。
+After correction, X+ is forward, Y+ right, and Z+ up. The user specified homing X backward, Y left, and Z down. All axes use HOME_SEARCH_VEL=-2 mm/s, HOME_LATCH_VEL=-0.5 mm/s, HOME_OFFSET=-5 mm, HOME=0, and HOME_FINAL_VEL=2 mm/s, in X→Y→Z order. Inputs remain GPIO020/021/022, active-high with five-cycle debounce, connected to each joint's home and negative limit; positive limits remain. Post-homing soft limits are X 0–410, Y 0–265, Z 0–80 mm.
 
-此前 HOME ALL 逻辑 X 运动却触发 GPIO021 / joint1，报 `joint 1 on limit switch error`，与现已确认的 XY 电机通道反接一致。不能通过屏蔽别的 joint 限位修复；v4 同步迁移输出、反馈、使能和 stepgen 参数通道。Z 向下回零按用户的实际安装要求保留，操作员须确保下方无刀具、工件或夹具干涉。
+Previously, HOME ALL logical X motion triggered GPIO021 / joint1 and `joint 1 on limit switch error`, consistent with the now-confirmed swapped XY motor channels. Masking another joint's limits is not a fix; v4 migrates output, feedback, enable, and stepgen parameters together. Z homing downward follows the user's physical installation; the operator must ensure no tool, workpiece, or fixture interference below.
 
-## 发布和配置升级
+## Release and configuration upgrade
 
-用户要求 v4 提供可测试的自动回零，由用户手动更新。更新不会自行使能、HOME、点动或启动主轴。实际回零完成与距离精度仍待更新后的现场验收；此次用户点动观察只作为映射和方向的来源。
+The user requested testable automatic homing in v4 and will update manually. Updating never enables, homes, jogs, or starts the spindle automatically. Actual homing completion and distance accuracy await onsite acceptance after updating; these jog observations establish only mapping/polarity provenance.
 
-固定 postinst 字节不变，`provision` 对逐文件摘要匹配的已安装 v1 配置执行单次迁移。它要求控制 socket/原生锁消失，并核验已安装 HOMEMOD 的 ABI、摘要和方向适配标识；全部新配置写入私有同盘临时目录后原子交换，失败不发布半套 INI/HAL。重复升级核验新配置摘要后不再交换通道。未知配置、额外文件或人工改动拒绝自动迁移。参数、刀具表、程序和工件偏置均不自动重写；首次回零后须重新核对加工坐标。
+Fixed postinst bytes remain unchanged. `provision` performs a one-time migration only for installed v1 configuration matching per-file hashes. It requires absent control socket/native lock and validates installed HOMEMOD ABI, hash, and direction-adaptation marker. Write all new configuration to a private same-filesystem temporary directory before atomic exchange; never publish partial INI/HAL on failure. Repeated upgrades verify new hashes without swapping channels again. Unknown configuration, extra files, or manual edits reject migration. Parameters, tool tables, programs, and work offsets are not automatically rewritten; recheck machining coordinates after first homing.
 
-普通 prepare 生成配置仍不声称已做电机实测。只有这次精确匹配现场记录的迁移设置电机核验标记，配置记录 `motionAcceptance=pending-after-update`。
+Ordinary prepare still does not claim measured motor verification. Only this migration matching the exact onsite record sets motor-verification flags; configuration records `motionAcceptance=pending-after-update`.
 
-配套 Mesa v4 快照不改写。应用构建适配器在临时构建目录中让回零模块依据 HOME_OFFSET 的符号校验搜索方向和对侧限位，兼容原参考与本次全负向配置；54 个公开 API 场景覆盖双触发、退开、起始已触发、缺失/卡住开关、中止、错误方向和对侧限位。二进制 provenance 记录适配器 SHA-256。所有构建及源码回归只在 GitHub CI 运行。
+The paired Mesa v4 snapshot remains unchanged. In a temporary build directory, the application adapter makes homing validate search direction/opposite limits using HOME_OFFSET sign, supporting both original reference and this all-negative configuration. Fifty-four public API scenarios cover double triggering, backoff, initially active switches, missing/stuck switches, abort, wrong direction, and opposite limits. Binary provenance records adapter SHA-256. All builds/source regressions run only in GitHub CI.
 
-## 现场诊断边界
+## Onsite diagnostic boundaries
 
-代理没有发送点动、HOME、主轴或加工命令；本次确认由用户现场操作提供。旧 light-locker 覆盖 CNC 窗口，终止该锁屏进程后显示恢复；永久休眠/待机修复依用户要求留到反馈后的 v5。
+The agent sent no jog, HOME, spindle, or machining commands; the user supplied onsite observations. Old light-locker obscured the CNC window; terminating that lock-screen process restored display. At user request, permanent sleep/standby fixes were deferred to v5 after feedback.
 
-实时超时调查：目标 PREEMPT_RT 内核、servo SCHED_FIFO/98 和锁内存权限正常。停止核心后 cyclictest 在 CPU3、1ms 周期执行120000次，最大唤醒延迟16µs；Mesa300次网络探测无丢包，最大往返0.217ms。正常重启后的两分钟观察中 Mesa包错误为0，未复现实时超时；用户同期点动产生了Z限位报警。以上不足以宣称间歇超时根因已排除，不应以重启或清空历史计数作为永久修复。HAL time/tmax 为x86 CPU时钟计数，不是纳秒。
+Real-time timeout investigation: target PREEMPT_RT kernel, servo SCHED_FIFO/98, and memory-lock permission were normal. With the core stopped, cyclictest ran 120000 cycles on CPU3 at 1 ms, with maximum wakeup latency 16 µs. Three hundred Mesa network probes had no loss and maximum round trip 0.217 ms. During two minutes after normal restart, Mesa packet errors stayed zero and the timeout did not recur; concurrent user jogging produced a Z limit alarm. This does not establish resolution of the intermittent timeout's root cause; restarting or clearing historical counters is not a permanent fix. HAL time/tmax are x86 CPU clock counts, not nanoseconds.

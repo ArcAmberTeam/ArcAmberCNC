@@ -1,23 +1,23 @@
-# 轨迹规划
+# Trajectory planning
 
-[全项目模块地图](../../../docs/module-map.md)
+[Project module map](../../../docs/module-map.md)
 
-## 作用与语言
+## Role and language
 
-C；参与实时运动执行。
+C; participates in real-time motion execution.
 
-管理运动段队列，计算沿路径的速度、加减速和段间衔接，按周期提供规划结果。
+Manages motion-segment queues, computes path velocity, acceleration/deceleration, and segment blending, and supplies planning results each cycle.
 
-## 关键代码与通信
+## Key code and communication
 
-`tp.h` 是规划接口；`tp.c` 是主体，`tc.c`、`tcq.c` 管运动段和队列，`blendmath.c` 管衔接计算，`tpmod.c` 提供模块装配。
+`tp.h` is the planning interface; `tp.c` is the main implementation. `tc.c` and `tcq.c` manage segments/queues, `blendmath.c` blending calculations, and `tpmod.c` module assembly.
 
-由运动模块调用；接收直线、圆弧等运动段和约束，返回路径位置及执行状态。
+Called by motion; accepts linear/arc segments and constraints, returning path position and execution status.
 
-## 职责边界
+## Responsibility boundaries
 
-不解析 G 代码文本，不接收网页请求，也不定义具体机床的正逆运动学。修改界面刷新频率不应修改这里。
+Does not parse G-code text, receive webpage requests, or define machine-specific forward/inverse kinematics. UI refresh-rate changes should not change this module.
 
-这是保留的 LinuxCNC 核心代码，不属于当前 Web 静态构建产物。我们的 Python 服务尚未接入这些控制路径。此说明描述现有职责，不新增接口或改变上游依赖。
+This is retained LinuxCNC core code, not part of the current Web static build artifact. Our Python service has not yet connected to these control paths. This document describes existing responsibilities without adding interfaces or changing upstream dependencies.
 
-修改此处需要相应的 LinuxCNC 原生构建与功能验证；Web 或 Tauri 构建通过不能证明该模块可运行。涉及实时行为还需目标 Linux 主机验证。
+Changes here require appropriate native LinuxCNC builds and functional verification. A passing Web or Tauri build does not establish that this module runs. Real-time behavior additionally requires verification on the target Linux host.

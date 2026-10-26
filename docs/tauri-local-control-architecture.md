@@ -1,75 +1,75 @@
-# Tauri 本地控制架构记录
+# Tauri local control architecture record
 
-2026-10-08：本文为历史架构记录。Web/Tauri 应用及部署脚本已删除，v1 诊断实现提取为 `tools/diagnostics/`。正式界面在 `app/desktop/`，通过 PySide6/Python v2 socket 对接既有控制服务；当前控制链路见 [本地控制协议](local-control-protocol.md) 和 [Qt 迁移说明](qt-qml-migration.md)。下文 Tauri/Web 目录、CI 与设计约定不作为当前入口。
+2026-10-08: this is a historical architecture record. Web/Tauri and deployment scripts were removed; v1 diagnostics moved to `tools/diagnostics/`. The official UI is `app/desktop/`, using PySide6/Python v2 sockets with the existing controller. See [local control protocol](local-control-protocol.md) and [Qt migration notes](qt-qml-migration.md). Tauri/Web directories, CI, and design conventions below are not current entry points.
 
-原决策日期：2026-09-22。该决策曾约定正式产品只通过 Tauri 桌面程序操作，目标环境为 Debian 13、Intel 核显。
+Original decision: 2026-09-22. It specified Tauri-only product operation on Debian 13 / Intel integrated graphics.
 
-2026-10-02 用户决定迁移为原生 Qt Quick/QML，新增正式桌面入口为 `qt/`。当前决策和验证步骤见 [Qt 迁移说明](qt-qml-migration.md)。`frontend/` 留作迁移对照和 Web 预览，Tauri/Rust 代码及诊断测试保留；本文继续记录其已有实现和此前规划，不再要求 Qt 经由 Vue、Tauri IPC 或 Rust。未来 Qt 使用独立 C++ 适配层对接原 Unix socket/Python 边界，当前仍只有原生展示，不接入机床。
+On 2026-10-02, the user decided to migrate to native Qt Quick/QML, adding official desktop entry `qt/`. See [Qt migration notes](qt-qml-migration.md) for current decisions/checks. `frontend/` remained for migration comparison/Web preview, retaining Tauri/Rust and diagnostics tests. This document records existing implementation/prior plans without requiring Qt to use Vue, Tauri IPC, or Rust. Future Qt would use an independent C++ adapter to the existing Unix socket/Python boundary; at that stage it was presentation-only without machine integration.
 
-当前已搭建 Tauri 桌面环境和 Python 本地诊断服务，完成经 Rust/Unix socket 的 `health` 查询；界面可区分本地服务可达与机床未接入。只有此诊断链路已实现，下文的运动控制、状态 Channel、持续会话、操作权和故障停止策略仍是后续接入规范。诊断使用短连接查询，服务显式启动，不自动启动 LinuxCNC。运行方式见 [Python 服务说明](../app/controller/README.md)。
+The Tauri desktop environment and local Python diagnostics service had been established, with `health` through Rust/Unix sockets. The UI distinguished reachable service from unconnected machine. Only that diagnostic chain was implemented; motion, state Channels, persistent sessions, control ownership, and failure-stop policy below remained future requirements. Diagnostics used short connections; the service started explicitly without automatically starting LinuxCNC. See [Python service instructions](../app/controller/README.md).
 
-## 原 Tauri 控制链路
+## Original Tauri control chain
 
 ```text
-Vue 业务界面
-    │ 调用控制会话模块的公开接口
+Vue feature UI
+    │ Public control-session interface
     ▼
-Tauri IPC：命令调用 / 状态 Channel
+Tauri IPC: commands / state Channel
     ▼
-Rust 桌面环境与通信桥接
-    │ Unix domain socket（同一台电脑）
+Rust desktop environment and communication bridge
+    │ Unix domain socket (same computer)
     ▼
-Python 控制服务
-    │ LinuxCNC Python 接口
+Python controller service
+    │ LinuxCNC Python interface
     ▼
-LinuxCNC 控制核心、实时运动与 HAL
+LinuxCNC control core, real-time motion, and HAL
 ```
 
-不开放 HTTP/WebSocket 控制服务、不创建浏览器设备适配器的边界继续适用于 Qt 迁移；无需 FastAPI 或 OpenAPI。浏览器仅用于界面预览、设计资料和展示测试，开发时 Vite 的页面服务不属于机床控制接口。下文涉及 Tauri、Rust 和 Channel 的具体分工仅描述保留的 Tauri 路径；命令生命周期、唯一写入口和状态新鲜度约束在未来 Qt 接入时仍须满足。
+The prohibition on HTTP/WebSocket control services and browser device adapters continues through Qt migration; FastAPI/OpenAPI are unnecessary. Browsers serve UI previews, design material, and presentation tests only; Vite development serving is not a machine interface. Tauri/Rust/Channel responsibilities below describe the retained Tauri path only; command lifecycle, single writer, and fresh-state constraints also apply to future Qt integration.
 
-## 各层职责
+## Layer responsibilities
 
-| 层                   | 拥有的职责                                                       | 公开边界                                                                    |
-| -------------------- | ---------------------------------------------------------------- | --------------------------------------------------------------------------- |
-| Vue 功能模块         | 展示、用户输入、操作流程                                         | 通过 `controller-session` 提交业务操作、读取状态                            |
-| `controller-session` | 会话、状态新鲜度、命令生命周期                                   | 回零、点动、运行等明确操作；Tauri 控制适配私有                              |
-| `protocol`           | 消息结构、版本和校验                                             | 小而明确的数据契约；不含 UI 或设备实现                                      |
-| `desktop-platform`   | 窗口、文件对话框等通用桌面能力                                   | 不管理机床会话，也不重复持有控制连接                                        |
-| Rust                 | Tauri 权限边界、命令白名单、socket 连接及转发、订阅管理          | 明确的 Tauri 命令与状态通道，不向网页暴露任意 socket 路径或任意 Python 调用 |
-| Python               | 设备身份、操作权、机床前置条件校验、命令调度、状态采集、错误分发 | 本地消息协议；应用内唯一 LinuxCNC 命令写入和错误读取所有者                  |
-| LinuxCNC             | 插补、运动规划、实时线程、硬件接口                               | 使用现有官方接口，不把实时控制移到界面进程                                  |
+| Layer | Responsibility | Public boundary |
+| --- | --- | --- |
+| Vue features | Presentation, input, operation flow | Submit operations/read state through `controller-session` |
+| `controller-session` | Sessions, freshness, command lifecycle | Explicit home/jog/run operations; private Tauri adapter |
+| `protocol` | Structures, versions, validation | Small explicit data contracts, no UI/device implementation |
+| `desktop-platform` | Windows, file dialogs, generic desktop facilities | No machine session or duplicate control connection |
+| Rust | Tauri permissions, command allowlist, socket forwarding, subscriptions | Explicit Tauri commands/state channels, no arbitrary socket paths/Python calls exposed to Web |
+| Python | Device identity, ownership, machine preconditions, scheduling, state, errors | Local protocol; application's sole LinuxCNC command writer/error reader |
+| LinuxCNC | Interpolation, motion planning, real-time threads, hardware | Existing official interfaces; no real-time control in UI processes |
 
-Rust 做桌面边界和通信校验，Python 做机床业务规则。界面中的按钮禁用提示不能代替 Python 的执行前校验。Vue 组件不得直接调用 Tauri、socket 或 LinuxCNC；新增模块时再同步依赖检查，不在原型阶段创建空包。
+Rust validates desktop/communication boundaries; Python owns machine rules. Disabled UI buttons cannot replace Python prechecks. Vue components must not call Tauri, sockets, or LinuxCNC directly. Update dependency checks when modules are added; do not create empty prototype packages.
 
-## 消息与状态
+## Messages and state
 
-- 网页向 Rust 提交操作使用 Tauri 命令；Rust 向网页推送持续状态使用 Channel。Channel 不代替业务上的限流、队列上限和状态合并。
-- Rust 与 Python 使用长连接 Unix 流式 socket。初版采用有明确长度边界的 JSON 消息，规定编码、最大报文、最大队列、非法消息处理及协议版本；不能假设一次读写就是一条完整消息。
-- 请求包含请求编号、会话标识、操作类型与参数；响应区分受理、完成、拒绝及结果未知。命令超时不等于未执行，重连不得自动重放运动、主轴或手动输入指令。
-- 状态携带服务实例标识、递增序号和采集健康信息。连接后先同步完整状态，再开放操作；状态过期时即使 socket 还连着，也不能显示为可操作。
-- 连续坐标可以合并旧快照，只保留新值；报警、命令结果等离散事件需要可检查的顺序和缺口处理，不能静默丢弃。
-- 预览几何、大文件传输和解释计算独立处理，不把大报文或阻塞计算塞进控制队列。具体分块大小和更新频率需在目标机测量后确定。
-- 从统一的消息定义维护 TypeScript、Rust 和 Python 的类型/校验，实施时选定生成工具；生成类型不代替收到消息后的运行时校验。
+- Web submits Tauri commands to Rust; Rust streams state through Channels. Channels do not replace rate limits, queue bounds, or state coalescing.
+- Rust/Python use persistent Unix streams with length-bounded JSON initially. Specify encoding, maximum messages/queues, invalid-message behavior, and versions. One read/write is not necessarily one complete message.
+- Requests carry request ID, session ID, action, and parameters. Distinguish accepted/completed/rejected/unknown. Timeout does not mean unexecuted; reconnect never replays motion, spindle, or MDI.
+- State carries service-instance identity, increasing sequence, and collection health. Synchronize full state before enabling actions. Expired state is not operable even with an open socket.
+- Continuous coordinates may coalesce old snapshots; alarms/results need inspectable ordering and gap handling, never silent dropping.
+- Preview geometry, large transfers, and interpretation stay separate from command queues. Determine chunk sizes/update rates by target measurement.
+- Maintain TypeScript/Rust/Python types/validators from unified message definitions, choosing generation tools during implementation. Generated types do not replace runtime validation.
 
-## 本机权限与生命周期
+## Local permissions and lifecycle
 
-Unix socket 表示本机通信，不自动代表只有本软件可以连接。服务端限制 socket 所在目录和文件权限，检查连接方身份并校验会话；一台机床同一时间只授予一个应用控制会话写权限。多个窗口通过同一控制会话协调，不各自直连 Python。
+Unix sockets are local, not inherently exclusive to this application. Restrict directory/file permissions, check peer identity, and validate sessions. One machine grants one application control session write access at a time; multiple windows coordinate through that session instead of independent Python connections.
 
-Python 必须明确 LinuxCNC 的启动实例和机床配置，不能只因某个 socket 路径存在就认为连对了设备。其他工具或 HAL 控制来源的写权限仍要在机床集成时协调。
+Python must identify the LinuxCNC instance/configuration explicitly; socket existence alone does not establish the correct device. Coordinate write access from other tools/HAL during integration.
 
-窗口关闭、网页失焦、Rust 崩溃、Python 重启和 LinuxCNC 退出分别处理。持续点动的允许条件和超时停止不能只依赖网页发出“松开”消息；要覆盖网页卡住但 Rust 仍存活的情况。正式接入前定义并验证会话失效、状态过期和退出期间的停止策略；不能把杀掉界面或 Python 进程当作已经停止机床。物理急停仍由硬件安全回路承担。
+Handle window close, webpage focus loss, Rust crash, Python restart, and LinuxCNC exit separately. Continuous-jog permission/timeout stopping must not depend solely on a webpage release message; cover a frozen page with live Rust. Define/verify session invalidation, stale-state, and shutdown-stop policies before production integration. Killing UI/Python is not proof the machine stopped. Physical emergency stop remains a hardware safety circuit.
 
-## 当前交付与后续验收
+## Delivery and subsequent acceptance
 
-当前 CI 包含 Web 预览、Python 安装包验证，以及 Debian 13 容器中的 Tauri `.deb` 构建和 Rust→Python 诊断集成测试。Python 与桌面包作为独立产物上传；没有自动安装到机床。正式控制服务监管、目标机图形和 LinuxCNC 实机联调仍待实施，现有测试不表示已经接通设备。
+At this stage CI included Web preview, Python package validation, Debian 13 Tauri `.deb` builds, and Rust→Python diagnostic integration. Python/desktop packages uploaded independently without automatic machine installation. Controller supervision, target graphics, and real LinuxCNC integration remained pending; tests did not establish device connectivity.
 
-控制接入至少验证：正常命令与返回结果、协议版本不匹配、错误参数、第二个控制会话被拒绝、断连和重连、状态采集停止、命令超时、界面失焦与退出、大数据负载下的停止请求。延迟在目标机实测；Unix socket 本身不提供实时保证。
+Control integration must at least verify normal commands/results, version mismatch, invalid arguments, rejection of a second owner, disconnect/reconnect, stopped state collection, command timeout, focus loss/exit, and stop requests under large-data load. Measure latency on target; Unix sockets do not guarantee real time.
 
-## 官方接口依据
+## Official interface references
 
-- [Tauri 前端调用 Rust](https://v2.tauri.app/develop/calling-rust/)：命令、参数、结果与异步调用。
-- [Tauri Rust 向前端发送数据](https://v2.tauri.app/develop/calling-frontend/)：Channel 与事件机制。
-- [Rust UnixStream](https://doc.rust-lang.org/std/os/unix/net/struct.UnixStream.html)：Unix 流式 socket。
-- [LinuxCNC Python 接口](https://linuxcnc.org/docs/2.9/html/config/python-interface.html)：命令、状态和错误通道。
+- [Calling Rust from Tauri frontend](https://v2.tauri.app/develop/calling-rust/): commands, arguments, results, asynchronous calls.
+- [Sending data to Tauri frontend](https://v2.tauri.app/develop/calling-frontend/): Channels/events.
+- [Rust UnixStream](https://doc.rust-lang.org/std/os/unix/net/struct.UnixStream.html): Unix streams.
+- [LinuxCNC Python interface](https://linuxcnc.org/docs/2.9/html/config/python-interface.html): command/status/error channels.
 
-上述接口能力来自官方文档；模块分工、协议选择与验收范围是本项目的架构决策。
+Interface capabilities come from official documentation; module ownership, protocol choices, and acceptance scope are project architecture decisions.

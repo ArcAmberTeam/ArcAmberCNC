@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(BetterLinuxCNC VERSION 26.10.26.5 LANGUAGES CXX)
+project(BetterLinuxCNC VERSION 26.10.26.6 LANGUAGES CXX)
 
 # Application composition only; the native LinuxCNC core is built from src/Makefile.
 include(cmake/ApplicationInstall.cmake)

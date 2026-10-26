@@ -1,5 +1,5 @@
 """Native QML desktop and explicit LinuxCNC capability boundaries."""
 
-__version__ = "26.10.26.5"
+__version__ = "26.10.26.6"
 
 __all__ = ["__version__"]

@@ -4,7 +4,7 @@
 
 本仓库包含 LinuxCNC 源码；`VERSION` 当前为 2.9.10。原生 Qt Quick/PySide6 界面位于 `app/desktop/`，Rust CAM 服务位于 `app/cam-link/`，应用 Release 更新器位于 `app/updater/`，Mesa 检查与独立烧录门禁位于 `app/mesa-update/`，本地诊断通信位于 `tools/diagnostics/`，HAL 位于 `src/hal/`，设备驱动按设备职责归入 `src/hal/drivers/` 和 `src/hal/user_comps/`。Python 控制服务保留在 `app/controller/`，混合编译的原生核心仍在 `src/`。
 
-应用发布版本为 `26.10.26.5`，计划 Release 名称 `demo v26.10.26.5`、tag `v26.10.26.5`；它与原生核心版本独立。专用机配置工具位于 `tools/appliance/`。2026-10-26 用户明确限定：本地及目标机均禁止构建，本地 Docker 也禁止；只由 GitHub 托管 CI 构建、测试和产包。目标机下载 CI 已完成的 `.deb`，只做安装、运行与现场验收，不安装编译工具或执行源码测试。不得为恢复工作重新创建本地或目标机构建缓存。
+应用发布版本为 `26.10.26.6`，计划 Release 名称 `demo v26.10.26.6`、tag `v26.10.26.6`；它与原生核心版本独立。专用机配置工具位于 `tools/appliance/`。2026-10-26 用户明确限定：本地及目标机均禁止构建，本地 Docker 也禁止；只由 GitHub 托管 CI 构建、测试和产包。目标机下载 CI 已完成的 `.deb`，只做安装、运行与现场验收，不安装编译工具或执行源码测试。不得为恢复工作重新创建本地或目标机构建缓存。
 
 2026-10-08 用户决定删除 Web；2026-10-25 将应用按职责收敛到 `app/`，原生 HAL 和驱动恢复上游实体目录。**`app/desktop/` 是正式桌面入口**，Vue/Web、Tauri 桌面环境及部署脚本已删除；Web 源码及设计资料整体删除，历史内容从 Git 获取。Rust v1 诊断逻辑提取为独立 `tools/diagnostics/`，不替换现有 Python v2 控制链路。原生 AXIS 应用已删除，包括 Python 主程序、Tcl 界面、axis-remote、专属资源和构建/安装入口。LinuxCNC 控制核心、共享 Python API 和其他上游工具保留，不属于当前界面发布产物。删除边界及遗留配置说明见 [迁移记录](docs/native-axis-removal.md)，当前桌面决策见 [Qt 迁移说明](docs/qt-qml-migration.md)。
 
@@ -43,6 +43,8 @@ Qt 目录及依赖见 [app/desktop/AGENTS.md](app/desktop/AGENTS.md)：按 `Bett
 协议必须区分 joint/axis、机床/工件坐标、指令/实际位置、角度/长度单位；命令“已接受、已发送、已完成、结果未知”不得混为一谈。重连不得自动重放运动、MDI 或主轴命令。软急停 UI 不替代物理安全回路。自动化回归测试不启动模拟器或机床；使用 vendor 接口替身、真实 Unix socket 和只解释文件的 LinuxCNC `gcode` 扩展。用户授权的目标机部署与联调按下节执行，不属于 CI 或替身测试。
 
 ## 目标机与更新约定
+
+2026-10-26 用户授权合并 CAM 三能力拆分并发布 v6。上传只保存文件；显式独立回零与回零后加工分别由 `homing.rs` 和 `wf-transhoming.rs` 提交到单一 Controller，组合流程确认本次回零完成后才加载加工。旧 CAM 客户端需显式发起启动；上传不再隐式运行。v6 沿用 v5 回零参数，Mesa 仅递增配套发布元数据。本次授权发布，不包含目标机安装或自动运动。
 
 2026-10-26 用户已测试 v4 并授权实现、PR 合并发布 v5，然后由本任务通过项目更新器安装目标机。v5 包含回零后边界浮点误差修复、独立慢退与 XYZ 同时回零、更新权限回归和专用会话防自动黑屏。X/Y 首次搜索 15 mm/s、Z 5 mm/s，首次退开 2、二次定位 1、最终退回 X/Y 5、Z 2 mm/s；三轴同 HOME_SEQUENCE=1。用户报告开关触发后余量 1–2 mm，按最小 1 mm 计算；首次并行测试明确同意卸刀、清空台面并确认全行程无干涉，实际验收仍待现场完成。
 

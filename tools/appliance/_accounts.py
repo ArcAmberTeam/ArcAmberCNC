@@ -174,18 +174,33 @@ def provision():
     directory("/var/log/betterlinuxcnc/launcher", OPERATOR, "cnc-logs", 0o2750)
     directory("/var/cache/betterlinuxcnc/update", mode=0o700)
     directory("/var/lib/betterlinuxcnc/update")
-    descriptor = os.open(
-        "/var/lib/betterlinuxcnc/configuration.lock",
-        os.O_CREAT | os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC,
-        0o644,
-    )
+    parent = os.open("/", DIRECTORY_FLAGS)
     try:
-        info = os.fstat(descriptor)
-        if not stat.S_ISREG(info.st_mode) or info.st_uid != 0 or info.st_nlink != 1:
-            raise ValueError("Unsafe configuration lease")
-        os.fchmod(descriptor, 0o644)
+        for component in ("var", "lib", "betterlinuxcnc"):
+            info = os.fstat(parent)
+            if info.st_uid != 0 or info.st_mode & 0o022:
+                raise ValueError("Untrusted configuration lease parent")
+            child = os.open(component, DIRECTORY_FLAGS, dir_fd=parent)
+            os.close(parent)
+            parent = child
+        info = os.fstat(parent)
+        if info.st_uid != 0 or info.st_mode & 0o022:
+            raise ValueError("Untrusted configuration lease parent")
+        descriptor = os.open(
+            "configuration.lock",
+            os.O_CREAT | os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC,
+            0o644,
+            dir_fd=parent,
+        )
+        try:
+            info = os.fstat(descriptor)
+            if not stat.S_ISREG(info.st_mode) or info.st_uid != 0 or info.st_nlink != 1:
+                raise ValueError("Unsafe configuration lease")
+            os.fchmod(descriptor, 0o644)
+        finally:
+            os.close(descriptor)
     finally:
-        os.close(descriptor)
+        os.close(parent)
 
 
 def prepare():

@@ -195,6 +195,19 @@ class ProvisionTests(unittest.TestCase):
             any(command[0].endswith("systemctl") for command in result["commands"])
         )
 
+    def test_configuration_lease_is_root_owned_and_symlink_is_rejected(self):
+        result = self.provision(repeats=2)
+        self.assertEqual(result["statuses"], [0, 0])
+        lease = self.root / "var/lib/betterlinuxcnc/configuration.lock"
+        self.assertEqual(stat.S_IMODE(lease.stat().st_mode), 0o644)
+        original = self.root / "untouched"
+        original.write_text("original")
+        lease.unlink()
+        lease.symlink_to(original)
+        result = self.provision()
+        self.assertNotEqual(result["statuses"], [0])
+        self.assertEqual(original.read_text(), "original")
+
     def test_repeat_install_preserves_configuration_programs_and_passwords(self):
         preserved = {
             "etc/betterlinuxcnc/launcher.json": b'{"operator":"existing"}\n',

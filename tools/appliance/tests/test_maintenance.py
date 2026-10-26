@@ -220,9 +220,9 @@ class MaintenanceTests(unittest.TestCase):
                     patch.object(
                         maintenance.os, "execve", side_effect=SystemExit(0)
                     ) as execute,
+                    self.assertRaises(SystemExit),
                 ):
-                    with self.assertRaises(SystemExit):
-                        maintenance.main()
+                    maintenance.main()
                 execute.assert_called_once_with(
                     "/usr/bin/pa",
                     ["pa", "manage", target],

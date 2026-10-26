@@ -1,13 +1,19 @@
 //! Public executable contracts under real CI identities, without machine files.
 
 use std::io::Write;
+use std::os::unix::fs::PermissionsExt;
 use std::process::{Command, Output, Stdio};
 
 fn invoke(arguments: &[&str], input: &[u8], account: Option<&str>) -> Output {
-    let binary = env!("CARGO_BIN_EXE_pa");
+    // Hosted checkouts may have private ancestors; expose only this built executable.
+    let directory = tempfile::tempdir_in("/tmp").unwrap();
+    std::fs::set_permissions(directory.path(), std::fs::Permissions::from_mode(0o755)).unwrap();
+    let binary = directory.path().join("pa");
+    std::fs::copy(env!("CARGO_BIN_EXE_pa"), &binary).unwrap();
+    std::fs::set_permissions(&binary, std::fs::Permissions::from_mode(0o755)).unwrap();
     let mut command = if let Some(account) = account {
         let mut command = Command::new("sudo");
-        command.args(["-n", "-u", account, "--", binary]);
+        command.args(["-n", "-u", account, "--"]).arg(&binary);
         command
     } else {
         Command::new(binary)

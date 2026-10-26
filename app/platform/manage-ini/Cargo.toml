@@ -20,3 +20,6 @@ sha2 = "0.10"
 [[bin]]
 name = "pa-config"
 path = "src/config_main.rs"
+
+[dev-dependencies]
+tempfile = "3"

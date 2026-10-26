@@ -62,9 +62,9 @@ def validate_deb_paths(package, source):
                 process.stdout.close()
 
 
-def ownership(path, user, group, mode):
+def ownership(path, user, group, mode, directory=True):
     value = Path(path).lstat()
-    require(stat.S_ISDIR(value.st_mode), f"Not a real directory: {path}")
+    require((stat.S_ISDIR if directory else stat.S_ISREG)(value.st_mode), f"Unexpected file type: {path}")
     require(value.st_uid == pwd.getpwnam(user).pw_uid, f"Unexpected owner: {path}")
     require(value.st_gid == grp.getgrnam(group).gr_gid, f"Unexpected group: {path}")
     require(stat.S_IMODE(value.st_mode) == mode, f"Unexpected permissions: {path}")
@@ -283,6 +283,7 @@ def verify_installed_homing(source, version):
 def verify_pa_configuration():
     """Exercise the installed fixed helper through the actual maintenance sudo grant."""
     helper = "/usr/lib/betterlinuxcnc/manage-ini/pa-config"
+    ownership(helper, "root", "root", 0o755, directory=False)
     require(Path(helper).read_bytes().startswith(b"\x7fELF"), "Missing PA configuration ELF")
     launcher = Path("/etc/betterlinuxcnc/launcher.json")
     require(not launcher.exists(), "PA fixture must not replace an existing machine")
@@ -322,6 +323,10 @@ def verify_pa_configuration():
             finally:
                 lock.unlink()
         request({**save, "content": "[invalid"}, ok=False)
+        with Path("/var/lib/betterlinuxcnc/recovery/snapshots/.lock").open() as snapshot_lock:
+            fcntl.flock(snapshot_lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            response = request(save, ok=False)
+            require("Backup failed" in response["error"], "PA did not fail closed on backup failure")
         require(ini.read_text() == initial, "Rejected PA save changed the INI")
         saved = request(save)["document"]
         require(ini.read_text() == updated, "PA save did not reach the installed INI")
@@ -384,7 +389,7 @@ def main():
     verify_installed_homing(source, version)
 
     # PA is installed in PATH without aliases, shell profiles, or elevated mode.
-    ownership("/usr/bin/pa", "root", "root", 0o755)
+    ownership("/usr/bin/pa", "root", "root", 0o755, directory=False)
     require(Path("/usr/bin/pa").read_bytes().startswith(b"\x7fELF"), "Missing real PA binary")
     for target in ("ini", "launcher.json"):
         result = run("/usr/sbin/runuser", "-u", "cnc-maint", "--", "/usr/bin/pa", "manage", target, input="help\nexit\n")

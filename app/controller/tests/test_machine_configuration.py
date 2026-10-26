@@ -2,8 +2,9 @@
 
 import unittest
 
-from bettercnc_controller import StatusReader
 from test_controller import FakeLinuxCNC
+
+from bettercnc_controller import StatusReader
 
 
 class MachineConfigurationTests(unittest.TestCase):

@@ -215,6 +215,8 @@ TCP 拆包、粘包均按帧头中的长度处理。错误魔数、未知类型�
 
 ## 状态回传
 
+机床配置沿用同一只读链路：CAM → Rust CAM Link 的 `GET_STATUS/status.get` → 本机 Unix socket 的 `machine.status` → Python `StatusReader` → LinuxCNC 状态及当前实例 INI。Rust 不直接读取 LinuxCNC，也不另建配置通道。状态中的可选 `configuration` 原样回传，包含实际启用的轴、毫米/角度软限位、每分钟最大速度和运动学配置；字段约定见 [本地控制协议](local-control-protocol.md)。旧服务缺省或配置未知时客户端显示未知；断线后不得继续展示旧机床配置。轴数不等同于同时加工能力。
+
 订阅成功回执发送后，服务立即采样一次状态，然后按 `interval` 间隔重新采样并推送。采样通过独立的本地 Unix socket 连接调用只读 `machine.status`，不获取控制权、不续租点动、不消费 LinuxCNC 错误通道，也不要求桌面控制会话存在。
 
 ```json

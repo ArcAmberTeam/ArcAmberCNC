@@ -5,7 +5,7 @@ CAM Link receives external CAM-generated G-code over a persistent TCP connection
 ## Module responsibilities
 
 ```text
-app/cam-link/src/
+app/platform/cam-link/src/
   lib.rs                 Public system-service entry
   cam_link/
     protocol.rs          CAM2 framing, strict JSON, parameter structures
@@ -32,7 +32,7 @@ sudo cmake --install build
 betterlinuxcnc-launch --config ./launcher.json
 ```
 
-Build requires the toolchain pinned by `app/cam-link/rust-toolchain.toml`. Standalone build: `cargo build --manifest-path app/cam-link/Cargo.toml --release --locked`; binary: `app/cam-link/target/release/betterlinuxcnc-cam-link`. Standalone installation uses `cmake -S app/cam-link -B build/services`, then build/install.
+Build requires the toolchain pinned by `app/platform/cam-link/rust-toolchain.toml`. Standalone build: `cargo build --manifest-path app/platform/cam-link/Cargo.toml --release --locked`; binary: `app/platform/cam-link/target/release/betterlinuxcnc-cam-link`. Standalone installation uses `cmake -S app/platform/cam-link -B build/services`, then build/install.
 
 Installed command remains `betterlinuxcnc-cam-link`; existing launcher `cam` configuration is unchanged. CMake builds/installs Rust by default, replacing the old Python CLI and removing installed `bettercnc_cam_link`. Python wheels no longer install this command; `python -m bettercnc_cam_link` is unsupported. `BETTERCNC_CAM_LINK_BINARY` can select a prebuilt binary for the same target. `BETTERCNC_BUILD_SYSTEM_SERVICES=OFF` is for Qt-only tests, not full installations.
 

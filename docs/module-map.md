@@ -2,6 +2,8 @@
 
 2026-10-25: project-owned applications were consolidated under `app/` by responsibility; HAL and device drivers returned to upstream physical paths under `src/hal/`. Module build manifests declare languages. Python package names, Rust crate names, control protocols, and installed commands remain compatible. See root [AGENT.md](../AGENT.md).
 
+2026-10-27: CAM communication, application updating, and Mesa updating now live under `app/platform/`. This groups platform capabilities without changing installed commands, systemd units, protocols, or privilege boundaries. Python control, Qt backend, and launcher ownership are unchanged. Configuration management is planned separately; no configuration-write interface is added by this move.
+
 ## Source ownership
 
 ```text
@@ -16,11 +18,12 @@ app/
   controller/                Python controller, machine rules, isolated interpretation preview
     src/                     Public service, controller, preview packages
     tests/                   Control, protocol, file, preview verification
-  cam-link/                  Rust CAM network service
-    src/cam_link/            TCP/UDP, inbox, state, job, jogging adapters
-    tests/                   Real CLI and Python Controller cross-process tests
-  updater/                   Independent Rust Release download/validation and fixed root update
-  mesa-update/               Independent Mesa manifest checks/download and root flashing gate
+  platform/                  Rust platform capabilities; independent processes and permissions
+    cam-link/                CAM network service
+      src/cam_link/          TCP/UDP, inbox, state, job, jogging adapters
+      tests/                 Real CLI and Python Controller cross-process tests
+    updater/                 Release download/validation and fixed root update
+    mesa-update/             Mesa manifest checks/download and root flashing gate
   launcher/                  Python orchestration, readiness, supervision
     src/bettercnc_launcher/  Configuration, processes, public protocol adapters
     tests/                   Installed CLI, process, socket boundaries
@@ -83,7 +86,7 @@ Without a known machine IP, explicitly enable UDP discovery: machine broadcasts 
 | HAL/drivers | Existing HAL/RTAPI | Device/signal adaptation, no dependency on new desktop/service |
 | Native core | Existing EMC/NML/RTAPI | Retains real-time responsibilities and mixed-language link boundaries |
 
-`app/updater/` independently owns Release updates. Qt submits argument-free installation; root validates the package/machine state, normally stops linuxcnc user services, and backs up configuration/data. Backup failure prevents installation. The updater uses public read-only status, without control sessions; application version/install rules are in [application updates](firmware-updates.md).
+`app/platform/updater/` independently owns Release updates. Qt submits argument-free installation; root validates the package/machine state, normally stops linuxcnc user services, and backs up configuration/data. Backup failure prevents installation. The updater uses public read-only status, without control sessions; application version/install rules are in [application updates](firmware-updates.md).
 
 LinuxCNC owns interpretation, interpolation, and real-time control. Desktop/transport perform no servo-cycle work. Sending is not completion; reconnect never replays. See [local control protocol](local-control-protocol.md) for units/lifecycle. Implementation/tests do not establish actual machine, INI/HAL, or target graphics acceptance.
 
@@ -111,7 +114,7 @@ HAL tools and src/rtapi/uspace_rtapi_app.cc retain legacy private-header access 
 - `.github/ci/python-check.sh service|preview|desktop|launcher`: current-source packages/public interfaces; preview requires real gcode.
 - Independent appliance-checks (3.11/3.13): Ruff/format/public CLI, including migration, preservation, SSH restrictions; root CTest also registers appliance-provisioning.
 - `app/desktop/scripts/ci-check.sh --suite desktop|qml`: Python desktop versus QML; no arguments runs all Qt checks.
-- tools/diagnostics/, app/cam-link/, app/updater/, app/mesa-update/: cargo fmt --check, cargo check --locked --all-targets, cargo clippy --locked --all-targets -- -D warnings, cargo test --locked. Cross-process tests need Python 3.11+, selectable by SERVICE_TEST_PYTHON.
+- tools/diagnostics/, app/platform/cam-link/, app/platform/updater/, app/platform/mesa-update/: cargo fmt --check, cargo check --locked --all-targets, cargo clippy --locked --all-targets -- -D warnings, cargo test --locked. Cross-process tests need Python 3.11+, selectable by SERVICE_TEST_PYTHON.
 - `.github/ci/check-configs.py` and config-tests/: HAL/INI/Tcl static syntax, local references, include cycles.
 
 Debian deb-package builds real DEBs in GitHub, accepts first/repeated installation and explicit policy activation, and checks actual sshd/visudo output without SSH/display manager/LinuxCNC/hardware startup. Targets install CI artifacts only; package acceptance joins CI Gate. Dependency/test-wheel installation remains isolated to CI.

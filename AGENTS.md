@@ -1,6 +1,6 @@
 # Agent entry point
 
-Read and follow [AGENT.md](AGENT.md). When modifying a module, also follow its directory's `AGENTS.md`: `app/desktop/`, `app/launcher/`, `tools/diagnostics/`, `app/cam-link/`, `app/updater/`, `src/hal/`, `src/hal/drivers/`, `src/hal/user_comps/`, and `app/controller/`.
+Read and follow [AGENT.md](AGENT.md). When modifying a module, also follow its directory's `AGENTS.md`: `app/desktop/`, `app/launcher/`, `tools/diagnostics/`, `app/platform/`, `app/platform/cam-link/`, `app/platform/updater/`, `app/platform/mesa-update/`, `src/hal/`, `src/hal/drivers/`, `src/hal/user_comps/`, and `app/controller/`.
 
 The `$code-boundary-standards` skill is permanently disabled in this repository and is no longer a prerequisite for development, testing, or review. Continue following the architecture, public-interface, and verification rules in `AGENT.md` and each module's `AGENTS.md`.
 

@@ -13,8 +13,8 @@ def main():
     source = Path(__file__).resolve().parents[2]
     expected = str(pwd.getpwnam("nobody").pw_uid)
     for relative in (
-        "app/updater/packaging/betterlinuxcnc-system-update.service.in",
-        "app/mesa-update/packaging/betterlinuxcnc-mesa-flash.service.in",
+        "app/platform/updater/packaging/betterlinuxcnc-system-update.service.in",
+        "app/platform/mesa-update/packaging/betterlinuxcnc-mesa-flash.service.in",
     ):
         parser = configparser.ConfigParser(interpolation=None, strict=False)
         parser.optionxform = str

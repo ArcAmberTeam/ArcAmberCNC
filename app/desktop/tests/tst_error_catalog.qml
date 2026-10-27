@@ -1,9 +1,38 @@
 import QtQuick
+import QtQuick.Controls
 import QtTest
 import BetterCnc.Catalog 1.0
+import BetterCnc.Chrome 1.0
 
 TestCase {
     name: "OperatorErrorCatalog"
+    Component {
+        id: dialogWindow
+        ApplicationWindow {
+            visible: true
+            width: 1024
+            height: 600
+            ErrorDialog { }
+        }
+    }
+    function test_longDetailsKeepDismissalVisible() {
+        const host = createTemporaryObject(dialogWindow, null);
+        verify(host !== null);
+        const dialog = findChild(host, "errorDialog");
+        dialog.present("Unknown device error\n".repeat(500), "operation");
+        tryCompare(dialog, "opened", true);
+        dialog.detailsExpanded = true;
+        verify(waitForRendering(dialog.contentItem));
+        const dismiss = findChild(host, "error-acknowledge");
+        const point = dismiss.mapToItem(dialog.contentItem, 0, 0);
+        verify(point.y >= 0);
+        verify(point.y + dismiss.height <= dialog.contentItem.height);
+        verify(dialog.rawMessage.length < 8300);
+        verify(dialog.rawMessage.indexOf("已截断") >= 0);
+        mouseClick(dismiss, dismiss.width / 2, dismiss.height / 2);
+        tryCompare(dialog, "visible", false);
+        host.close();
+    }
     function test_knownErrors_data() {
         return [
             {tag: "travel", raw: "Linear move on line 18 would exceed Y's negative limit", animation: "axis-limit"},

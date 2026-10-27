@@ -3,8 +3,14 @@
 use std::io::Write;
 use std::os::unix::fs::PermissionsExt;
 use std::process::{Command, Output, Stdio};
+use std::sync::Mutex;
+
+static INVOCATION_LOCK: Mutex<()> = Mutex::new(());
 
 fn invoke(arguments: &[&str], input: &[u8], account: Option<&str>) -> Output {
+    // A concurrent fork can inherit another test's writable executable descriptor.
+    // Serialize staging and child lifetimes to prevent transient ETXTBSY failures.
+    let _invocation = INVOCATION_LOCK.lock().unwrap();
     // Hosted checkouts may have private ancestors; expose only this built executable.
     let directory = tempfile::tempdir_in("/tmp").unwrap();
     std::fs::set_permissions(directory.path(), std::fs::Permissions::from_mode(0o755)).unwrap();

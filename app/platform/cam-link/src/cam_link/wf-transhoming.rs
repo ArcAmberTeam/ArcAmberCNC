@@ -21,7 +21,10 @@ pub(super) async fn request(
             if p.get("disableBlockDelete").is_some() {
                 keys.push("disableBlockDelete");
                 if p["disableBlockDelete"] != true {
-                    return Err(Error::new("invalid_params", "disableBlockDelete must be true"));
+                    return Err(Error::new(
+                        "invalid_params",
+                        "disableBlockDelete must be true",
+                    ));
                 }
             }
             params(&p, &keys)?;

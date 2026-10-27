@@ -12,7 +12,7 @@ use std::{io::Write, path::Path};
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 const PACKAGE: &str = "betterlinuxcnc-qt";
-const REPOSITORY: &str = "ArcAmberTeam/ArcAmberCNC";
+const REPOSITORY: &str = "ArcAmberTeam/ArcanxyCNC";
 
 #[derive(Parser)]
 #[command(

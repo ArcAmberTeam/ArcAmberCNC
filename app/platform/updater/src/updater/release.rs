@@ -312,7 +312,8 @@ mod tests {
             .push(asset("betterlinuxcnc-qt_2.0_amd64.deb"));
         assert!(select_package(&release, "amd64").is_err());
         for url in [
-            "http://github.com/ArcAmberTeam/ArcAmberCNC/releases/download/v1/a.deb",
+            "http://github.com/ArcAmberTeam/ArcanxyCNC/releases/download/v1/a.deb",
+            "https://github.com/ArcAmberTeam/ArcAmberCNC/releases/download/v1/a.deb",
             "https://example.org/a.deb",
             "https://github.com/other/repo/releases/download/v1/a.deb",
         ] {
@@ -322,6 +323,23 @@ mod tests {
         }
         release.prerelease = true;
         assert!(select_package(&release, "arm64").is_err());
+    }
+    #[test]
+    fn accepts_renamed_repository_release_metadata() {
+        let release: Release = serde_json::from_str(
+            r#"{
+                "tag_name": "v26.10.27.1",
+                "draft": false,
+                "prerelease": false,
+                "assets": [{
+                    "name": "betterlinuxcnc-qt_26.10.27.1_amd64.deb",
+                    "size": 9233490,
+                    "browser_download_url": "https://github.com/ArcAmberTeam/ArcanxyCNC/releases/download/v26.10.27.1/betterlinuxcnc-qt_26.10.27.1_amd64.deb"
+                }]
+            }"#,
+        )
+        .unwrap();
+        assert!(select_package(&release, "amd64").is_ok());
     }
     #[test]
     fn requires_one_well_formed_checksum_for_exact_filename() {

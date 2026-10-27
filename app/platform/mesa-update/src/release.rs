@@ -8,7 +8,7 @@ use std::time::Duration;
 
 const API: &str = "https://api.github.com/repos/ArcAmberTeam";
 const MESA: &str = "CNC-Mesa";
-const APP: &str = "ArcAmberCNC";
+const APP: &str = "ArcanxyCNC";
 const MAX_METADATA: u64 = 1024 * 1024;
 
 pub(crate) trait Fetch {
@@ -297,7 +297,7 @@ mod tests {
             responses: BTreeMap::from([
                 (format!("{API}/{MESA}/releases/tags/{}", manifest.tag_name), release.clone()),
                 (format!("{API}/{MESA}/releases/latest"), release.clone()),
-                (format!("{API}/{APP}/releases/latest"), release),
+                ("https://api.github.com/repos/ArcAmberTeam/ArcanxyCNC/releases/latest".into(), release),
                 (format!("https://github.com/ArcAmberTeam/CNC-Mesa/releases/download/{}/mesa-release.json", manifest.tag_name), bytes),
                 (format!("{API}/{MESA}/git/ref/tags/{}", manifest.tag_name), serde_json::to_vec(&serde_json::json!({"object":{"type":"commit", "sha":manifest.source_commit}})).unwrap()),
             ]),

@@ -239,6 +239,7 @@ class CamExecutionNetworkTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(any(method in ("program_open", "auto") for method, _ in self.module.calls))
 
     async def test_workflow_waits_for_home_and_duplicate_upload_never_restarts(self):
+        self.module.status.block_delete = True
         connection = await self.connect()
         transfer = str(uuid.uuid4())
         await self.upload(connection, transfer)
@@ -246,7 +247,14 @@ class CamExecutionNetworkTests(unittest.IsolatedAsyncioTestCase):
             "transferId": transfer,
             "clearanceConfirmed": True,
             "machiningConfirmed": True,
+            "disableBlockDelete": True,
         }
+        for invalid in (False, 1, "true", None):
+            rejected = await self.rpc(
+                connection, "workflow.start", {**params, "disableBlockDelete": invalid}
+            )
+            self.assertEqual(rejected["error"]["code"], "invalid_params")
+        self.assertEqual(self.module.calls, [])
         result = await self.rpc(connection, "workflow.start", params)
         self.assertEqual(result["result"]["job"]["state"], "homing")
         for _ in range(30):
@@ -269,6 +277,10 @@ class CamExecutionNetworkTests(unittest.IsolatedAsyncioTestCase):
             self.module.confirm()
             await asyncio.sleep(0.15)
         self.assertEqual(self.module.calls[-1][0], "auto")
+        names = [method for method, _ in self.module.calls]
+        self.assertLess(names.index("home"), names.index("set_block_delete"))
+        self.assertLess(names.index("set_block_delete"), names.index("program_open"))
+        self.assertFalse(self.module.status.block_delete)
         before = list(self.module.calls)
         await self.rpc(connection, "workflow.start", params)
         self.assertEqual(before, self.module.calls)

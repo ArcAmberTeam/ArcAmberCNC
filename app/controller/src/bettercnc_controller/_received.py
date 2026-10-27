@@ -29,6 +29,8 @@ def _private(path, directory=False):
     return info
 
 
+# --------#
+# BEGIN: ReceivedPrograms
 class ReceivedPrograms:
     def __init__(self, directory):
         self.directory = Path(directory).absolute() if directory else None
@@ -61,7 +63,7 @@ class ReceivedPrograms:
             }
         return record
 
-    def reserve(self, transfer_id, *, home_first=False):
+    def reserve(self, transfer_id, *, home_first=False, disable_block_delete=False):
         directory = self._directory(transfer_id)
         _private(directory / "receipt.json")
         receipt = json.loads((directory / "receipt.json").read_text(encoding="utf-8"))
@@ -87,6 +89,7 @@ class ReceivedPrograms:
         record = {
             "transferId": transfer_id,
             "kind": "home-and-run" if home_first else "program",
+            "disableBlockDelete": disable_block_delete,
             "filename": name,
             "path": str(target),
             "size": receipt["size"],
@@ -149,3 +152,7 @@ class ReceivedPrograms:
             if os.path.exists(temporary):
                 os.unlink(temporary)
         record.update(updated)
+
+
+# END: ReceivedPrograms
+# --------#

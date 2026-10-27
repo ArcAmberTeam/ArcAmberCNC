@@ -17,10 +17,17 @@ pub(super) async fn request(
 ) -> Result<Value> {
     let local = match method {
         "workflow.start" => {
-            params(
-                &p,
-                &["transferId", "clearanceConfirmed", "machiningConfirmed"],
-            )?;
+            let mut keys = vec!["transferId", "clearanceConfirmed", "machiningConfirmed"];
+            if p.get("disableBlockDelete").is_some() {
+                keys.push("disableBlockDelete");
+                if p["disableBlockDelete"] != true {
+                    return Err(Error::new(
+                        "invalid_params",
+                        "disableBlockDelete must be true",
+                    ));
+                }
+            }
+            params(&p, &keys)?;
             if p["clearanceConfirmed"] != true || p["machiningConfirmed"] != true {
                 return Err(Error::new(
                     "invalid_params",

@@ -17,6 +17,8 @@ from ._wire_snapshot import wire_snapshot
 JOG_LEASE_SECONDS = 0.6
 
 
+# --------#
+# BEGIN: ControllerRuntime
 class ControllerRuntime:
     def __init__(
         self,
@@ -266,6 +268,7 @@ class ControllerRuntime:
                 home_first=True,
                 clearance_confirmed=params["clearanceConfirmed"],
                 machining_confirmed=params["machiningConfirmed"],
+                disable_block_delete=params.get("disableBlockDelete", False),
             )
         elif method == "cam.job.start":
             result = controller.start_received(params["transferId"])
@@ -347,8 +350,9 @@ class ControllerRuntime:
                 keys += ("clearanceConfirmed",)
             if method == "cam.workflow.start":
                 keys += ("machiningConfirmed",)
-            self._params(params, required=keys)
-            for key in ("clearanceConfirmed", "machiningConfirmed"):
+            optional = ("disableBlockDelete",) if method == "cam.workflow.start" else ()
+            self._params(params, required=keys, optional=optional)
+            for key in ("clearanceConfirmed", "machiningConfirmed", "disableBlockDelete"):
                 if key in params and params[key] is not True:
                     raise ProtocolError("invalid_params", key + " must be true")
             if self._cam_inbox is None:
@@ -456,3 +460,7 @@ class ControllerRuntime:
             self._params(params, required=("job_id",))
             return await self._jobs.cancel(owner, params["job_id"])
         raise ProtocolError("unsupported_method", "unsupported v2 method")
+
+
+# END: ControllerRuntime
+# --------#

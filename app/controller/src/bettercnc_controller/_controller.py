@@ -27,6 +27,8 @@ class _Step:
     phase: str | None = None
 
 
+# --------#
+# BEGIN: Controller
 class Controller:
     """Own NML command/error channels on one worker thread.
 
@@ -187,7 +189,7 @@ class Controller:
                 self._config.can_home_all(), self._config.homing_message or "回零配置无效"
             )
             return
-        if name == "camReady":
+        if name in ("camReady", "camSetup"):
             self._guard("homedIdle")
             self._require(
                 bool(self._snapshot["homed"]) and all(self._snapshot["homed"]),
@@ -201,7 +203,8 @@ class Controller:
                 ),
                 "机床触发硬限位",
             )
-            self._require(not self._snapshot["blockDelete"], "自动加工不允许跳过带 / 的程序行")
+            if name == "camReady":
+                self._require(not self._snapshot["blockDelete"], "自动加工不允许跳过带 / 的程序行")
             return
         s = self._snapshot
         self._require(s["connected"], "LinuxCNC 未连接，拒绝命令")
@@ -485,19 +488,33 @@ class Controller:
         return deepcopy(self._cam_job)
 
     def start_received(
-        self, transfer_id, *, home_first=False, clearance_confirmed=False, machining_confirmed=False
+        self,
+        transfer_id,
+        *,
+        home_first=False,
+        clearance_confirmed=False,
+        machining_confirmed=False,
+        disable_block_delete=False,
     ):
         """Load and run one verified inbox program, with durable at-most-once intent."""
+        self._require(type(disable_block_delete) is bool, "disableBlockDelete 必须是布尔值")
+        self._require(not disable_block_delete or home_first, "仅完整加工可配置跳过标记行")
         previous = self.received_status(transfer_id)
         if previous is not None:
             self._require(
                 (previous.get("kind") == "home-and-run") == home_first,
                 "transferId 已用于不同的执行流程",
             )
+            self._require(
+                previous.get("disableBlockDelete", False) == disable_block_delete,
+                "transferId 已用于不同的标记行设置",
+            )
             return previous
         self._refresh(False)
         self._cam_idle()
-        record = self._received.reserve(transfer_id, home_first=home_first)
+        record = self._received.reserve(
+            transfer_id, home_first=home_first, disable_block_delete=disable_block_delete
+        )
         self._cam_job = record
         self._action = "program.run-received"
         try:
@@ -508,6 +525,17 @@ class Controller:
                 self._guard("camReady")
                 steps = []
             path = confined_path(record["path"])
+            if disable_block_delete:
+                # Confirm the setting after homing and before loading any NC file.
+                # All normal CAM interlocks except the setting being cleared still apply.
+                steps.append(
+                    self._step(
+                        "set_block_delete",
+                        0,
+                        guard="camSetup",
+                        expected=lambda: not self._snapshot["blockDelete"],
+                    )
+                )
             steps += [
                 self._step(
                     "program_open",
@@ -1059,3 +1087,7 @@ class Controller:
         caps["jog.start"] = idle and free and (s["motionMode"] == "joint" or self._homed())
         caps["machine.jog-plus"] = caps["machine.jog-minus"] = caps["jog.start"]
         return caps
+
+
+# END: Controller
+# --------#

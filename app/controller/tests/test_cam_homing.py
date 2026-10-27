@@ -27,12 +27,13 @@ class CamHomingTests(unittest.TestCase):
         )
         self.addCleanup(self.controller.close)
 
-    def workflow(self):
+    def workflow(self, **options):
         return self.controller.start_received(
             self.transfer,
             home_first=True,
             clearance_confirmed=True,
             machining_confirmed=True,
+            **options,
         )
 
     def reach(self, command):
@@ -177,6 +178,48 @@ class CamHomingTests(unittest.TestCase):
         self.workflow()
         with self.assertRaises(ValueError):
             self.controller.start_received(self.transfer)
+
+    def test_opt_in_clears_block_delete_after_home_and_waits_before_loading(self):
+        self.vendor.status.block_delete = True
+        self.workflow(disable_block_delete=True)
+        self.reach("set_block_delete")
+        self.assertEqual(self.vendor.calls[-1], ("set_block_delete", (0,)))
+        self.assertTrue(all(self.vendor.status.homed))
+        self.vendor.confirm(apply=False)
+        self.controller.poll()
+        self.assertFalse(any(name == "program_open" for name, _ in self.vendor.calls))
+        self.vendor.confirm()
+        self.reach("auto")
+        self.assertFalse(self.vendor.status.block_delete)
+        before = list(self.vendor.calls)
+        self.workflow(disable_block_delete=True)
+        self.assertEqual(before, self.vendor.calls)
+        with self.assertRaises(ValueError):
+            self.workflow(disable_block_delete=False)
+
+    def test_block_delete_is_never_changed_without_opt_in(self):
+        self.vendor.status.block_delete = True
+        self.workflow()
+        self.reach("home")
+        self.vendor.confirm()
+        self.controller.poll()
+        self.assertEqual(self.controller.received_status(self.transfer)["state"], "error")
+        self.assertFalse(
+            any(
+                name in ("set_block_delete", "program_open", "auto")
+                for name, _ in self.vendor.calls
+            )
+        )
+
+    def test_failed_setting_acknowledgement_never_loads_or_runs(self):
+        self.vendor.status.block_delete = True
+        self.workflow(disable_block_delete=True)
+        self.reach("set_block_delete")
+        self.vendor.confirm(apply=False)
+        self.clock.now += 11
+        self.controller.poll()
+        self.assertEqual(self.controller.received_status(self.transfer)["state"], "unknown")
+        self.assertFalse(any(name in ("program_open", "auto") for name, _ in self.vendor.calls))
 
 
 if __name__ == "__main__":
